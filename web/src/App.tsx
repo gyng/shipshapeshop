@@ -1,50 +1,302 @@
-import { useEffect, useRef, useState } from 'react'
-import init, { tick, core_version } from 'shipshape-core'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useGame, RARITY_ORDER } from './game/store'
+import { Stage } from './three/Stage'
+import { HeroGem, RARITY_COLOR } from './three/Gem'
 
-/**
- * M0 scaffold: proves the Rust→WASM→React pipeline end-to-end.
- *
- * The architecture pattern is already modelled here even though the economy is a placeholder:
- * the number is computed in **Rust** (`tick`), accumulated cheaply per frame into a ref, and the
- * **display** is updated on a slow cadence (the real loop will never serialise across the WASM
- * boundary every frame). The real seeded economy replaces the placeholder rate in M1.
- */
-export function App() {
-  const [version, setVersion] = useState('loading core…')
-  const [flux, setFlux] = useState(0)
-  const fluxRef = useRef(0)
+function fmt(n: number): string {
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
+  if (n >= 1e4) return (n / 1e3).toFixed(1) + 'k'
+  return Math.floor(n).toLocaleString()
+}
 
+// Smoothly count Flux between the 1s WASM ticks (extrapolate from rate; never the source of truth).
+function useFluxDisplay(): number {
+  const flux = useGame((s) => s.view?.flux ?? 0)
+  const rate = useGame((s) => s.view?.rate_per_hr ?? 0)
+  const [disp, setDisp] = useState(0)
+  const ref = useRef({ base: 0, rate: 0, t: 0 })
+  useEffect(() => {
+    ref.current = { base: flux, rate, t: performance.now() }
+  }, [flux, rate])
   useEffect(() => {
     let raf = 0
-    let last = 0
-    let displayTimer = 0
-
-    init().then(() => {
-      setVersion(core_version())
-      last = performance.now()
-      const loop = (now: number) => {
-        const dt = (now - last) / 1000
-        last = now
-        fluxRef.current += tick(dt, 50) // placeholder rate; real Rust economy lands in M1
-        raf = requestAnimationFrame(loop)
-      }
+    const loop = () => {
+      const { base, rate: r, t } = ref.current
+      setDisp(base + (r * (performance.now() - t)) / 3_600_000)
       raf = requestAnimationFrame(loop)
-    })
-
-    displayTimer = window.setInterval(() => setFlux(fluxRef.current), 250)
-
-    return () => {
-      cancelAnimationFrame(raf)
-      clearInterval(displayTimer)
     }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
   }, [])
+  return disp
+}
 
+type Tab = 'gacha' | 'gallery' | 'engine'
+
+export function App() {
+  const { ready, boot } = useGame()
+  useEffect(() => {
+    void boot()
+  }, [boot])
+  const [tab, setTab] = useState<Tab>('gacha')
+  const [inspect, setInspect] = useState<number | null>(null)
+
+  if (!ready) {
+    return <div style={S.loading}>Lighting the Atlas…</div>
+  }
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', padding: 32, color: '#e8e8f0', background: '#0d0d14', minHeight: '100vh' }}>
-      <h1 style={{ margin: 0 }}>Ship Shape Shop</h1>
-      <p style={{ opacity: 0.6, marginTop: 4 }}>{version}</p>
-      <p style={{ fontSize: 28, fontVariantNumeric: 'tabular-nums' }}>✦ Flux: {Math.floor(flux).toLocaleString()}</p>
-      <small style={{ opacity: 0.5 }}>M0 scaffold — Rust→WASM core driving the tick. Economy, gacha, and the gems come next.</small>
-    </main>
+    <div style={S.app}>
+      <Hud />
+      <nav style={S.nav}>
+        {(['gacha', 'gallery', 'engine'] as Tab[]).map((t) => (
+          <button key={t} onClick={() => setTab(t)} style={{ ...S.navBtn, ...(tab === t ? S.navBtnActive : {}) }}>
+            {t === 'gacha' ? 'Pull' : t === 'gallery' ? 'Gallery' : 'Engine'}
+          </button>
+        ))}
+      </nav>
+      <main style={S.main}>
+        {tab === 'gacha' && <GachaView />}
+        {tab === 'gallery' && <GalleryView onInspect={setInspect} />}
+        {tab === 'engine' && <EngineView />}
+      </main>
+      <RevealModal />
+      <OfflineModal />
+      {inspect !== null && <Inspector id={inspect} onClose={() => setInspect(null)} />}
+    </div>
   )
+}
+
+function Hud() {
+  const view = useGame((s) => s.view)
+  const flux = useFluxDisplay()
+  if (!view) return null
+  return (
+    <header style={S.hud}>
+      <div>
+        <span style={S.fluxLabel}>✦ Flux</span>
+        <span style={S.fluxValue}>{fmt(flux)}</span>
+        <span style={S.rate}>+{fmt(view.rate_per_hr)}/hr</span>
+      </div>
+      <div style={S.hudStats}>
+        <span>◈ {view.shards} shards</span>
+        <span>Collection {view.distinct_owned}/41</span>
+        <span>Dim v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
+      </div>
+    </header>
+  )
+}
+
+function GachaView() {
+  const { view, pull, tenPull, shapes, lastReveal } = useGame()
+  const focusId = lastReveal?.[0]?.shape_id ?? 0
+  const shape = shapes[focusId] ?? shapes[0]
+  if (!view) return null
+  return (
+    <div style={S.gacha}>
+      <div style={S.stageWrap}>
+        {shape && <Stage controls><HeroGem family={shape.family} rarity={shape.rarity} /></Stage>}
+        {shape && <div style={S.focusName}>{shape.nick} <em style={S.focusFam}>· {shape.family.replace(/_/g, ' ')}</em></div>}
+      </div>
+      <div style={S.pitymeters}>
+        <Meter label={`SSR+ pity ${view.pity_since_top}/30`} pct={view.pity_since_top / 30} color="#ffb86b" />
+        <Meter label={`Resonance ${view.resonance}/40`} pct={view.resonance / 40} color="#ff5d8f" />
+      </div>
+      <div style={S.pullRow}>
+        <button style={{ ...S.pullBtn, opacity: view.can_pull ? 1 : 0.4 }} disabled={!view.can_pull} onClick={pull}>
+          Pull · 100 ✦
+        </button>
+        <button style={{ ...S.pullBtn10, opacity: view.flux >= 1000 ? 1 : 0.4 }} disabled={view.flux < 1000} onClick={tenPull}>
+          Pull ×10 · 1000 ✦
+        </button>
+      </div>
+      <p style={S.hint}>Pulls cost idle-generated Flux. Pity guarantees an SSR+ by 30; every pull builds Resonance — at 40 you claim a wanted shape.</p>
+    </div>
+  )
+}
+
+function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
+  const { shapes, view } = useGame()
+  if (!view) return null
+  return (
+    <div style={S.gallery}>
+      {RARITY_ORDER.map((r) => (
+        <section key={r}>
+          <h3 style={{ ...S.tierHead, color: RARITY_COLOR[r] }}>{r === 'Ssr' ? 'SSR' : r === 'Ur' ? 'UR' : r}</h3>
+          <div style={S.grid}>
+            {shapes.filter((s) => s.rarity === r).map((s) => {
+              const owned = view.owned[s.id] > 0
+              return (
+                <button key={s.id} onClick={() => onInspect(s.id)}
+                  style={{ ...S.tile, borderColor: owned ? RARITY_COLOR[r] : '#23252f', color: owned ? '#fff' : '#555' }}>
+                  <span style={{ ...S.tileDot, background: owned ? RARITY_COLOR[r] : '#2a2c3a' }} />
+                  {owned ? s.nick : '???'}
+                  {view.owned[s.id] > 1 && <span style={S.dupe}>×{view.owned[s.id]}</span>}
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+function EngineView() {
+  const { shapes, view, deploy, undeploy, autoArrange, recrystallize } = useGame()
+  if (!view) return null
+  const owned = shapes.filter((s) => view.owned[s.id] > 0)
+  return (
+    <div style={S.engine}>
+      <div style={S.engineHead}>
+        <div>
+          <strong>Euler Budget {view.euler_used}/{view.euler_cap}</strong>
+          <div style={S.rate}>Producing +{fmt(view.rate_per_hr)} Flux/hr</div>
+        </div>
+        <div style={S.engineBtns}>
+          <button style={S.smallBtn} onClick={autoArrange}>Auto-arrange</button>
+          <button style={{ ...S.smallBtn, opacity: view.core_complete ? 1 : 0.4 }} disabled={!view.core_complete} onClick={recrystallize}>
+            Recrystallize ↑ (NG+)
+          </button>
+        </div>
+      </div>
+      <p style={S.hint}>Deploy shapes to produce Flux — but exotic, many-holed shapes weigh on the floor (cost Euler budget). Round shapes are free ballast.</p>
+      <div style={S.engineList}>
+        {owned.map((s) => {
+          const isOn = view.loadout.includes(s.id)
+          const wouldFit = isOn || view.euler_used + s.euler_cost <= view.euler_cap
+          return (
+            <div key={s.id} style={{ ...S.engineRow, borderColor: isOn ? RARITY_COLOR[s.rarity] : '#23252f' }}>
+              <span style={{ ...S.tileDot, background: RARITY_COLOR[s.rarity] }} />
+              <span style={S.engineNick}>{s.nick}</span>
+              <span style={S.engineCost}>cost {s.euler_cost}{s.genus > 0 ? ` · ${s.genus} lanes` : ''}</span>
+              <button
+                style={{ ...S.toggle, ...(isOn ? S.toggleOn : {}), opacity: wouldFit ? 1 : 0.35 }}
+                disabled={!wouldFit}
+                onClick={() => (isOn ? undeploy(s.id) : deploy(s.id))}
+              >
+                {isOn ? 'Deployed' : 'Deploy'}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function Meter({ label, pct, color }: { label: string; pct: number; color: string }) {
+  return (
+    <div style={S.meter}>
+      <span style={S.meterLabel}>{label}</span>
+      <div style={S.meterTrack}><div style={{ ...S.meterFill, width: `${Math.min(100, pct * 100)}%`, background: color }} /></div>
+    </div>
+  )
+}
+
+function RevealModal() {
+  const { lastReveal, shapes, dismissReveal } = useGame()
+  if (!lastReveal) return null
+  const best = [...lastReveal].sort((a, b) => RARITY_ORDER.indexOf(b.rarity!) - RARITY_ORDER.indexOf(a.rarity!))[0]
+  const shape = shapes[best.shape_id]
+  return (
+    <div style={S.modal} onClick={dismissReveal}>
+      <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
+        <div style={S.revealStage}>{shape && <Stage><HeroGem family={shape.family} rarity={shape.rarity} spin={0.8} /></Stage>}</div>
+        {shape && <h2 style={{ color: RARITY_COLOR[shape.rarity] }}>{shape.nick}</h2>}
+        {shape && <p style={S.revealSub}>{best.is_new ? '✦ New shape!' : `Duplicate · +${best.dupe_shards} shards`}</p>}
+        {lastReveal.length > 1 && (
+          <div style={S.revealRow}>
+            {lastReveal.map((o, i) => {
+              const sh = shapes[o.shape_id]
+              return <span key={i} style={{ ...S.miniGem, background: sh ? RARITY_COLOR[sh.rarity] : '#333' }} title={sh?.nick} />
+            })}
+          </div>
+        )}
+        <button style={S.pullBtn} onClick={dismissReveal}>Continue</button>
+      </div>
+    </div>
+  )
+}
+
+function OfflineModal() {
+  const { offline, dismissOffline } = useGame()
+  if (!offline) return null
+  const hrs = (offline.capped_ms / 3_600_000).toFixed(1)
+  return (
+    <div style={S.modal} onClick={dismissOffline}>
+      <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
+        <h2>Welcome back, Curator</h2>
+        <p style={S.revealSub}>The Atlas hummed for {hrs}h while you were away.</p>
+        <p style={{ ...S.fluxValue, color: '#5fe0c6' }}>+{fmt(offline.gained_flux)} ✦</p>
+        <button style={S.pullBtn} onClick={dismissOffline}>Collect</button>
+      </div>
+    </div>
+  )
+}
+
+function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
+  const { shapes, view } = useGame()
+  const s = shapes[id]
+  if (!s || !view) return null
+  const owned = view.owned[id] > 0
+  return (
+    <div style={S.modal} onClick={onClose}>
+      <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
+        <div style={S.revealStage}><Stage controls><HeroGem family={s.family} rarity={s.rarity} spin={0.3} /></Stage></div>
+        <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{owned ? s.nick : '??? (undiscovered)'}</h2>
+        <p style={S.revealSub}>{s.rarity === 'Ssr' ? 'SSR' : s.rarity} · {s.family.replace(/_/g, ' ')}</p>
+        <p style={S.hint}>{s.genus > 0 ? `${s.genus} hole${s.genus > 1 ? 's' : ''} → ${s.genus} production lane${s.genus > 1 ? 's' : ''}. ` : 'No holes — free to deploy. '}Euler cost {s.euler_cost}.</p>
+        <button style={S.pullBtn} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  )
+}
+
+const S: Record<string, CSSProperties> = {
+  loading: { color: '#9aa6c2', background: '#0d0d16', height: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'system-ui', fontSize: 18 },
+  app: { background: '#0d0d16', color: '#e8e8f0', minHeight: '100vh', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' },
+  hud: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderBottom: '1px solid #1c1e2a', flexWrap: 'wrap', gap: 8 },
+  fluxLabel: { color: '#8a90a8', marginRight: 8, fontSize: 13 },
+  fluxValue: { fontSize: 26, fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
+  rate: { color: '#5fe0c6', marginLeft: 10, fontSize: 13 },
+  hudStats: { display: 'flex', gap: 16, fontSize: 13, color: '#aab' },
+  nav: { display: 'flex', gap: 4, padding: '8px 16px', borderBottom: '1px solid #1c1e2a' },
+  navBtn: { background: 'none', border: 'none', color: '#8a90a8', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 15 },
+  navBtnActive: { background: '#1c1e2a', color: '#fff' },
+  main: { flex: 1, padding: 16, overflow: 'auto' },
+  gacha: { maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 },
+  stageWrap: { position: 'relative', height: 340, borderRadius: 16, overflow: 'hidden', background: '#0a0a12' },
+  focusName: { position: 'absolute', bottom: 10, left: 0, right: 0, textAlign: 'center', fontSize: 18, fontWeight: 600, pointerEvents: 'none' },
+  focusFam: { color: '#8a90a8', fontStyle: 'normal', fontWeight: 400, fontSize: 13 },
+  pitymeters: { display: 'flex', flexDirection: 'column', gap: 6 },
+  meter: { display: 'flex', flexDirection: 'column', gap: 3 },
+  meterLabel: { fontSize: 11, color: '#8a90a8' },
+  meterTrack: { height: 6, background: '#1c1e2a', borderRadius: 3, overflow: 'hidden' },
+  meterFill: { height: '100%', borderRadius: 3, transition: 'width 0.3s' },
+  pullRow: { display: 'flex', gap: 10 },
+  pullBtn: { flex: 1, background: 'linear-gradient(135deg,#ff5d8f,#b985ff)', border: 'none', color: '#fff', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer' },
+  pullBtn10: { flex: 1, background: '#1c1e2a', border: '1px solid #ff5d8f', color: '#fff', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer' },
+  hint: { color: '#8a90a8', fontSize: 12, lineHeight: 1.5 },
+  gallery: { maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 },
+  tierHead: { margin: '0 0 8px', fontSize: 15 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(120px,1fr))', gap: 8 },
+  tile: { display: 'flex', alignItems: 'center', gap: 8, background: '#13141d', border: '1px solid', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', fontSize: 14, textAlign: 'left' },
+  tileDot: { width: 12, height: 12, borderRadius: '50%', flexShrink: 0 },
+  dupe: { marginLeft: 'auto', color: '#8a90a8', fontSize: 12 },
+  engine: { maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 },
+  engineHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
+  engineBtns: { display: 'flex', gap: 8 },
+  smallBtn: { background: '#1c1e2a', border: '1px solid #2a2c3a', color: '#fff', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 13 },
+  engineList: { display: 'flex', flexDirection: 'column', gap: 6 },
+  engineRow: { display: 'flex', alignItems: 'center', gap: 10, background: '#13141d', border: '1px solid', borderRadius: 10, padding: '8px 12px' },
+  engineNick: { fontWeight: 600 },
+  engineCost: { color: '#8a90a8', fontSize: 12, marginLeft: 'auto', marginRight: 10 },
+  toggle: { background: '#1c1e2a', border: '1px solid #2a2c3a', color: '#fff', padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 13 },
+  toggleOn: { background: '#28304a', borderColor: '#5fe0c6' },
+  modal: { position: 'fixed', inset: 0, background: 'rgba(5,5,10,0.82)', display: 'grid', placeItems: 'center', zIndex: 10, padding: 16 },
+  revealCard: { background: '#13141d', border: '1px solid #2a2c3a', borderRadius: 18, padding: 24, textAlign: 'center', maxWidth: 420, width: '100%' },
+  revealStage: { height: 280, borderRadius: 12, overflow: 'hidden', marginBottom: 10, background: '#0a0a12' },
+  revealSub: { color: '#aab', margin: '4px 0 14px' },
+  revealRow: { display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
+  miniGem: { width: 18, height: 18, borderRadius: '50%' },
 }
