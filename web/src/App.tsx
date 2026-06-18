@@ -64,6 +64,7 @@ export function App() {
       <RevealModal />
       <ForgeToast />
       <OfflineModal />
+      <WelcomeModal />
       {inspect !== null && <Inspector id={inspect} onClose={() => setInspect(null)} />}
     </div>
   )
@@ -307,6 +308,27 @@ function ForgeToast() {
         {s && <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{s.nick}</h2>}
         <p style={S.revealSub}>{lastForge.is_discovery ? '✦ Discovery! Forged for the first time (+100 shards)' : 'Forged.'}</p>
         <button style={S.pullBtn} onClick={dismissForge}>Continue</button>
+      </div>
+    </div>
+  )
+}
+
+function WelcomeModal() {
+  const { firstLaunch, dismissWelcome } = useGame()
+  if (!firstLaunch) return null
+  return (
+    <div style={S.modal} onClick={dismissWelcome}>
+      <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
+        <h2>The Atlas</h2>
+        <p style={S.revealSub}>
+          “If you’re reading this, you’re the new Curator. I left the lights off to save the floor. Pull the
+          cord — let’s see who washes up.” <em>— your predecessor’s notes</em>
+        </p>
+        <p style={S.hint}>
+          Pull shapes from the Manifold, learn what they truly are, and light the Atlas room by room. Idle
+          Flux accrues even while you’re away. The summit looks up into the fourth dimension.
+        </p>
+        <button style={S.pullBtn} onClick={dismissWelcome}>Begin ✦</button>
       </div>
     </div>
   )

@@ -15,6 +15,7 @@ const BASE_IDLE: f64 = 60.0; // Flux/hr with an empty loadout
 const RATE_CAP: f64 = 900.0; // Flux/hr cap before prestige (DESIGN §7)
 const OFFLINE_CAP_MS: f64 = 12.0 * 3_600_000.0; // generous 12h
 const START_EULER_CAP: u32 = 6;
+const START_FLUX: f64 = 350.0; // onboarding: ~3 pulls in hand immediately, no 100-minute wait
 const MS_PER_HOUR: f64 = 3_600_000.0;
 const FORGE_COST: u64 = 50; // shards to forge
 const BOND_INSPECT_GAIN: u32 = 25; // affinity per inspect (the calm idler's path to bonds)
@@ -109,7 +110,7 @@ impl GameState {
             master_seed,
             created_ms: now_ms,
             last_seen_ms: now_ms,
-            flux: 0.0,
+            flux: START_FLUX,
             shards: 0,
             pity: PityState::default(),
             owned: vec![0; COUNT],

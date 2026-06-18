@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import init, { Game, shapes_json, recipes_json, core_version } from 'shipshape-core'
+import { sfxPull, sfxReveal, sfxForge, rarityRank } from '../audio'
 
 // ── Types mirrored from the Rust core (the WASM layer is the source of truth) ──
 export type RarityName = 'Common' | 'Rare' | 'Epic' | 'Ssr' | 'Ur'
@@ -82,6 +83,7 @@ function persist() {
 
 interface Store {
   ready: boolean
+  firstLaunch: boolean
   version: string
   shapes: ShapeRow[]
   recipes: Recipe[]
@@ -90,6 +92,7 @@ interface Store {
   lastForge: ForgeResult | null
   offline: OfflineReport | null
   boot: () => Promise<void>
+  dismissWelcome: () => void
   refresh: () => void
   pull: () => void
   tenPull: () => void
@@ -106,6 +109,7 @@ interface Store {
 
 export const useGame = create<Store>((set, get) => ({
   ready: false,
+  firstLaunch: false,
   version: '',
   shapes: [],
   recipes: [],
@@ -133,7 +137,7 @@ export const useGame = create<Store>((set, get) => ({
       const seed = Math.floor(Math.random() * 2 ** 48)
       game = new Game(seed, now())
     }
-    set({ ready: true, version: core_version(), shapes, recipes, offline })
+    set({ ready: true, firstLaunch: !saved, version: core_version(), shapes, recipes, offline })
     get().refresh()
     persist()
     // idle tick: advance the economy on a slow cadence (display is extrapolated in the HUD)
@@ -152,20 +156,24 @@ export const useGame = create<Store>((set, get) => ({
 
   pull: () => {
     if (!game) return
+    sfxPull()
     const out = JSON.parse(game.pull(now())) as PullOutcome
     if (out.ok) {
       get().refresh()
       persist()
+      sfxReveal(rarityRank(out.rarity))
       set({ lastReveal: [out] })
     }
   },
 
   tenPull: () => {
     if (!game) return
+    sfxPull()
     const outs = JSON.parse(game.ten_pull(now())) as PullOutcome[]
     if (outs.length > 0) {
       get().refresh()
       persist()
+      sfxReveal(Math.max(...outs.map((o) => rarityRank(o.rarity))))
       set({ lastReveal: outs })
     }
   },
@@ -204,9 +212,11 @@ export const useGame = create<Store>((set, get) => ({
     if (r.ok) {
       get().refresh()
       persist()
+      sfxForge()
       set({ lastForge: r })
     }
   },
+  dismissWelcome: () => set({ firstLaunch: false }),
   dismissReveal: () => set({ lastReveal: null }),
   dismissForge: () => set({ lastForge: null }),
   dismissOffline: () => set({ offline: null }),
