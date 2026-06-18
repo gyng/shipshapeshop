@@ -1,0 +1,28 @@
+# Node / web (Vite + React + TS)
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+coverage/
+.eslintcache
+
+# Rust core (→ WASM)
+/core/target/
+**/target/
+*.wasm
+pkg/
+Cargo.lock
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*.log
+
+# Env / secrets
+.env
+.env.*
+!.env.example
