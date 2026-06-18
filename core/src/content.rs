@@ -88,8 +88,34 @@ pub fn rarity_range(r: Rarity) -> std::ops::Range<usize> {
     }
 }
 
-/// Effective production (Flux/hr) of a deployed shape: base + genus "handle-lane" bonus.
+/// Effective production (Flux/hr) of a deployed shape: base + genus "handle-lane" bonus (M7: each hole is
+/// a parallel production lane).
 pub fn effective_prod(id: usize) -> f64 {
     let s = &SHAPES[id];
     s.base_prod * (1.0 + 0.25 * s.genus as f64)
 }
+
+/// Connected-sum forge recipes (M6): gluing two shapes makes a third, by the real topology
+/// (Mö # Mö = Klein; torus # torus = genus-2; …). Inputs unordered; the output is granted on craft.
+pub struct Recipe {
+    pub a: usize,
+    pub b: usize,
+    pub out: usize,
+}
+
+pub const RECIPES: &[Recipe] = &[
+    Recipe { a: 11, b: 11, out: 18 }, // Mo # Mo = Klein bottle (the flagship)
+    Recipe { a: 19, b: 19, out: 18 }, // RP2 # RP2 = Klein bottle
+    Recipe { a: 10, b: 10, out: 12 }, // torus # torus = genus-2
+    Recipe { a: 10, b: 12, out: 32 }, // torus # genus-2 = triple torus
+];
+
+/// Find a recipe matching an unordered input pair.
+pub fn find_recipe(a: usize, b: usize) -> Option<usize> {
+    RECIPES
+        .iter()
+        .position(|r| (r.a == a && r.b == b) || (r.a == b && r.b == a))
+}
+
+/// The 5 Platonic solids (a family set, M7): completing it grants a permanent global bonus.
+pub const PLATONIC_IDS: [usize; 5] = [1, 2, 3, 4, 5]; // cube, tetra, octa, dodeca, icosa

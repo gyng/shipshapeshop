@@ -8,7 +8,7 @@ use wasm_bindgen::prelude::*;
 use crate::content::{self, COUNT, SHAPES};
 use crate::gacha::{roll_rarity, shape_index, PityState, Rarity};
 
-const SCHEMA_VERSION: u32 = 1;
+const SCHEMA_VERSION: u32 = 2;
 const PULL_COST: f64 = 100.0;
 const TEN_PULL_COST: f64 = 1000.0; // 11 pulls for the price of 10
 const BASE_IDLE: f64 = 60.0; // Flux/hr with an empty loadout
@@ -16,6 +16,11 @@ const RATE_CAP: f64 = 900.0; // Flux/hr cap before prestige (DESIGN §7)
 const OFFLINE_CAP_MS: f64 = 12.0 * 3_600_000.0; // generous 12h
 const START_EULER_CAP: u32 = 6;
 const MS_PER_HOUR: f64 = 3_600_000.0;
+const FORGE_COST: u64 = 50; // shards to forge
+const BOND_INSPECT_GAIN: u32 = 25; // affinity per inspect (the calm idler's path to bonds)
+const BOND_THRESHOLDS: [u32; 6] = [0, 100, 300, 700, 1500, 3000]; // levels 0..5
+const PLATONIC_SET_MULT: f64 = 0.15; // +15% global for completing the Platonic set
+const AFFINITY_PER_HR_DEPLOYED: f64 = 30.0; // passive bond gain while deployed
 
 fn shard_value(r: Rarity) -> u64 {
     match r {
@@ -42,6 +47,10 @@ pub struct GameState {
     pub viewport_dim: u32,  // prestige axis (starts at 3 = our native 3D vantage)
     pub ng_cycle: u32,
     pub prestige_mult: f64, // 1.6^ng_cycle
+    #[serde(default)]
+    pub bonds: Vec<u32>, // affinity per shape id (len = COUNT)
+    #[serde(default)]
+    pub discovered: Vec<bool>, // forge recipes discovered (len = RECIPES.len())
 }
 
 #[derive(Serialize)]
@@ -53,6 +62,13 @@ pub struct PullOutcome {
     pub dupe_shards: u64,
     pub spark_shape_id: i32, // -1 if no spark this pull
     pub spark_is_new: bool,
+}
+
+#[derive(Serialize)]
+pub struct ForgeResult {
+    pub ok: bool,
+    pub out_id: i32,
+    pub is_discovery: bool,
 }
 
 #[derive(Serialize)]
@@ -80,6 +96,10 @@ pub struct GameStateView {
     pub total_pulls: u64,
     pub can_pull: bool,
     pub core_complete: bool,
+    pub bonds: Vec<u32>,
+    pub bond_levels: Vec<u32>,
+    pub discovered: Vec<bool>,
+    pub platonic_set: bool,
 }
 
 impl GameState {
@@ -98,18 +118,83 @@ impl GameState {
             viewport_dim: 3,
             ng_cycle: 0,
             prestige_mult: 1.0,
+            bonds: vec![0; COUNT],
+            discovered: vec![false; content::RECIPES.len()],
         }
     }
 
     pub fn rate_per_hr(&self) -> f64 {
         let sum: f64 = self.loadout.iter().map(|&id| content::effective_prod(id)).sum();
-        (BASE_IDLE + sum).min(RATE_CAP) * self.prestige_mult
+        (BASE_IDLE + sum).min(RATE_CAP) * self.prestige_mult * self.set_bonus_mult() * self.bond_mult()
+    }
+
+    /// Family set bonus (M7): completing the 5 Platonic solids grants a permanent global multiplier.
+    pub fn set_bonus_mult(&self) -> f64 {
+        let platonic = content::PLATONIC_IDS.iter().all(|&id| self.owned[id] > 0);
+        1.0 + if platonic { PLATONIC_SET_MULT } else { 0.0 }
+    }
+
+    pub fn bond_level(&self, id: usize) -> u32 {
+        let a = self.bonds.get(id).copied().unwrap_or(0);
+        let mut lvl = 0;
+        for (i, &t) in BOND_THRESHOLDS.iter().enumerate() {
+            if a >= t {
+                lvl = i as u32;
+            }
+        }
+        lvl
+    }
+
+    /// Small permanent buff from the bond levels of deployed shapes (rewards attachment, never required).
+    pub fn bond_mult(&self) -> f64 {
+        let lv: u32 = self.loadout.iter().map(|&id| self.bond_level(id)).sum();
+        1.0 + 0.03 * lv as f64
+    }
+
+    fn add_affinity(&mut self, dt_ms: f64) {
+        let gain = (AFFINITY_PER_HR_DEPLOYED * dt_ms / MS_PER_HOUR) as u32;
+        if gain == 0 {
+            return;
+        }
+        let cap = *BOND_THRESHOLDS.last().unwrap();
+        for id in self.loadout.clone() {
+            self.bonds[id] = (self.bonds[id] + gain).min(cap);
+        }
+    }
+
+    /// Inspecting a shape (a calm, zero-skill action) grants affinity — the idler's path to bonds.
+    pub fn inspect(&mut self, id: usize) {
+        if id < COUNT && self.owned[id] > 0 {
+            let cap = *BOND_THRESHOLDS.last().unwrap();
+            self.bonds[id] = (self.bonds[id] + BOND_INSPECT_GAIN).min(cap);
+        }
+    }
+
+    /// Forge two owned shapes via a connected-sum recipe; grants the output, costs shards, flags discovery.
+    pub fn forge(&mut self, a: usize, b: usize) -> ForgeResult {
+        let fail = ForgeResult { ok: false, out_id: -1, is_discovery: false };
+        let Some(ri) = content::find_recipe(a, b) else {
+            return fail;
+        };
+        if a >= COUNT || b >= COUNT || self.owned[a] == 0 || self.owned[b] == 0 || self.shards < FORGE_COST {
+            return fail;
+        }
+        self.shards -= FORGE_COST;
+        let out = content::RECIPES[ri].out;
+        self.grant(out, SHAPES[out].rarity);
+        let is_discovery = !self.discovered[ri];
+        self.discovered[ri] = true;
+        if is_discovery {
+            self.shards += 100; // discovery sting reward
+        }
+        ForgeResult { ok: true, out_id: out as i32, is_discovery }
     }
 
     /// Foreground accumulation (rate is piecewise-constant between actions → O(1)).
     pub fn tick(&mut self, now_ms: f64) {
         let dt = (now_ms - self.last_seen_ms).max(0.0);
         self.flux += self.rate_per_hr() * (dt / MS_PER_HOUR);
+        self.add_affinity(dt);
         self.last_seen_ms = now_ms;
     }
 
@@ -119,6 +204,7 @@ impl GameState {
         let capped = elapsed.min(OFFLINE_CAP_MS);
         let gained = self.rate_per_hr() * (capped / MS_PER_HOUR);
         self.flux += gained;
+        self.add_affinity(capped);
         self.last_seen_ms = now_ms;
         OfflineReport { elapsed_ms: elapsed, capped_ms: capped, gained_flux: gained }
     }
@@ -264,6 +350,12 @@ impl GameState {
         if state.owned.len() != COUNT {
             state.owned.resize(COUNT, 0);
         }
+        if state.bonds.len() != COUNT {
+            state.bonds.resize(COUNT, 0);
+        }
+        if state.discovered.len() != content::RECIPES.len() {
+            state.discovered.resize(content::RECIPES.len(), false);
+        }
         state.loadout.retain(|&id| id < COUNT && state.owned[id] > 0);
         state.schema_version = SCHEMA_VERSION;
         Ok(state)
@@ -287,6 +379,10 @@ impl GameState {
             total_pulls: self.pity.counter,
             can_pull: self.flux >= PULL_COST,
             core_complete: self.core_complete(),
+            bonds: self.bonds.clone(),
+            bond_levels: (0..COUNT).map(|i| self.bond_level(i)).collect(),
+            discovered: self.discovered.clone(),
+            platonic_set: content::PLATONIC_IDS.iter().all(|&id| self.owned[id] > 0),
         }
     }
 }
@@ -347,6 +443,12 @@ impl Game {
     pub fn recrystallize(&mut self) -> bool {
         self.state.recrystallize()
     }
+    pub fn inspect(&mut self, id: usize) {
+        self.state.inspect(id)
+    }
+    pub fn forge(&mut self, a: usize, b: usize) -> String {
+        serde_json::to_string(&self.state.forge(a, b)).unwrap()
+    }
     pub fn serialize(&self) -> String {
         self.state.to_json()
     }
@@ -377,6 +479,32 @@ pub fn shapes_json() -> String {
             rarity: s.rarity,
             genus: s.genus,
             euler_cost: s.euler_cost,
+        })
+        .collect();
+    serde_json::to_string(&rows).unwrap()
+}
+
+/// The forge recipe table for the web layer.
+#[wasm_bindgen]
+pub fn recipes_json() -> String {
+    #[derive(Serialize)]
+    struct RecipeRow {
+        a: usize,
+        b: usize,
+        out: usize,
+        a_nick: &'static str,
+        b_nick: &'static str,
+        out_nick: &'static str,
+    }
+    let rows: Vec<RecipeRow> = content::RECIPES
+        .iter()
+        .map(|r| RecipeRow {
+            a: r.a,
+            b: r.b,
+            out: r.out,
+            a_nick: SHAPES[r.a].nick,
+            b_nick: SHAPES[r.b].nick,
+            out_nick: SHAPES[r.out].nick,
         })
         .collect();
     serde_json::to_string(&rows).unwrap()
@@ -488,5 +616,55 @@ mod tests {
         // collection carries over; run resets
         assert_eq!(g.distinct_owned(), COUNT as u32);
         assert!(g.loadout.is_empty());
+    }
+
+    #[test]
+    fn forge_connected_sum_grants_output_and_flags_discovery() {
+        let mut g = GameState::new(1, 0.0);
+        g.owned[11] = 2; // Mo (Möbius)
+        g.shards = 100;
+        let r = g.forge(11, 11); // Mö # Mö = Klein (id 18)
+        assert!(r.ok);
+        assert_eq!(r.out_id, 18);
+        assert!(r.is_discovery);
+        assert!(g.owned[18] > 0, "Klein granted");
+        assert_eq!(g.shards, 150); // 100 − 50 cost + 100 discovery reward
+        let r2 = g.forge(11, 11);
+        assert!(r2.ok && !r2.is_discovery, "second craft is not a discovery");
+    }
+
+    #[test]
+    fn forge_fails_without_owned_or_shards_or_recipe() {
+        let mut g = GameState::new(1, 0.0);
+        g.shards = 100;
+        assert!(!g.forge(11, 11).ok, "can't forge unowned inputs");
+        g.owned[10] = 1;
+        g.shards = 10;
+        assert!(!g.forge(10, 10).ok, "not enough shards");
+        g.shards = 100;
+        assert!(!g.forge(0, 1).ok, "no recipe for sphere + cube");
+    }
+
+    #[test]
+    fn inspect_raises_bond_and_buffs_when_deployed() {
+        let mut g = GameState::new(1, 0.0);
+        g.owned[0] = 1;
+        assert_eq!(g.bond_level(0), 0);
+        for _ in 0..5 {
+            g.inspect(0); // 5 × 25 = 125 ≥ 100 → level 1
+        }
+        assert_eq!(g.bond_level(0), 1);
+        g.deploy(0);
+        assert!((g.bond_mult() - 1.03).abs() < 1e-9, "deployed bond-1 → +3%");
+    }
+
+    #[test]
+    fn platonic_set_bonus_applies() {
+        let mut g = GameState::new(1, 0.0);
+        assert!((g.set_bonus_mult() - 1.0).abs() < 1e-9);
+        for &id in content::PLATONIC_IDS.iter() {
+            g.owned[id] = 1;
+        }
+        assert!((g.set_bonus_mult() - 1.15).abs() < 1e-9);
     }
 }
