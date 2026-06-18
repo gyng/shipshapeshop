@@ -3,6 +3,7 @@ import { useGame, RARITY_ORDER } from './game/store'
 import { Stage } from './three/Stage'
 import { HeroGem, RARITY_COLOR } from './three/Gem'
 import { CODEX } from './content/codex'
+import { useT, useLangStore, LANGS } from './i18n'
 
 function fmt(n: number): string {
   if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
@@ -41,6 +42,7 @@ export function App() {
   }, [boot])
   const [tab, setTab] = useState<Tab>('gacha')
   const [inspect, setInspect] = useState<number | null>(null)
+  const tr = useT()
 
   if (!ready) {
     return <div style={S.loading}>Lighting the Atlas…</div>
@@ -51,7 +53,7 @@ export function App() {
       <nav style={S.nav}>
         {(['gacha', 'gallery', 'engine', 'forge'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)} style={{ ...S.navBtn, ...(tab === t ? S.navBtnActive : {}) }}>
-            {t === 'gacha' ? 'Pull' : t === 'gallery' ? 'Gallery' : t === 'engine' ? 'Engine' : 'Forge'}
+            {tr(`nav.${t === 'gacha' ? 'pull' : t}`)}
           </button>
         ))}
       </nav>
@@ -73,18 +75,28 @@ export function App() {
 function Hud() {
   const view = useGame((s) => s.view)
   const flux = useFluxDisplay()
+  const tr = useT()
+  const lang = useLangStore((s) => s.lang)
+  const setLang = useLangStore((s) => s.setLang)
   if (!view) return null
   return (
     <header style={S.hud}>
       <div>
-        <span style={S.fluxLabel}>✦ Flux</span>
+        <span style={S.fluxLabel}>✦ {tr('hud.flux')}</span>
         <span style={S.fluxValue}>{fmt(flux)}</span>
         <span style={S.rate}>+{fmt(view.rate_per_hr)}/hr</span>
       </div>
       <div style={S.hudStats}>
-        <span>◈ {view.shards} shards</span>
-        <span>Collection {view.distinct_owned}/41</span>
-        <span>Dim v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
+        <span>◈ {view.shards} {tr('hud.shards')}</span>
+        <span>{tr('hud.collection')} {view.distinct_owned}/41</span>
+        <span>{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
+        <span style={S.langSwitch}>
+          {LANGS.map((l) => (
+            <button key={l.id} onClick={() => setLang(l.id)} style={{ ...S.langBtn, ...(lang === l.id ? S.langBtnOn : {}) }}>
+              {l.label}
+            </button>
+          ))}
+        </span>
       </div>
     </header>
   )
@@ -92,6 +104,7 @@ function Hud() {
 
 function GachaView() {
   const { view, pull, tenPull, shapes, lastReveal } = useGame()
+  const tr = useT()
   const focusId = lastReveal?.[0]?.shape_id ?? 0
   const shape = shapes[focusId] ?? shapes[0]
   if (!view) return null
@@ -102,18 +115,18 @@ function GachaView() {
         {shape && <div style={S.focusName}>{shape.nick} <em style={S.focusFam}>· {shape.family.replace(/_/g, ' ')}</em></div>}
       </div>
       <div style={S.pitymeters}>
-        <Meter label={`SSR+ pity ${view.pity_since_top}/30`} pct={view.pity_since_top / 30} color="#ffb86b" />
-        <Meter label={`Resonance ${view.resonance}/40`} pct={view.resonance / 40} color="#ff5d8f" />
+        <Meter label={`${tr('pull.pity')} ${view.pity_since_top}/30`} pct={view.pity_since_top / 30} color="#ffb86b" />
+        <Meter label={`${tr('pull.resonance')} ${view.resonance}/40`} pct={view.resonance / 40} color="#ff5d8f" />
       </div>
       <div style={S.pullRow}>
         <button style={{ ...S.pullBtn, opacity: view.can_pull ? 1 : 0.4 }} disabled={!view.can_pull} onClick={pull}>
-          Pull · 100 ✦
+          {tr('pull.one')}
         </button>
         <button style={{ ...S.pullBtn10, opacity: view.flux >= 1000 ? 1 : 0.4 }} disabled={view.flux < 1000} onClick={tenPull}>
-          Pull ×10 · 1000 ✦
+          {tr('pull.ten')}
         </button>
       </div>
-      <p style={S.hint}>Pulls cost idle-generated Flux. Pity guarantees an SSR+ by 30; every pull builds Resonance — at 40 you claim a wanted shape.</p>
+      <p style={S.hint}>{tr('pull.hint')}</p>
     </div>
   )
 }
@@ -147,19 +160,20 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
 
 function EngineView() {
   const { shapes, view, deploy, undeploy, autoArrange, recrystallize } = useGame()
+  const tr = useT()
   if (!view) return null
   const owned = shapes.filter((s) => view.owned[s.id] > 0)
   return (
     <div style={S.engine}>
       <div style={S.engineHead}>
         <div>
-          <strong>Euler Budget {view.euler_used}/{view.euler_cap}</strong>
+          <strong>{tr('engine.budget')} {view.euler_used}/{view.euler_cap}</strong>
           <div style={S.rate}>Producing +{fmt(view.rate_per_hr)} Flux/hr</div>
         </div>
         <div style={S.engineBtns}>
-          <button style={S.smallBtn} onClick={autoArrange}>Auto-arrange</button>
+          <button style={S.smallBtn} onClick={autoArrange}>{tr('engine.auto')}</button>
           <button style={{ ...S.smallBtn, opacity: view.core_complete ? 1 : 0.4 }} disabled={!view.core_complete} onClick={recrystallize}>
-            Recrystallize ↑ (NG+)
+            {tr('engine.recrystallize')}
           </button>
         </div>
       </div>
@@ -178,7 +192,7 @@ function EngineView() {
                 disabled={!wouldFit}
                 onClick={() => (isOn ? undeploy(s.id) : deploy(s.id))}
               >
-                {isOn ? 'Deployed' : 'Deploy'}
+                {isOn ? tr('engine.deployed') : tr('engine.deploy')}
               </button>
             </div>
           )
@@ -199,6 +213,7 @@ function Meter({ label, pct, color }: { label: string; pct: number; color: strin
 
 function RevealModal() {
   const { lastReveal, shapes, dismissReveal } = useGame()
+  const tr = useT()
   if (!lastReveal) return null
   const best = [...lastReveal].sort((a, b) => RARITY_ORDER.indexOf(b.rarity!) - RARITY_ORDER.indexOf(a.rarity!))[0]
   const shape = shapes[best.shape_id]
@@ -207,7 +222,7 @@ function RevealModal() {
       <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
         <div style={S.revealStage}>{shape && <Stage><HeroGem family={shape.family} rarity={shape.rarity} spin={0.8} /></Stage>}</div>
         {shape && <h2 style={{ color: RARITY_COLOR[shape.rarity] }}>{shape.nick}</h2>}
-        {shape && <p style={S.revealSub}>{best.is_new ? '✦ New shape!' : `Duplicate · +${best.dupe_shards} shards`}</p>}
+        {shape && <p style={S.revealSub}>{best.is_new ? tr('reveal.new') : `+${best.dupe_shards} ◈ ${tr('hud.shards')}`}</p>}
         {lastReveal.length > 1 && (
           <div style={S.revealRow}>
             {lastReveal.map((o, i) => {
@@ -216,7 +231,7 @@ function RevealModal() {
             })}
           </div>
         )}
-        <button style={S.pullBtn} onClick={dismissReveal}>Continue</button>
+        <button style={S.pullBtn} onClick={dismissReveal}>{tr('reveal.continue')}</button>
       </div>
     </div>
   )
@@ -224,15 +239,16 @@ function RevealModal() {
 
 function OfflineModal() {
   const { offline, dismissOffline } = useGame()
+  const tr = useT()
   if (!offline) return null
   const hrs = (offline.capped_ms / 3_600_000).toFixed(1)
   return (
     <div style={S.modal} onClick={dismissOffline}>
       <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
-        <h2>Welcome back, Curator</h2>
-        <p style={S.revealSub}>The Atlas hummed for {hrs}h while you were away.</p>
+        <h2>{tr('offline.title')}</h2>
+        <p style={S.revealSub}>{hrs}h</p>
         <p style={{ ...S.fluxValue, color: '#5fe0c6' }}>+{fmt(offline.gained_flux)} ✦</p>
-        <button style={S.pullBtn} onClick={dismissOffline}>Collect</button>
+        <button style={S.pullBtn} onClick={dismissOffline}>{tr('offline.collect')}</button>
       </div>
     </div>
   )
@@ -240,6 +256,7 @@ function OfflineModal() {
 
 function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
   const { shapes, view, inspect } = useGame()
+  const tr = useT()
   const s = shapes[id]
   const owned = !!view && view.owned[id] > 0
   // Inspecting an owned shape grants affinity — the calm idler's path to bonds.
@@ -262,7 +279,7 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
           {s.genus > 0 ? `${s.genus} hole${s.genus > 1 ? 's' : ''} → ${s.genus} production lane${s.genus > 1 ? 's' : ''}. ` : 'No holes — free to deploy. '}
           Euler cost {s.euler_cost}.{owned && codex ? ` …it is ${codex.term}.` : ''}
         </p>
-        <button style={S.pullBtn} onClick={onClose}>Close</button>
+        <button style={S.pullBtn} onClick={onClose}>{tr('common.close')}</button>
       </div>
     </div>
   )
@@ -270,11 +287,12 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
 
 function ForgeView() {
   const { recipes, view, shapes, forge } = useGame()
+  const tr = useT()
   if (!view) return null
   return (
     <div style={S.engine}>
       <div style={S.engineHead}>
-        <strong>The Forge · ◈ {view.shards} shards</strong>
+        <strong>{tr('forge.title')} · ◈ {view.shards} {tr('hud.shards')}</strong>
       </div>
       <p style={S.hint}>Glue two shapes together (a <em>connected sum</em>) to make a third — the real topology decides the result. First-time crafts unlock a Discovery (+100 shards). Each forge costs 50 shards; dupes give shards.</p>
       <div style={S.engineList}>
@@ -299,6 +317,7 @@ function ForgeView() {
 
 function ForgeToast() {
   const { lastForge, shapes, dismissForge } = useGame()
+  const tr = useT()
   if (!lastForge) return null
   const s = shapes[lastForge.out_id]
   return (
@@ -306,8 +325,8 @@ function ForgeToast() {
       <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
         <div style={S.revealStage}>{s && <Stage><HeroGem family={s.family} rarity={s.rarity} spin={0.8} /></Stage>}</div>
         {s && <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{s.nick}</h2>}
-        <p style={S.revealSub}>{lastForge.is_discovery ? '✦ Discovery! Forged for the first time (+100 shards)' : 'Forged.'}</p>
-        <button style={S.pullBtn} onClick={dismissForge}>Continue</button>
+        <p style={S.revealSub}>{lastForge.is_discovery ? tr('reveal.discovery') : tr('reveal.forged')}</p>
+        <button style={S.pullBtn} onClick={dismissForge}>{tr('reveal.continue')}</button>
       </div>
     </div>
   )
@@ -315,20 +334,15 @@ function ForgeToast() {
 
 function WelcomeModal() {
   const { firstLaunch, dismissWelcome } = useGame()
+  const tr = useT()
   if (!firstLaunch) return null
   return (
     <div style={S.modal} onClick={dismissWelcome}>
       <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
-        <h2>The Atlas</h2>
-        <p style={S.revealSub}>
-          “If you’re reading this, you’re the new Curator. I left the lights off to save the floor. Pull the
-          cord — let’s see who washes up.” <em>— your predecessor’s notes</em>
-        </p>
-        <p style={S.hint}>
-          Pull shapes from the Manifold, learn what they truly are, and light the Atlas room by room. Idle
-          Flux accrues even while you’re away. The summit looks up into the fourth dimension.
-        </p>
-        <button style={S.pullBtn} onClick={dismissWelcome}>Begin ✦</button>
+        <h2>{tr('welcome.title')}</h2>
+        <p style={S.revealSub}>{tr('welcome.body')}</p>
+        <p style={S.hint}>{tr('welcome.note')}</p>
+        <button style={S.pullBtn} onClick={dismissWelcome}>{tr('welcome.begin')}</button>
       </div>
     </div>
   )
@@ -341,7 +355,10 @@ const S: Record<string, CSSProperties> = {
   fluxLabel: { color: '#8a90a8', marginRight: 8, fontSize: 13 },
   fluxValue: { fontSize: 26, fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
   rate: { color: '#5fe0c6', marginLeft: 10, fontSize: 13 },
-  hudStats: { display: 'flex', gap: 16, fontSize: 13, color: '#aab' },
+  hudStats: { display: 'flex', gap: 16, fontSize: 13, color: '#aab', alignItems: 'center' },
+  langSwitch: { display: 'flex', gap: 4 },
+  langBtn: { background: 'none', border: '1px solid #2a2c3a', color: '#8a90a8', borderRadius: 6, padding: '2px 7px', fontSize: 11, cursor: 'pointer' },
+  langBtnOn: { background: '#28304a', color: '#fff', borderColor: '#5fe0c6' },
   nav: { display: 'flex', gap: 4, padding: '8px 16px', borderBottom: '1px solid #1c1e2a' },
   navBtn: { background: 'none', border: 'none', color: '#8a90a8', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 15 },
   navBtnActive: { background: '#1c1e2a', color: '#fff' },
