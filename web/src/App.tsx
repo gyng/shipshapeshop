@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useGame, RARITY_ORDER } from './game/store'
 import { Stage } from './three/Stage'
 import { HeroGem, RARITY_COLOR } from './three/Gem'
+import { CODEX } from './content/codex'
 
 function fmt(n: number): string {
   if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
@@ -31,7 +32,7 @@ function useFluxDisplay(): number {
   return disp
 }
 
-type Tab = 'gacha' | 'gallery' | 'engine'
+type Tab = 'gacha' | 'gallery' | 'engine' | 'forge'
 
 export function App() {
   const { ready, boot } = useGame()
@@ -48,9 +49,9 @@ export function App() {
     <div style={S.app}>
       <Hud />
       <nav style={S.nav}>
-        {(['gacha', 'gallery', 'engine'] as Tab[]).map((t) => (
+        {(['gacha', 'gallery', 'engine', 'forge'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)} style={{ ...S.navBtn, ...(tab === t ? S.navBtnActive : {}) }}>
-            {t === 'gacha' ? 'Pull' : t === 'gallery' ? 'Gallery' : 'Engine'}
+            {t === 'gacha' ? 'Pull' : t === 'gallery' ? 'Gallery' : t === 'engine' ? 'Engine' : 'Forge'}
           </button>
         ))}
       </nav>
@@ -58,8 +59,10 @@ export function App() {
         {tab === 'gacha' && <GachaView />}
         {tab === 'gallery' && <GalleryView onInspect={setInspect} />}
         {tab === 'engine' && <EngineView />}
+        {tab === 'forge' && <ForgeView />}
       </main>
       <RevealModal />
+      <ForgeToast />
       <OfflineModal />
       {inspect !== null && <Inspector id={inspect} onClose={() => setInspect(null)} />}
     </div>
@@ -235,18 +238,75 @@ function OfflineModal() {
 }
 
 function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
-  const { shapes, view } = useGame()
+  const { shapes, view, inspect } = useGame()
   const s = shapes[id]
+  const owned = !!view && view.owned[id] > 0
+  // Inspecting an owned shape grants affinity — the calm idler's path to bonds.
+  useEffect(() => {
+    if (owned) inspect(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
   if (!s || !view) return null
-  const owned = view.owned[id] > 0
+  const codex = CODEX[s.family]
+  const bond = view.bond_levels[id] ?? 0
   return (
     <div style={S.modal} onClick={onClose}>
       <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
         <div style={S.revealStage}><Stage controls><HeroGem family={s.family} rarity={s.rarity} spin={0.3} /></Stage></div>
         <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{owned ? s.nick : '??? (undiscovered)'}</h2>
-        <p style={S.revealSub}>{s.rarity === 'Ssr' ? 'SSR' : s.rarity} · {s.family.replace(/_/g, ' ')}</p>
-        <p style={S.hint}>{s.genus > 0 ? `${s.genus} hole${s.genus > 1 ? 's' : ''} → ${s.genus} production lane${s.genus > 1 ? 's' : ''}. ` : 'No holes — free to deploy. '}Euler cost {s.euler_cost}.</p>
+        <p style={S.revealSub}>{s.rarity === 'Ssr' ? 'SSR' : s.rarity} · {s.family.replace(/_/g, ' ')}{owned ? ` · ♥ Bond ${bond}` : ''}</p>
+        {owned && codex && <p style={{ ...S.hint, fontStyle: 'italic', color: '#cdd2e0' }}>“{codex.blurb}”</p>}
+        {owned && codex && bond >= 1 && <p style={{ ...S.hint, color: RARITY_COLOR[s.rarity] }}>{codex.bond}</p>}
+        <p style={S.hint}>
+          {s.genus > 0 ? `${s.genus} hole${s.genus > 1 ? 's' : ''} → ${s.genus} production lane${s.genus > 1 ? 's' : ''}. ` : 'No holes — free to deploy. '}
+          Euler cost {s.euler_cost}.{owned && codex ? ` …it is ${codex.term}.` : ''}
+        </p>
         <button style={S.pullBtn} onClick={onClose}>Close</button>
+      </div>
+    </div>
+  )
+}
+
+function ForgeView() {
+  const { recipes, view, shapes, forge } = useGame()
+  if (!view) return null
+  return (
+    <div style={S.engine}>
+      <div style={S.engineHead}>
+        <strong>The Forge · ◈ {view.shards} shards</strong>
+      </div>
+      <p style={S.hint}>Glue two shapes together (a <em>connected sum</em>) to make a third — the real topology decides the result. First-time crafts unlock a Discovery (+100 shards). Each forge costs 50 shards; dupes give shards.</p>
+      <div style={S.engineList}>
+        {recipes.map((r, i) => {
+          const haveA = view.owned[r.a] > 0
+          const haveB = view.owned[r.b] > 0
+          const can = haveA && haveB && view.shards >= 50
+          const discovered = view.discovered[i]
+          const out = shapes[r.out]
+          return (
+            <div key={i} style={{ ...S.engineRow, borderColor: discovered ? RARITY_COLOR[out.rarity] : '#23252f' }}>
+              <span style={S.engineNick}>{haveA ? r.a_nick : '???'} ＋ {haveB ? r.b_nick : '???'} → {discovered ? r.out_nick : '???'}</span>
+              <span style={S.engineCost}>{discovered ? '✓ discovered' : '50 ◈'}</span>
+              <button style={{ ...S.toggle, opacity: can ? 1 : 0.35 }} disabled={!can} onClick={() => forge(r.a, r.b)}>Forge</button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function ForgeToast() {
+  const { lastForge, shapes, dismissForge } = useGame()
+  if (!lastForge) return null
+  const s = shapes[lastForge.out_id]
+  return (
+    <div style={S.modal} onClick={dismissForge}>
+      <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
+        <div style={S.revealStage}>{s && <Stage><HeroGem family={s.family} rarity={s.rarity} spin={0.8} /></Stage>}</div>
+        {s && <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{s.nick}</h2>}
+        <p style={S.revealSub}>{lastForge.is_discovery ? '✦ Discovery! Forged for the first time (+100 shards)' : 'Forged.'}</p>
+        <button style={S.pullBtn} onClick={dismissForge}>Continue</button>
       </div>
     </div>
   )

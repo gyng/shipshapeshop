@@ -1,0 +1,57 @@
+// Per-shape codex content (EN). `blurb` is intuition-first; `term` is the edutainment "…this is called X"
+// reward; `bond` is a character line (unlocks with bond level). Voiced/JA/ZH come via i18n later (M10).
+// Sourced from CHARACTERS.md. Keyed by the family id used in the Rust content table.
+
+export interface Codex {
+  term: string
+  blurb: string
+  bond: string
+}
+
+export const CODEX: Record<string, Codex> = {
+  sphere: { term: 'a sphere — the identity element of connected sum', blurb: 'Round from every side; the most efficient shape there is.', bond: 'I am a good thing to sit next to. That is a kind of Something.' },
+  cube: { term: 'a cube — a Platonic solid, dual to the octahedron', blurb: 'Six flat faces. Put your cup down without spilling.', bond: 'Flat. Flat anywhere you look. That is it.' },
+  tetrahedron: { term: 'a tetrahedron — the simplest solid, and its own dual', blurb: 'Four faces; it points right back at itself.', bond: 'I require no twin — I am my own reflection. …you will still sit with me, right?' },
+  octahedron: { term: 'an octahedron — dual to the cube', blurb: 'Six sharp points; a cube with the corners filed off.', bond: 'Six points! Count them — touché.' },
+  dodecahedron: { term: 'a dodecahedron — twelve pentagons, icosahedral symmetry', blurb: 'The same from twelve directions.', bond: 'One need not choose a face to show when every face is already given.' },
+  icosahedron: { term: 'an icosahedron — twenty triangles, dual to the dodecahedron', blurb: 'The busiest of the Platonic solids.', bond: 'Twenty! …wait. Where was I.' },
+  cylinder: { term: 'a cylinder — a developable (secretly flat) surface', blurb: 'A flat rectangle that committed.', bond: '…Are we done? Good.' },
+  cone: { term: 'a cone — a ruled surface with one apex', blurb: 'One single, dramatic point.', bond: 'Is the tip too much? It is not too much. …right?' },
+  disk: { term: 'a disk — the simplest bounded surface', blurb: 'A flat round wafer. A coaster.', bond: 'Resting. Just… resting.' },
+  ellipsoid: { term: 'an ellipsoid — a sphere, stretched', blurb: 'Pip after a long stretch and a sigh.', bond: 'I have got the lanes, dear. You go and sit down.' },
+
+  torus: { term: 'a torus — genus 1 (one hole), and secretly flat', blurb: 'There is always a way through me.', bond: 'Mind the hole. …Tea?' },
+  mobius: { term: 'a Möbius strip — non-orientable; it has only one side', blurb: 'Walk all the way around and you come back mirror-flipped.', bond: 'One side. I keep telling people. Nobody believes a girl until she shows them.' },
+  genus2: { term: 'a genus-2 surface — two holes, two lanes', blurb: 'Twice the holes, twice the fuss.', bond: 'Both lanes aligned. Twice-checked. Did senpai look?' },
+  hyperboloid: { term: 'a hyperboloid — a doubly-ruled surface (made of straight lines)', blurb: 'Looks like a curve; built entirely of straight lines.', bond: '…it is nothing. Just straight lines, really.' },
+  catenoid: { term: 'a catenoid — a minimal surface (the least film that spans its frame)', blurb: 'Pulled taut and even at every single point.', bond: 'I made it look effortless. It was not.' },
+  helicoid: { term: 'a helicoid — the catenoid’s spiral twin', blurb: 'A spiral stair, forever climbing.', bond: 'Up — and up — race you, I love head starts.' },
+  trefoil: { term: 'a trefoil — the simplest knot (three crossings)', blurb: 'Tangled, and it cannot be undone.', bond: 'I can’t be undone. That is just— my whole edge is Surface.' },
+  monkey_saddle: { term: 'a monkey saddle — three-way fairness', blurb: 'A dip for each leg — and one, crucially, for the tail.', bond: 'Three ways down. It is only fair.' },
+
+  klein_bottle: { term: 'a Klein bottle — non-orientable, with no inside', blurb: 'Go on, try to pour me a drink.', bond: 'Someone get a towel for the void. The void is, I confess, mostly steam.' },
+  rp2: { term: 'a real projective plane — the simplest one-sided closed surface', blurb: 'A small entrance, if that’s alright.', bond: 'That was a brave thing to say. …glad it was to you.' },
+  boys_surface: { term: "a Boy's surface — the projective plane immersed gracefully in 3D", blurb: 'The same soul as RP², done with poise.', bond: 'You say it with a wince; I say it with a bow.' },
+  cross_cap: { term: 'a cross-cap — RP²’s honest, pinched presentation', blurb: 'Sew me onto anything and the twist is catching.', bond: 'Sleeves up. A small task, done well.' },
+  figure8_knot: { term: 'a figure-eight knot — amphichiral (its own mirror image)', blurb: 'Looks in the glass and finds nothing to fix.', bond: 'Hm. Still me.' },
+  torus_knot_2_5: { term: 'a (2,5) torus knot — it lives on the surface of the torus', blurb: 'Wound into the donut; that’s my home address.', bond: 'Try lifting me off her. I literally stop being a knot.' },
+  gyroid: { term: 'a gyroid — a triply-periodic minimal surface', blurb: 'A weave inside a weave, repeating forever.', bond: 'I tend the garden — a smaller garden, inside which a smaller garden…' },
+  schwarz_p: { term: 'a Schwarz-P surface — the cubic minimal lattice', blurb: 'Everything kept at clean right angles.', bond: 'One true thing. And then I stop.' },
+
+  heptoroid: { term: 'a heptoroid — genus 7 (seven holes, seven lanes)', blurb: 'Seven lanes, all green. Go rest — onee-san’s got it.', bond: 'Lane four and six at once— oh no— I’m fine. I’m FINE.' },
+  costa: { term: 'a Costa surface — a complete minimal surface with three ends', blurb: 'Balanced everywhere. Not mostly. Everywhere.', bond: 'You counted the third end. Everyone stops at two. That is the whole thing.' },
+  borromean: { term: 'Borromean rings — three loops, no two of them linked', blurb: 'Remove any one and all three fall. Load-bearing, not clingy.', bond: 'We are all three simultaneously not crying. That is how we do everything.' },
+  seifert: { term: 'a Seifert surface — the membrane whose only edge is a knot', blurb: 'On my own, a quiet sheet. Hand me a knot, and I complete it.', bond: 'Neither of us is whole alone, and we are both completely fine with that.' },
+  lorenz: { term: 'a Lorenz manifold — a strange attractor (the gacha’s own engine)', blurb: 'Completely determined… and utterly unpredictable. There’s a difference!', bond: 'Same pebble, same moment, same loop-de-loop. Ooh — butterfly.' },
+  schwarz_d: { term: 'a Schwarz-D surface — two interwoven infinite labyrinths', blurb: 'Two worlds, one wall. I keep the wall.', bond: 'You kept walking until the pattern became home. Stay. There is infinitely much room.' },
+  triple_torus: { term: 'a triple torus — genus 3 (three holes)', blurb: 'Three lanes. Only three. But mine are TIDY holes.', bond: 'Remember when order didn’t matter? …don’t tell senpai I said it was easier.' },
+
+  tesseract: { term: 'a tesseract — the 4-cube; you only ever see its 3D shadow', blurb: 'A box inside a box, from where you stand.', bond: 'You see all eight rooms at once now. …It’s nice, being seen whole. Don’t tell Hex.' },
+  cell_16: { term: 'a 16-cell — the tesseract’s dual in 4D', blurb: 'Everything he does, with half the cells and twice the edge.', bond: 'It’s not like I was hoping you’d pull me. Don’t make it weird.' },
+  cell_24: { term: 'a 24-cell — self-dual, with no analogue in any other dimension', blurb: 'There is no one quite like me. I checked every dimension.', bond: 'My mirror is me — but the Atlas is a mirror too, and now there are more of me. Thank you.' },
+  cell_120: { term: 'a 120-cell — 600 vertices; the crown of the fourth dimension', blurb: 'They call me the crown jewel. I prefer “the one who leaves the porch light on.”', bond: 'You look flat from up here. And lovely. Come up.' },
+  cell_600: { term: 'a 600-cell — the 120-cell’s dual; a storm of tetrahedra', blurb: 'A cathedral? Pretty. I am the WEATHER.', bond: 'When I rattle the windows, it’s only ever my sister’s house. I’d never crack a pane.' },
+  klein_quartic: { term: 'a Klein quartic — genus 3 with the maximum possible symmetry (168)', blurb: 'Hum a note; I’ll find the other hundred-sixty-seven that agree.', bond: 'The full chord, all hundred-sixty-eight at once. It sounds like a choir because it is one.' },
+  hopf: { term: 'the Hopf fibration — fill a 4-ball with circles, every pair interlinked', blurb: 'Two of you are already linked. You simply haven’t met.', bond: 'The whole Atlas was one linked structure the entire time. So were you.' },
+  mazur: { term: 'a Mazur manifold — sounds like a monster; is secretly contractible (a ball)', blurb: 'BEHOLD, the manifold that should not be— …it’s fine. Please don’t run.', bond: 'I look impossible, but I shrink to a single harmless point. “Looks scary, is soft” is allowed.' },
+}

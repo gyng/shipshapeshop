@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import init, { Game, shapes_json, core_version } from 'shipshape-core'
+import init, { Game, shapes_json, recipes_json, core_version } from 'shipshape-core'
 
 // ── Types mirrored from the Rust core (the WASM layer is the source of truth) ──
 export type RarityName = 'Common' | 'Rare' | 'Epic' | 'Ssr' | 'Ur'
@@ -30,6 +30,25 @@ export interface View {
   total_pulls: number
   can_pull: boolean
   core_complete: boolean
+  bonds: number[]
+  bond_levels: number[]
+  discovered: boolean[]
+  platonic_set: boolean
+}
+
+export interface Recipe {
+  a: number
+  b: number
+  out: number
+  a_nick: string
+  b_nick: string
+  out_nick: string
+}
+
+export interface ForgeResult {
+  ok: boolean
+  out_id: number
+  is_discovery: boolean
 }
 
 export interface PullOutcome {
@@ -65,8 +84,10 @@ interface Store {
   ready: boolean
   version: string
   shapes: ShapeRow[]
+  recipes: Recipe[]
   view: View | null
   lastReveal: PullOutcome[] | null
+  lastForge: ForgeResult | null
   offline: OfflineReport | null
   boot: () => Promise<void>
   refresh: () => void
@@ -76,7 +97,10 @@ interface Store {
   undeploy: (id: number) => void
   autoArrange: () => void
   recrystallize: () => void
+  inspect: (id: number) => void
+  forge: (a: number, b: number) => void
   dismissReveal: () => void
+  dismissForge: () => void
   dismissOffline: () => void
 }
 
@@ -84,13 +108,16 @@ export const useGame = create<Store>((set, get) => ({
   ready: false,
   version: '',
   shapes: [],
+  recipes: [],
   view: null,
   lastReveal: null,
+  lastForge: null,
   offline: null,
 
   boot: async () => {
     await init()
     const shapes = JSON.parse(shapes_json()) as ShapeRow[]
+    const recipes = JSON.parse(recipes_json()) as Recipe[]
     const saved = localStorage.getItem(SAVE_KEY)
     let offline: OfflineReport | null = null
     if (saved) {
@@ -106,7 +133,7 @@ export const useGame = create<Store>((set, get) => ({
       const seed = Math.floor(Math.random() * 2 ** 48)
       game = new Game(seed, now())
     }
-    set({ ready: true, version: core_version(), shapes, offline })
+    set({ ready: true, version: core_version(), shapes, recipes, offline })
     get().refresh()
     persist()
     // idle tick: advance the economy on a slow cadence (display is extrapolated in the HUD)
@@ -166,7 +193,22 @@ export const useGame = create<Store>((set, get) => ({
       persist()
     }
   },
+  inspect: (id) => {
+    game?.inspect(id)
+    get().refresh()
+    persist()
+  },
+  forge: (a, b) => {
+    if (!game) return
+    const r = JSON.parse(game.forge(a, b)) as ForgeResult
+    if (r.ok) {
+      get().refresh()
+      persist()
+      set({ lastForge: r })
+    }
+  },
   dismissReveal: () => set({ lastReveal: null }),
+  dismissForge: () => set({ lastForge: null }),
   dismissOffline: () => set({ offline: null }),
 }))
 
