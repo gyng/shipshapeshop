@@ -6,6 +6,9 @@
 
 use wasm_bindgen::prelude::*;
 
+pub mod gacha;
+pub mod rng;
+
 /// Closed-form production over a span: `rate · seconds`.
 ///
 /// This is the shape of the real idle accumulation (piecewise-constant rate ⇒ O(1) per span), so even the

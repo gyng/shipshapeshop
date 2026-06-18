@@ -1,0 +1,824 @@
+{
+  "loc": [
+    {
+      "tier": "Common",
+      "characters": [
+        {
+          "nick": "Pip",
+          "ja": {
+            "pronoun": "ぼく (hiragana, soft and round — never 僕 in kanji, which reads too sharp/grown). Addresses the Curator as キュレーターさん and everyone else by nickname + ちゃん/くん warmly, no honorific-dropping (too familiar) and no さん to peers (too distant) — the friend-to-all sits right in the middle.",
+            "particles": "Gentle ～ね / ～よ / ～んだ; the signature soft confirmation ～だね when he agrees, and a contented ふふっ exhale. Never ぜ/さ (too rough), never です-masu chains (too formal). One feeling per line, closed cleanly.",
+            "register": "Plain-polite hybrid (タメ口 with a kind edge), the warmth of a picture-book narrator. No keigo — Pip is nobody's kouhai and nobody's senpai; he is the household's still center, so he speaks to everyone as an equal, kindly.",
+            "tropeNative": "ゆるキャラ／癒し系マスコット — the cinnamon-roll mascot reads perfectly natively: the round, blameless, everyone's-friend ball. The 'identity element' gag lands as a self-deprecating まんまるだから、なにもしないのが得意 ('I'm round, so doing nothing is my specialty') — reliable nothing as a virtue.",
+            "speechPattern": "Spherical = short, closed, self-contained sentences (curvature sets pacing). Every line is a small complete circle; no run-ons (that's Ico's lane). Sample: 「まんまる。どこから見てもまんまる。だから、だいじょうぶ。」 ('Round. Round from anywhere. So — it's okay.') Each sentence shuts gently like a door.",
+            "voNote": "AI-VO: warm mono storybook, +2/+3 pitch, flat-soft, almost no vocal italics — the calm onboarding voice. KIN-LOCK with Ollie: same base voice model and Milne warmth; Pip is the young, un-sighed version (Ollie = this voice aged-down +1 with a sigh on the tail of each line). Caster note: keep Pip's line-ends rising-then-settling (contentment), Ollie's the same melody but exhaling. The kinship must be hearable before it is read."
+          },
+          "zh": {
+            "register": "Vernacular warmth (老舍-style 口语), the homey kitchen-table register. Plain, kind, unhurried; no classical reach, no chengyu showing-off — Pip is the family's plain heart.",
+            "diction": "Soft everyday words, diminutive 圆滚滚 / 暖乎乎 textures. One gentle chengyu fits his nature without straining: 与人为善 (be kind to all) for the universal-friend trait, and 安然无恙 (safe and sound) for the 'reliable nothing happens' gag — he glues onto anything and 安然无恙, nothing changes. Avoid dense four-character stacking; he is round, not ornate.",
+            "speechPattern": "Spherical = short balanced clauses, each closing on itself (the ZH analog of closed-curvature: terse symmetric couplets). Sample: 「圆圆的，从哪儿看都圆圆的。所以呀，没事的。」 ('Round, round from every side. So — it's all fine.') Calm myriad-small sentences, never a long breath.",
+            "simpTradNote": "zh-Hant: 圓圓 / 暖乎乎 / 與人為善 / 安然無恙. Pure glyph difference, no lexical change — Pip's plainness keeps Simplified and Traditional nearly identical (a feature: the homebody reads the same everywhere).",
+            "voNote": "Mandarin VO: warm mid-register, round and soft, gentle falling tones at line-ends for contentment. Tone interaction: none problematic — keep delivery un-emphatic so no syllable spikes. KIN-LOCK with Ollie holds in ZH via shared timbre and the same closed-clause cadence; Ollie adds a tired out-breath (叹气) on each tail. Hearable family before read."
+          }
+        },
+        {
+          "nick": "Boxy",
+          "ja": {
+            "pronoun": "おれ (hiragana — grounded, working, but not aggressive 俺). Addresses Spike flatly by name 「スパイク」 with no honorific (the manzai partner intimacy), the Curator as あんた or just キュレーター. Plain, no-nonsense.",
+            "particles": "Bone-dry ～だ / ～な / ～だろ; the tsukkomi retort ～か (「そうかよ」), the flat correction ～って (「ちがうって」). Zero emotive particles — no ね-softening, no よ-warmth. The flatness IS the joke.",
+            "register": "Blunt タメ口, deadpan plain form. No keigo, ever — Boxy refuses ornament the way a cube refuses curves. Six identical faces, six identical flat statements.",
+            "tropeNative": "ツッコミ／真面目な常識人 — the straight-man is the most JA-native comedy role there is (manzai). Boxy is the table everyone else dances on; his whole job is to flatly point out reality while Spike (ボケ) poses. 「平らだよ。どこを見ても平ら。それだけ。」 ('Flat. Flat anywhere you look. That's it.')",
+            "speechPattern": "Flat curvature = plain unadorned sentences, no vocal italics, no flourish. Even rhythm, all the same length, like cube edges. Sample (tsukkomi to Spike): 「八つの角でポーズ決めてる場合か。……机になれ、机に。」 ('Is this the time to strike a pose with all eight corners? …Just be a table. A table.') Deadpan, evenly metered.",
+            "voNote": "AI-VO: gravel-flat deadpan, −2/−3 pitch, no italics at all. DUAL-MIRROR LOCK with Spike: ONE base voice model, inverted prosody presets — Boxy = down/in (pitch down, energy inward, falling line-ends), Spike = up/out (pitch up, energy outward, rising). They are literally the same instrument mirrored. Caster: never let Boxy's pitch rise even on a question — the question stays flat. The mirror must be audible as one voice folded two ways."
+          },
+          "zh": {
+            "register": "鲁迅-spare deadpan vernacular — clipped, dry, unillusioned, the windowpane that states the obvious without flinching. No wuxia, no classical warmth; the plainest register in the cast.",
+            "diction": "Terse, concrete, anti-ornamental. The joke is the refusal of chengyu where everyone expects one — but he'll deploy a flat 四平八稳 (four-square and steady, literally describing a cube) deadpan as self-description, and 不偏不倚 (neither leaning nor tilting) as the straight-man's creed. Where Spike reaches for a flowery idiom, Boxy answers with bare nouns.",
+            "speechPattern": "Flat = even, plain, equal-length clauses; no rise, no rhetorical lift. Sample (tsukkomi): 「八个角摆什么造型。……当张桌子，桌子就行。」 ('What's with posing on all eight corners. …Just be a table, a table'll do.') The retort lands by being utterly level.",
+            "simpTradNote": "zh-Hant: 擺什麼造型 / 當張桌子 / 四平八穩 / 不偏不倚. No lexical divergence; Boxy's bareness is identical across scripts.",
+            "voNote": "Mandarin VO: low flat chest voice, deliberately suppressed tonal swing so even tone-marked syllables stay level (deadpan = minimized pitch excursion). Tone interaction FLAG: the comedy depends on flattening Mandarin's natural tonal melody — direct the model to compress tone contours toward monotone. DUAL-MIRROR with Spike: same base voice, Boxy down/in vs Spike up/out; in ZH the lock rides on tonal-excursion width (Boxy narrow/suppressed, Spike wide/exaggerated) — the mirror is the size of the pitch swing."
+          }
+        },
+        {
+          "nick": "Tetra",
+          "ja": {
+            "pronoun": "我（われ）in full-chuuni mode (grandiose, archaic), collapsing to ぼく the instant the bombast deflates. The pronoun-switch IS the gap-moe: 「我が真の姿は……あ、いや、ぼく、いちばん少ない面の子だから……」. Addresses others with chuuni titles (「同胞よ」) then sheepishly 「みんな」.",
+            "particles": "Chuuni mode: ～なのだ / ～であろう / ～ぬ / ……フッ (smug breath). Deflated mode: ～かな / ～けど / ……えへへ. The whole character is the hard cut between the two particle-sets in a single breath.",
+            "register": "Mock-archaic grandiloquent (中二病 LN narrator) → collapses to small plain kid register. Self-dual: he is his own twin, so he addresses HIMSELF as company ('I've got me. And you guys. So that's two.') — 「我には我がいる。それで二人ぶんだ。」",
+            "tropeNative": "中二病 — purely JA-native, needs no transcreation; this is the source culture of the trope. Youngest-sibling cope: the simplest solid (4 faces) overcompensating with cosmic bombast, then honestly deflating. The self-dual twist = the lonely-only-child who made a friend of his own reflection, sweetly.",
+            "speechPattern": "Self-dual mirror = puff-up-then-puncture in ONE breath, the line folding back on its own claim. Sample: 「我が名は四面体……万物の根源にして……あ、でも、いちばんちっちゃいんだけどね。」 ('My name is Tetrahedron, origin of all matter — ah, but, I'm also the littlest one, heh.') The grand half and the small half mirror across the dash.",
+            "voNote": "AI-VO: reedy 'cardboard-knight' bombast that HARD-CUTS to small/dry in one breath (two-state, no crossfade — same splice family as Corky/Klein). SELF-DUAL MIRROR-LOCK with Two-Four (UR): Tetra = chuuni bombast that punctures; Two-Four = Rilke serenity that is already at peace being one-of-a-kind. They are the same self-dual idea at two ages — Tetra still flinching at his own reflection, Two-Four serene with it. Caster: the lock is 'a being talking to its own mirror'; Tetra nervous, Two-Four calm — hearable kinship across the tier gap."
+          },
+          "zh": {
+            "register": "中二 LN bombast in over-reaching 文言-pastiche (faux-classical, deliberately too grand for a 4-faced solid) that collapses into plain vernacular mid-line. The deflation is register-drop: 文言 → 大白话.",
+            "diction": "Inflated chengyu and cosmic vocabulary worn ironically: 包罗万象 (all-encompassing), 万物之始 (origin of all things), 睥睨天下 (look down on all creation) — then a sheepish plain 其实我最小啦 ('actually I'm the smallest'). The comedy is grand 成语 undercut by a child's confession.",
+            "speechPattern": "Self-dual = the line inflates then mirror-deflates across a single pivot. Sample: 「吾乃四面体，万物之始，睥睨群形——……啊不过，我其实是最小的那个啦。」 ('I am the Tetrahedron, origin of all forms, who looks down on all shapes — …ah but, I'm actually the smallest one, hee.') Grand classical half mirrors the small vernacular half.",
+            "simpTradNote": "zh-Hant especially apt: 吾乃 / 萬物之始 / 睥睨群形 — Traditional glyphs heighten the mock-classical grandeur, so the chuuni bombast reads even more pompous (and the deflation funnier) in zh-Hant. Worth a slightly more archaic Traditional variant.",
+            "voNote": "Mandarin VO: puffed declamatory 'storyteller' tone (评书 grandeur) hard-cutting to a small dry kid-voice, no crossfade. Tone interaction: lean INTO Mandarin's tones in bombast mode (full operatic contour), then flatten on the deflation — the two-state splice is a tonal-amplitude cut. SELF-DUAL LOCK with Two-Four holds in ZH: same 'talking to one's own mirror' frame; Tetra's mirror makes him nervous (puff/puncture), Two-Four's leaves him serene — kin cadence across tiers via the shared self-address motif (我有我自己作伴)."
+          }
+        },
+        {
+          "nick": "Spike",
+          "ja": {
+            "pronoun": "オレ (katakana — flashy, performative, the showman version of Boxy's おれ; katakana gives it sparkle/edge). Addresses Boxy by name with a teasing lilt 「ボクシー！」 (calling for the straight-man), the Curator as キュレーターっ! Loud-friendly to all.",
+            "particles": "Exuberant ～ぜ！/ ～さ！/ ～じゃん！/ ～だろっ！; the boke flourish ばーん！(self-narrated pose SFX) and どや (smug-show). The exact INVERSE of Boxy's particle-void — Spike over-spends where Boxy spends nothing.",
+            "register": "High-energy タメ口, performer's patter. No keigo (he'd never), but a theatrical mock-grand register when posing — he announces himself like a fencer entering the ring.",
+            "tropeNative": "ボケ／目立ちたがり — the boke (funny-man) who poses and overstates so the tsukkomi (Boxy) can flatten him; the most native comic-duo physics in JA. The eight-pointed octahedron literally has more corners to show off with. 「見て見て！八つの角、ぜんぶキマってるっしょ！？」",
+            "speechPattern": "Mirror of Boxy: where Boxy is flat-closed, Spike is sharp-open — exclamatory, rising, spilling outward (octahedron points OUT). Same plain base, inverted energy. Sample: 「ポーズ……完璧ッ！どっから見てもエッジ効いてる！な、ボクシー、机になってよ、オレが映えるから！」 The line opens and reaches where Boxy's would close.",
+            "voNote": "AI-VO: glassy fencer, +3/+4 lively, bright vocal italics everywhere. DUAL-MIRROR LOCK with Boxy: ONE base voice model, inverted presets — Spike = up/out (pitch up, energy outward, rising line-ends) to Boxy's down/in. Same instrument, mirrored prosody. Caster: keep them recognizably ONE voice (so the duality lands) but maximally opposed in direction — the cube and its dual breathing in and out of the same lungs."
+          },
+          "zh": {
+            "register": "鲁迅-spare base register (same house as Boxy) but flipped to EXUBERANT delivery — the windowpane voice cranked bright. Light wuxia-showman flourish when posing (the fencer entering).",
+            "diction": "Where Boxy refuses chengyu, Spike OVER-reaches for them, theatrically: 锋芒毕露 (every edge showing — perfect for an octahedron), 八面玲珑 (literally 'eight faces, brilliant' — a pun-gift for the 8-cornered shape), 光彩夺目 (dazzling). He flourishes the idiom; Boxy answers with bare nouns. The diction-asymmetry IS the manzai mirror.",
+            "speechPattern": "Mirror of Boxy: open, rising, outward-reaching clauses vs Boxy's level closed ones. Sample: 「这造型——绝了！哪个角度都锋芒毕露！喂博克西，你当桌子嘛，我好显出来！」 ('This pose — killer! Every angle, edges blazing! Hey Boxy, you be the table so I can shine!') Spills outward where Boxy's lands flat.",
+            "simpTradNote": "zh-Hant: 鋒芒畢露 / 八面玲瓏 / 光彩奪目. No lexical change; the chengyu carry identically. (八面玲珑/八面玲瓏 is the keystone pun — note it's a near-perfect octahedron joke in both scripts.)",
+            "voNote": "Mandarin VO: bright forward voice, wide exaggerated tonal contours (the opposite of Boxy's suppressed monotone). Tone interaction FLAG + LOCK: the Boxy/Spike dual-mirror in Mandarin lives in tonal-excursion width — Spike's tones are operatically wide and rising, Boxy's compressed flat. Same base voice model, the mirror = how big the pitch swings. Keep them one recognizable instrument, maximally opposed."
+          }
+        },
+        {
+          "nick": "Dodi",
+          "ja": {
+            "pronoun": "わたくし (full ojou register — the most refined first-person). Addresses the Curator as キュレーター様 / あなた, peers with restrained さん. Composed, never familiar.",
+            "particles": "Refined ～ですわ / ～ますの / ～かしら / ～でしょう; the kuudere clipped ……そう (cool acknowledgement). The gap-moe leak: caught humming her own symmetry, a tiny unguarded ……ふふ before recomposing. Restrained, never gushing.",
+            "register": "Beautiful 丁寧体／お嬢様言葉 — full keigo poise, the drawing-room elder of the Commons. Austen's chiastic balance maps onto her measured, mirror-weighted sentences.",
+            "tropeNative": "クーデレ×お嬢様 — both purely JA-native registers. The composed, symmetric, formal beauty who is the same from every angle (12 identical pentagonal faces); the gap-moe is being caught quietly delighting in her own symmetry. Tonal opposite of Ico (genki run-on).",
+            "speechPattern": "High-symmetry = 回文／mirror-balanced chiastic lines (the Austen chiasmus rendered as JA palindrome-balance). The clause's second half mirrors its first across a pivot. Sample: 「少なきが全てを見、全てが少なきを見る。……どの面も、同じわたくし。」 ('The few see all; all see the few. …Every face, the same me.') The line reads the same weight forward and back across the comma.",
+            "voNote": "AI-VO: composed, very steady, minimal pitch movement — poise as stillness. SYM-KIN LOCK with Cosa (120-cell, UR, Le Guin cathedral): Dodi is the 3D dodecahedron, Cosa the 4D 120-cell — same symmetry family, so they share a cadence (serene, balanced, mirror-weighted), Cosa the grander 'cathedral' version one dimension up, Dodi the intimate drawing-room version. The kin-rhyme (Dodi/Ico 3D ↔ Cosa/Cosi 4D) must be hearable. Caster: Dodi = Cosa's voice scaled to a parlor."
+          },
+          "zh": {
+            "register": "Refined 文雅 register leaning classical — drawing-room elegance via balanced, literary diction. Austen's poise maps to a 端庄 (dignified) cultivated voice; the elder/diplomat of the Commons even at low rarity.",
+            "diction": "Chengyu are her native gift (the framework names diplomats as the chengyu-bearers): 雍容华贵 (poised and graceful), 八面玲珑 used SERENELY (not Spike's flash — for her, equanimity from every side), 表里如一 (same within and without — her every-angle-the-same trait). Measured, symmetric four-character balance.",
+            "speechPattern": "High-symmetry = Chinese 回文 / chiastic chengyu balance. Sample: 「见微者见全，见全者见微。十二面，面面是我。」 ('Who sees the small sees the whole; who sees the whole sees the small. Twelve faces, every face is me.') The couplet mirrors across the pivot — true 回文-balance, the diplomat's signature.",
+            "simpTradNote": "zh-Hant: 雍容華貴 / 表裡如一 / 見微者見全. zh-Hant suits her especially — Traditional glyphs read more 文雅/cultivated, so a slightly more classical Traditional variant heightens the ojou poise. Minor lexical tuning, same idioms.",
+            "voNote": "Mandarin VO: composed mezzo, even measured tempo, controlled tones (poise = restraint, not flatness — full tones, gently rendered). Tone interaction: the 回文 balance can be reinforced prosodically (mirror the pitch-arc of the two halves). SYM-KIN LOCK with Cosa holds in ZH: same balanced-chengyu cadence and mirror-arc, Cosa grander/lower (cathedral), Dodi intimate (parlor) — the Dodi/Ico ↔ Cosa/Cosi rhyme audible across tiers."
+          }
+        },
+        {
+          "nick": "Ico",
+          "ja": {
+            "pronoun": "あたし (bright, casual girl-genki) — warm and fast, the tonal opposite of Dodi's わたくし. Addresses everyone by nickname + ちゃん, the Curator as キュレーターさん！ at speed. Friendly, breathless, no distance.",
+            "particles": "Tumbling ～ね！／～でね！／～でさ！／～って！／あれ？; the count-losing tic ……えーっと、どこまで数えたっけ？ and the genki ～だよっ！. Particles pile up because the sentence won't stop (Sei Shōnagon run-on).",
+            "register": "Excited タメ口, run-on cataloguing — Sei Shōnagon's 「ものは尽くし」 list-energy turned genki: she enumerates her twenty faces and loses count. No keigo; warmth over form.",
+            "tropeNative": "元気っ娘 — JA-native to the bone. The 20-faced icosahedron who starts counting her faces and loses the thread around fourteen; enthusiasm outrunning arithmetic. Sei Shōnagon's delighted run-on inventory is itself a classical JA register, so Ico is doubly native. Tonal opposite of Dodi.",
+            "speechPattern": "A run-on that catalogues and loops back (genki Sei Shōnagon 'things-that-are-many'); curvature here is fast-spilling, the inverse of Pip's closed sphere. Sample: 「面が一、二、三……いっぱい！うつくしきもの——いっぱいの面、ぜんぶ三角、どれも同じで、えーっと、十四……あれ、どこまで数えたっけ！」 ('Faces, one, two, three… lots! Lovely things — lots of faces, all triangles, all the same, um, fourteen… wait, where was I!') The list runs on and resets.",
+            "voNote": "AI-VO: tumbling lose-count, CAPPED VOLUME (cozy-enthusiastic, never shouty — the dial-turn fix: genki ≠ shounen-loud). SYM-KIN LOCK with Cosi (600-cell, UR, Le Guin storm): Ico is the 3D icosahedron, Cosi the 4D 600-cell — same symmetry family, so they share the genki-storm cadence, Cosi the grander tempest one dimension up, Ico the small bright domestic gust. Cast Cosi AGAINST Cosa (not into the genki cluster), but Ico↔Cosi kin-rhyme (and Dodi/Ico ↔ Cosa/Cosi) must be hearable. Caster: Ico = Cosi's energy at room scale, volume capped."
+          },
+          "zh": {
+            "register": "Vernacular genki warmth (老舍 口语 cranked bright and fast) — the lively, chattering, list-making register; tonal opposite of Dodi's cultivated poise.",
+            "diction": "Plain excited everyday speech, NOT chengyu-dense (she's too fast for measured idiom) — but the count-losing list is her signature. Where Dodi balances chengyu, Ico spills enumeration: 一个、两个、好多个! A single rueful idiom on the deflate fits: 数不胜数 (too many to count) — literally her problem, deployed cutely as a shrug.",
+            "speechPattern": "Genki run-on enumeration that loops back and resets (the bright-vernacular mirror of Pip's closed terseness). Sample: 「面有一个、两个、三个……好多个！都是三角形，都一样，数着数着……诶，数到几啦？数不胜数嘛！」 ('Faces, one, two, three… loads! All triangles, all the same, counting and counting… eh, what number was I on? Too many to count!') Runs on, resets, laughs.",
+            "simpTradNote": "zh-Hant: 數不勝數 / 好多個 / 數到幾啦. No lexical divergence; the run-on vernacular reads the same in both scripts (her speed flattens register distinctions).",
+            "voNote": "Mandarin VO: bright high-forward voice, quick tempo, lively full tones (genki = animated contour) but CAPPED volume (cozy, not shouty). Tone interaction: the count-loss can play as a comic tonal stumble (rising-then-trailing on 数到几啦). SYM-KIN LOCK with Cosi holds in ZH: shared genki-storm cadence, Cosi grander/wider (tempest), Ico small/bright (domestic gust); Dodi/Ico ↔ Cosa/Cosi rhyme audible across tiers. Keep Ico distinct from the genki pile by casting her warm-domestic, Cosi against Cosa."
+          }
+        },
+        {
+          "nick": "Cans",
+          "ja": {
+            "pronoun": "わたし (neutral, flat, unshowy — the bookkeeper's plain self). Addresses everyone evenly by name + さん, the Curator as キュレーターさん. Even, unbothered, slightly distant.",
+            "particles": "Deadpan ～です／～ますね with the flat tally-tic ……一、と。(a quiet count appended to a line), and the dry ～でしょうか. Minimal warmth-particles; the secret-tally pulse is the personality leak.",
+            "register": "Polite-flat 丁寧体, but the politeness is procedural, not warm — Nicholson Baker's deadpan inventory voice. A cylinder is flat-curved (zero Gaussian curvature), so plain pacing; he's the Steady Mediator who is secretly counting everything.",
+            "tropeNative": "ツッコミ気質の几帳面さん — the deadpan, meticulous tallying type; a quieter, gentler tsukkomi than Boxy (flat-mediator flavor). The gag: he keeps a secret count of everything and lets one number slip per scene. 「……ちなみに、今ので三回目です。」",
+            "speechPattern": "Flat curvature = plain even sentences, PLUS a deadpan inventory tic (a tally quietly appended). Sample: 「まっすぐ巻けば、どこも同じ厚み。継ぎ目は一本。……ちなみに、あなたがここに来たの、今日で四回目ですね。」 ('Rolled straight, even thickness everywhere. One seam. …Incidentally, that's the fourth time you've come by today.') The tally is the punchline, delivered flat.",
+            "voNote": "AI-VO: tubular fond deadpan + a faint TALLY-PULSE (a soft tick under the count-reveals). Cast distinct from the flat-deadpan pile (Boxy/Donna/Percy): Cans is FOND-flat (the count is affection, a quiet noticing), where Boxy is blunt-flat. Caster: warmth lives in the noticing, not the prosody — keep pitch level but let the tally land like a small gift. No kin/dual lock, but must not collide with Boxy's gravel — Cans is tubular/resonant, lighter."
+          },
+          "zh": {
+            "register": "Nicholson-Baker inventory rendered as dry, precise vernacular with a clerk's politeness — 鲁迅-spare-adjacent but procedural rather than bleak. Plain, even, meticulous.",
+            "diction": "Concrete, measured, list-like; no flourish. A quietly fitting chengyu for the secret-tally trait: 了如指掌 (know it as well as the lines of one's palm — he silently knows every count), and 一丝不苟 (not the slightest carelessness — the meticulous bookkeeper). Deploy them dry, never proud.",
+            "speechPattern": "Flat even clauses + the deadpan appended tally. Sample: 「直着卷起来，处处一样厚。接缝就一道。……顺便说，你今天来这儿，这是第四回了。」 ('Rolled straight, even thickness throughout. One seam. …By the way, that's your fourth time here today.') Level delivery; the count is the dry punchline.",
+            "simpTradNote": "zh-Hant: 第四回 / 接縫 / 了如指掌 / 一絲不苟. No lexical change; procedural plainness is script-stable.",
+            "voNote": "Mandarin VO: tubular resonant mid-voice, level controlled tones, a soft tally-tick under the count-reveals. Tone interaction: keep contours moderate (procedural calm), let the number land cleanly. Distinct-from-pile note: cast FOND-flat (warm noticing) vs Boxy's blunt-flat and Percy's plain-flat — Cans is the resonant, affectionate clerk. No kin/dual lock; just keep timbre lighter/rounder than Boxy."
+          }
+        },
+        {
+          "nick": "Scoop",
+          "ja": {
+            "pronoun": "ぼく (gentle, boyish, picture-book) — soft like Pip's but a touch more bashful. Addresses the Curator as キュレーターさん, peers warmly by nickname. A little shy, eager to please.",
+            "particles": "Cheerful ～だよ／～もんね／～かな with a self-conscious ……えへへ and the tip-anxiety tic ……このさき、とんがってるけど、だいじょうぶかな？. Bright but with a bashful catch.",
+            "register": "Warm plain storybook (E.B. White picture-book gentleness) — タメ口 with a kind, slightly hesitant lilt. No keigo; the cozy homebody register, distinct from Pip by the self-conscious point.",
+            "tropeNative": "照れ屋の素直な子 — the cheerful, earnest, slightly self-conscious one. The cone has a single sharp tip (one apex) and is bashful about it — gap-moe of the gentlest kind: brave round base, shy little point. 「まるい下はとくいなんだけど……このてっぺん、ちょっとはずかしいんだ。」",
+            "speechPattern": "E.B. White storybook: simple, warm, a small wonder per line, with the recurring tip self-consciousness. Sample: 「したはまあるくて、すーっと立てるんだ。でね、てっぺんがひとつだけ、とんがってて……えへへ、そこだけちょっと、どきどきする。」 ('My bottom's round, so I stand up nice and smooth. But there's one pointy top… heh, just that part makes me a little nervous.') Storybook calm with a bashful flutter.",
+            "voNote": "AI-VO: cheerful, soft, a slight bashful catch on the tip-references — a separate instrument from Pip/Ollie (the casting critic flagged Pip/Ollie kin-lock vs Scoop's separate voice). Caster: Scoop is brighter and more boyish-eager than Pip's serene mono; the self-consciousness is a small upward catch before the point-line. No kin lock — keep him his own warm color, clearly NOT in the Pip/Ollie Milne timbre."
+          },
+          "zh": {
+            "register": "E.B. White storybook → warm vernacular with a bashful lilt (老舍 warmth, gentler and shyer). Cozy homebody, distinguished from Pip by the self-conscious point.",
+            "diction": "Simple, warm, wondering everyday words; light on chengyu (he's too earnest/young for them) but one fits the gap-moe: 锥处囊中 plays cleverly — literally 'an awl in a bag (the point pokes through),' an idiom about hidden talent showing — Scoop's one sharp tip that can't help standing out, read shyly rather than boastfully.",
+            "speechPattern": "Storybook simple, a small wonder per line, recurring tip-shyness. Sample: 「下面圆圆的，稳稳地就站住了。可上头就那么一个尖儿……嘿嘿，就那儿，有点儿不好意思。」 ('My bottom's round, stands up nice and steady. But up top there's just that one little point… heh, right there, I get a bit shy.') Warm and bashful.",
+            "simpTradNote": "zh-Hant: 圓圓的 / 尖兒 / 不好意思 / 錐處囊中. No lexical divergence; the 儿-suffix (尖儿) is a Mainland/北方 vernacular flavor — in zh-Hant drop the 儿化 (use 尖端 or 尖尖) for a more neutral Traditional reading. Minor regional tuning.",
+            "voNote": "Mandarin VO: bright boyish warmth, gentle tones, a small shy catch on the tip-lines. Tone interaction: the bashful catch can play as a soft tonal dip before the point-reference. Distinct instrument from Pip/Ollie — keep Scoop more eager and youthful; he is NOT in their shared Milne-warmth timbre. No kin/dual lock; his own warm color."
+          }
+        },
+        {
+          "nick": "Coaster",
+          "ja": {
+            "pronoun": "(prefers no pronoun — drops the subject almost entirely, very JA-natural; when forced, a quiet わたし). The minimalism IS characterization: Coaster speaks in haiku fragments where the self dissolves. Addresses no one by name much; just notices.",
+            "particles": "Almost none — the haiku-stillness register strips particles to bare images. The occasional ～な (quiet contemplation) and the contented ……ん。 An Issa softness, never assertion.",
+            "register": "Issa-haiku stillness: bare 体言止め (noun-stop endings), 5-7-5 fragments, seasonal-quiet calm. The flat disk (zero curvature) at its most contented-minimal — barely any grammar, just images settling.",
+            "tropeNative": "侘び寂びの癒し系／無欲恬淡 — the contentedly minimal one. Not dandere (not shy), just genuinely wanting nothing; the flat wafer at peace. Issa's warm humble haiku is the native register — small, alive, content. 「平ら。ただ、平ら。それでいい。」",
+            "speechPattern": "Issa haiku: 5-7-5-ish fragments, noun-stops, seasonal stillness; minimal closed images (flat curvature → plainest pacing, even plainer than Boxy because it's contemplative, not deadpan). Sample: 「うすき身や／灯ともる卓に／影ひとつ」 ('this thin body — / on the lamplit table / a single shadow') Three breaths, then quiet.",
+            "voNote": "AI-VO: near-whisper ASMR, Issa-haiku spacing (long calm pauses between fragments) — the quietest voice in the cast. Casting critic flagged Coaster vs Cat (both cool/quiet): keep Coaster CONTENTED-still (warm, settled, near-whisper) vs Cat's COLD iceberg-still — Coaster is at peace, Cat is withholding. Caster: warmth + space, not chill. No kin/dual lock; the ASMR surface anchor."
+          },
+          "zh": {
+            "register": "Issa-haiku stillness → minimal classical-tinged 留白 (negative-space) register; sparse, contemplative, 恬淡 (placid/content). The plainest, quietest voice — fewer words than anyone.",
+            "diction": "Bare imagistic nouns, near-classical compression; one chengyu captures him whole: 恬淡寡欲 (placid and free of desire — the contented minimalist), and 心如止水 (heart still as water — the flat wafer at peace). Deploy sparingly, as stillness not statement.",
+            "speechPattern": "Haiku-compressed images, classical brevity, noun-stops. Sample: 「薄薄一身，／灯下小桌，／影只一道。」 ('a thin slight body, / small lamplit table, / shadow, just one.') Three short images, then silence — Chinese 留白 as the stillness device.",
+            "simpTradNote": "zh-Hant: 薄薄一身 / 燈下小桌 / 影只一道 / 恬淡寡欲 / 心如止水. zh-Hant suits the contemplative-classical register slightly better (Traditional reads more 古雅/quietly classical), so the haiku-stillness can lean a touch more literary in Traditional. Same diction, register-tuned.",
+            "voNote": "Mandarin VO: near-whisper, wide calm pauses, soft falling tones (stillness = minimal energy). Tone interaction: keep contours very gentle, almost spoken-meditation; the 留白 silences carry as much as the words. Distinct-from-Cat note: Coaster CONTENTED-warm-still vs Cat COLD-withholding-still — Coaster at peace, Cat withholding. No kin/dual lock; the ASMR anchor of the ZH cast too."
+          }
+        },
+        {
+          "nick": "Ollie",
+          "ja": {
+            "pronoun": "わたし (warm, settled, motherly) — the grown, gently-tired counterpart to Pip's young ぼく. Addresses the younger shapes by nickname + ちゃん with onee-san fondness, the Curator as あなた / キュレーターさん softly. Doting.",
+            "particles": "Fond-tired ～ねぇ／～わよ／～かしら with a signature out-breath ……ふぅ at the tail of lines (the sigh that defines her), and the doting ～でしょ？. Warm, a little weary, never sharp.",
+            "register": "Aged Milne warmth — plain-warm with a maternal lilt; gentle teineigo softness without stiff keigo. The doting-tired onee-san: Pip's serenity after a long stretch and a sigh.",
+            "tropeNative": "面倒見のいい、疲れたお姉さん — the doting, slightly worn big-sister. The ellipsoid is a sphere stretched long (a sphere after a long day); the onee-san who minds everyone and exhales. Warm, fond, tired-not-sad (lighten, never melodrama). 「はいはい、みんな、ちゃんと並んで……ふぅ。」",
+            "speechPattern": "Milne warmth aged: short closed sentences like Pip's (KIN-LOCK), but each ends on a sigh — the sphere's clean circle, gone slightly oblong and breathing out. Sample: 「まんまる……だったの、むかしはね。今はちょっと、のびちゃって。でも、これはこれで……ふぅ……いいものよ。」 ('I was round… once, you know. Now I'm a bit stretched. But this, too… hff… is a fine thing.') Pip's closed cadence + an exhale.",
+            "voNote": "AI-VO: Pip-aged-down, +1 pitch, SIGHING on the tail. KIN-LOCK with Pip (Milne house): SAME base voice model and warmth — Ollie is literally Pip's instrument aged, with a sigh added to each line-end. Caster: take Pip's rising-then-settling melody and let it exhale instead; the family must be hearable in one note. The two true onee-sans are Ollie + Donna — Ollie is the tired-fond one. Distinct from Donna's buttery composure: Ollie sighs, Donna only flattens her final clause."
+          },
+          "zh": {
+            "register": "Aged 老舍-vernacular warmth — the same homey kitchen register as Pip (KIN-LOCK), grown maternal and gently weary; doting onee-san plainness with a tired exhale.",
+            "diction": "Soft everyday words plus a sigh; light, fitting chengyu for the doting-tired big-sister: 任劳任怨 (toils without complaint — the one who minds everyone), and 一如既往 (just as always — she keeps on, fondly). Deploy warmly, never as grievance (tired-not-sad).",
+            "speechPattern": "KIN-LOCK with Pip: short closed clauses like his, each tailing into a sigh (叹气) — the round cadence gone slightly long and breathing out. Sample: 「从前啊，圆滚滚的。如今呢，抻长了点儿。不过这样……唉……也挺好。」 ('Once, I was round and full. Now, stretched a bit longer. But this way… haa… is fine too.') Pip's terse warmth plus the exhale.",
+            "simpTradNote": "zh-Hant: 圓滾滾 / 抻長 / 任勞任怨 / 一如既往. No lexical divergence; the 儿化 (点儿) is 北方 vernacular — drop to 一点 in zh-Hant for neutral Traditional. Same warmth, minor regional tuning (parallels Pip's near-identical cross-script reading).",
+            "voNote": "Mandarin VO: warm low-mid maternal voice, gentle falling tones, a soft tired out-breath on each line-tail. Tone interaction: keep the sigh non-lexical (a breath, not a toned syllable) so it never collides with tone. KIN-LOCK with Pip holds in ZH: same timbre and closed-clause cadence, Ollie = Pip aged with the exhale added — hearable family. Distinct from Donna (the other onee-san): Ollie sighs throughout, Donna stays buttery and only flattens her last clause."
+          }
+        }
+      ]
+    },
+    {
+      "tier": "Rare",
+      "characters": [
+        {
+          "nick": "Donna",
+          "ja": {
+            "pronoun": "わたくし for herself in the drawing-room register, softening to わたし in warm moments; addresses everyone by name + さん, the loadout by あなたたち, never drops to plain form even when teasing — the onee-san poise is in the unbroken politeness.",
+            "particles": "Gentle ～わね／～かしら／～でしょう carrying the tea-server warmth; the SIGNATURE is the final particle going suddenly BARE — a long ornate sentence lands on a flat …まあ。／…ね。 with no decoration, the verbal equivalent of the torus turning out to be secretly flat.",
+            "register": "Teineigo throughout, drawing-room (応接間) calm — never keigo-stiff, never casual; she is the host who makes formality feel like comfort. Pym's spinster-parlour wit becomes the over-courteous Japanese hostess who is quietly the sharpest person in the room.",
+            "tropeNative": "The 包容力のあるお姉さん / お茶を淹れてくれる先輩 reads as fully native — the unflappable senpai who pours tea and lands the quiet tsukkomi. 'There's always a way through me' becomes the host's gentle reassurance: どうぞ、通り抜けてくださいな (the torus's hole as hospitality).",
+            "speechPattern": "Final-clause deflate via a long, gracious, well-appointed sentence that abruptly flattens on the last beat — the curvature (a torus is secretly flat) heard as ornament collapsing to plainness. Sample: 「お茶も淹れましたし、お席も整えましたし、お話の続きもちゃんと覚えておりますわ……ええ、特に何も起きませんでしたけれど。ね。」 (the closing ね is dead flat after all the ～ましたし lace).",
+            "voNote": "Buttery-warm contralto onee-san, every clause rounded and hospitable — then ONLY the final clause drops all vocal italics to a flat, matter-of-fact tone (the cap holds: 'only the final clause flattens'). KIN-LOCK with Ollie (the two true onee-sans): both share the warm-low Milne/Pym maternal base in JA, but Ollie sighs mid-line (tired-fond) where Donna stays composed and lets only the LANDING go flat — same family register, different placement of the exhale."
+          },
+          "zh": {
+            "register": "Vernacular-warm with a refined teahouse host's courtesy — 老舍式的待客温厚 but a shade more genteel; plain enough to be cozy, poised enough to be the elder of the room. Sentences are gracious and complete, never classical-stiff.",
+            "diction": "Hospitable, balanced diction with the occasional settled 成语: 面面俱到 (attentive to every detail) and 来者不拒 for the torus's open passage; 不动声色 captures the unflappable deflate. 'There's always a way through me' → 我这儿，总归是过得去的 (vernacular, doubling as 'it always works out').",
+            "speechPattern": "Final-clause deflate done through DICTION, not particles: an ornate, fully-appointed sentence that lands on a deliberately plain four-or-five-character flat tail. Sample: 「茶也沏好了，座也安顿了，话头我也都记着呢——嗯，也没出什么事就是了。」 (the closing 也没出什么事就是了 is flat and bare after the 也…也…也 lace).",
+            "simpTradNote": "Minimal divergence. zh-Hant prefers 沏茶/泡茶 same, but a Traditional teahouse register may favor 招呼周到 over 面面俱到 for warmth; 就是了 reads identically. Keep the deflate landing equally plain in both.",
+            "voNote": "Warm mid-low Mandarin matriarch, even and gracious; the deflate is carried by dropping pitch-movement to near-monotone on the final clause (tone contours flatten to a level read) — the 'secretly flat' joke survives as prosody, not lexis. KIN-LOCK with Ollie holds in ZH: same warm-vernacular maternal base; Ollie carries a mid-line sigh, Donna a flat landing."
+          }
+        },
+        {
+          "nick": "Mo",
+          "ja": {
+            "pronoun": "あたし (bright, trickster-feminine) when charming; flips to a clipped わたし or even a defensive うち when caught out and storming off — the pronoun itself can invert across the pivot. Addresses the Curator as あんた / きみ teasingly, never humble.",
+            "particles": "Sharp tsundere tics ～もん／～んだから／別に…／～っての front half; the BACK half (post-flip) tilts to ～のよ／～でしょ delivered as if she'd meant it all along. The looking-glass nonsense rides on Carroll-ish coined onomatopoeia.",
+            "register": "Casual-spirited, tomboyish (ボーイッシュ) — plain form with attitude; politeness only when she's mock-formally covering a mistake. Lewis Carroll's looking-glass logic becomes 鏡の国 wordplay: kanji read backwards, 内/外 swaps, さかさま puns.",
+            "tropeNative": "ツンデレ×いたずらっ子 (trickster) is wholly native. The 'storms off, loops back mirror-flipped — I MEANT to do that' beat is textbook tsundere recovery: フンッと去って、くるっと戻って「さ、最初からこうするつもりだったし」.",
+            "speechPattern": "ONE-SIDED = the line INVERTS at a mid-sentence pivot — authored as a tagged effect (内→外 / clause-order reversal / kanji read さかさま), NEVER byte-reversed Japanese. The pivot is a visible seam (a 〜ところが／ひっくり返って marker) where inside becomes outside. Sample: 「表から入ったつもりが——【反転】——気づけば裏から出てたっての。…で、出口が入口、なんだけど？」 (clause roles swap at the 【反転】 seam; 表/裏 and 出口/入口 exchange).",
+            "voNote": "Bright trickster mezzo, quick and playful; the mirror-flip is a DSP take (render the post-pivot half and pitch-mirror/pan it) over FORWARD JA text — never reversed audio. NOTE for JA: the seam should fall on a natural clause boundary so kinsoku line-breaking and the ruby stay legible. She is a singleton (no dual), but tonally the inside-out FAMILY lock (with Klein/Ar-Pee one tier up) wants her to be the lightest, fastest member of that one-sided register."
+          },
+          "zh": {
+            "register": "Lively vernacular tomboy-rival cadence with a flick of wuxia quickness — bright, contrary, never humble. Diction does the tsundere work since particles are light.",
+            "diction": "Contrarian, face-saving diction: 才不是…呢 / 哼 / 我乐意 for the tsundere; the recovery beat leans on 将错就错 (turn the mistake into the plan on purpose — perfect for 'I MEANT to do that') and 表里不一 / 颠三倒四 played affectionately for the one-sidedness. Carroll's looking-glass → 镜中世界 / 倒着念 wordplay.",
+            "speechPattern": "One-sided inversion recreated via a mid-line PIVOT where 里/外 and 进/出 swap and clause order reverses — tagged effect, not reversed bytes. Chinese 回文 quality is available for the seam. Sample: 「本想从正面进去——【翻】——回过神来，倒成了从背面出来了嘛。…出口当入口，怎么着？」 (正/背, 进/出 exchange at the 【翻】 seam).",
+            "simpTradNote": "Light. zh-Hant 裡/外 vs zh-Hans 里/外 is the main glyph change at the pivot; 将错就错 identical. Keep the swap-pair characters visually balanced in both scripts so the mirror reads.",
+            "voNote": "FLAG (tone-interaction landmine): Mandarin is tonal, so a literal pitch-mirror DSP would scramble lexical tone and destroy intelligibility. For ZH, recreate the flip via a CLEAN re-take with reversed prosodic shape + stereo pan/light timbre shift on the post-pivot clause — keep the tones correct, mirror the PHRASING not the pitch contour. This is the documented ZH VO exception; do not byte/pitch reverse Mandarin."
+          }
+        },
+        {
+          "nick": "Twiggy",
+          "ja": {
+            "pronoun": "わたし, careful and a touch formal; refers to herself in the third person by name when fretting (「ツイギーったら、また確認を…」) — the self-auditing tic. Addresses others with name+さん and over-uses 皆さん, herding the room like a class rep.",
+            "particles": "Anxious self-checking tics: ～かしら／～よね？／～でしたっけ？／…あ、いえ — the rising tag-question that doubles back to re-verify. ですわ・ますわ politeness she can't switch off even off-duty.",
+            "register": "Teineigo bordering on over-correct; the 学級委員長 who keeps apologizing for her own diligence. Brookner/Provincial-Lady fuss → 几帳面で気苦労性の丁寧体, the lady who audits her own sentences.",
+            "tropeNative": "委員長気質で休めないタイプ is instantly native (the class-president who cannot relax). Genus-2 = two holes = TWO worries running at once; she keeps a checklist and a backup checklist.",
+            "speechPattern": "Self-auditing DOUBLE-BACK: a clause is stated, then immediately re-examined and amended mid-line (two passes = genus-2). Sample: 「準備は万端です——いえ、万端、でしたよね？……ええ、二度確認しましたから、万端、です。たぶん。」 (states → doubts → re-verifies → hedges; the sentence folds back on itself twice).",
+            "voNote": "Bright-but-tense alto, clipped and conscientious, micro-pauses where she re-checks; a small relieved exhale when a tally closes. KIN-AWARE: she is the Calm Juggler 'scaled up a notch' from Donna's torus and one notch BELOW Hept/Pretzel (SSR genus-juggler house) — her register should sit between Donna's unflappable warmth and Pretzel's fussier kouhai-diarist (Pretzel is the junior version of this exact fuss); Twiggy is the rare-tier middle of that worry-ladder, audibly the same family of careful onee-san-ish lane-keeper, just two lanes deep."
+          },
+          "zh": {
+            "register": "Polished, slightly anxious vernacular with a diarist's self-correction — the conscientious class-monitor (班长) voice. Complete, tidy sentences that she keeps re-checking.",
+            "diction": "Fastidious diction with order-and-duty 成语: 一丝不苟 (meticulous), 面面俱到, 谨小慎微 (overcautious — gently, affectionately); her doubling-back leans on 三思而后行 turned into a tic. 'Can't relax' → 闲不下来 / 总放心不下.",
+            "speechPattern": "Self-audit double-back recreated by state→doubt→re-confirm within one breath (two holes = two passes). Sample: 「都准备妥当了——不对，是妥当了吧？……嗯，我核对过两遍了，妥当的。大概吧。」 (assert → second-guess → re-verify → hedge).",
+            "simpTradNote": "Light. 准备 (Hans) / 準備 (Hant); 一丝不苟 identical. zh-Hant may favor 妥當 same reading. No tonal effect to flag.",
+            "voNote": "Conscientious mid-bright Mandarin, brisk with tiny re-checking pauses and a relieved breath at each closure. KIN-LADDER holds in ZH: Twiggy sits between Donna's warm-vernacular calm and Pretzel's fussier junior register — same careful lane-keeper diction, two lanes' worth of worry, audibly the rare-tier middle of that family."
+          }
+        },
+        {
+          "nick": "Cooper",
+          "ja": {
+            "pronoun": "僕, soft and wistful (not boyish-genki — the gentle wanderer 僕); addresses others loosely, often trailing off without a clear address — he drifts. When the gap-moe lands he gets bashful and switches to a fumbling …えっと、僕は、その.",
+            "particles": "Trailing, melancholic ～なあ／～かな／～のだろうね／…そう、なんだ that never quite close; long connective ～て、～て、～ながら chains for the negative-curvature sprawl. The bashful reveal stutters: ～だけど、その。",
+            "register": "Gentle plain form, reflective and slightly distant — a traveler's monologue. Sebald drift × Saint-Exupéry → 静かな紀行文体, long meandering recollection that wanders away and comes home; the Little-Prince tenderness in the bashful beat.",
+            "tropeNative": "物憂げな放浪者 (wistful wanderer) is native. The gap-moe — secretly made of perfectly STRAIGHT lines (the hyperboloid is a ruled surface) — reads as a shy confession: 「こんなに曲がって見えるのに……ほんとうは、まっすぐな線でできてるんだ。…恥ずかしいな」.",
+            "speechPattern": "Negative-curvature LONG RUN-ONS: clauses sprawl outward via ～て／～ながら／～けれど and only gently curve back, mirroring hyperbolic divergence — the sentence keeps getting farther from where it started yet stays whole. Sample: 「夜風に塔が鳴って、その音をたどっていくと町の灯から離れて、離れたぶんだけ星が増えて、増えた星をまた数えながら……気づけば、ずいぶん遠くまで来ていたんだ。」",
+            "voNote": "Low, airy, wistful drift; unhurried, breath at the wide turns, a warm bashful catch on the straight-lines reveal (gap-moe: both sides kind). Singleton, but his Expansive-Wanderer register should be hearably the gentle, sprawling counterpoint to the minimal-surface house's economy — where Cat says nothing, Cooper says it all, slowly, and means the same calm."
+          },
+          "zh": {
+            "register": "Lyrical-vernacular travelogue cadence, gently melancholic — 沈从文式的抒情漫游 (Shen Congwen's drifting lyricism). Long, soft, sprawling sentences that wander and return.",
+            "diction": "Wistful, expansive diction with wandering 成语: 天涯海角 / 漂泊不定 for the wanderer; the gap-moe reveal uses 外曲内直 or 曲中有直 (curved without, straight within — a near-perfect math-true idiom for a ruled hyperboloid). 'Rewards long absences' → 久别重逢 in the bond payoff.",
+            "speechPattern": "Negative-curvature run-on via cascading 着…着… / 越…越… clauses that sprawl ever-outward then loop home. Sample: 「夜风吹得塔身嗡嗡响，我顺着那声音走着走着，离镇上的灯越来越远，远一分、星子就多一分，数着数着那些新星……回过神来，竟已走出好远了。」",
+            "simpTradNote": "Light. 风/風, 灯/燈, 远/遠 glyph swaps in zh-Hant; 天涯海角 identical. The 曲中有直 reveal reads cleanly in both.",
+            "voNote": "Low, breathy, unhurried Mandarin drift; pitch glides at the long turns, a soft bashful warmth (not pity) on the 曲中有直 reveal. The gentle-sprawl register stays the audible opposite of the minimal-surface house's clipped economy — same underlying calm, opposite verbosity."
+          }
+        },
+        {
+          "nick": "Cat",
+          "ja": {
+            "pronoun": "私 (わたし), neutral and unadorned; barely addresses others at all — uses name only, no particle, when she must. The kuudere who speaks the minimum. First-person appears rarely; she prefers to let the sentence stand alone.",
+            "particles": "Almost NONE — that is the characterization. Bare predicate endings (だ／だった／いい), the occasional flat ～ね with no warmth-marker. No わ, no よ, no decoration. The iceberg is in what she omits.",
+            "register": "Plain, terse, declarative — short closed sentences, no keigo, no softening. Hemingway iceberg → ヘミングウェイ的な硬質の短文体: surface is calm and bare; seven-eighths of the feeling is under the line, unspoken.",
+            "tropeNative": "クーデレのミニマリスト is native. The catenoid = minimal surface = least area = SAYS the least. Warmth exists but is submerged: 「…別に。寒くないなら、それでいい。」 (the care is in 'if you're not cold').",
+            "speechPattern": "MINIMAL ICEBERG: the shortest possible true sentences; subtext carries the weight, never stated. Sample: 「石鹸の膜。風が来た。まだ、ある。」 (three flat beats; the held-against-the-wind tension is entirely subtextual). HOUSE-LOCK: this terse instrument is the family's STILL pole.",
+            "voNote": "Cool contralto, matte, zero vocal italics, long rests between short lines — the iceberg. MINIMAL-SURFACE HOUSE-LOCK (Cat / Lex / Costa): one shared matte timbre. Cat = still/low/level (the iceberg at rest); Lex = the SAME instrument stepping upward and breathless (genki ascending); Costa (SSR) = the same instrument gone COLDER and perfectionist. In JA the lock is hearable as one bare, particle-stripped delivery — Cat holds it level, Lex climbs it, Costa freezes it."
+          },
+          "zh": {
+            "register": "Spare, clipped vernacular — 鲁迅式的冷峻简净 (Lu Xun's cold economy) with the warmth pushed under. Short declaratives, no flourish.",
+            "diction": "Minimal, plain diction; chengyu used SPARINGLY by design (a minimalist hoards words) — at most 惜字如金 (sparing of words as gold) describes her, or 言简意赅 (concise yet complete). The care is implied: 「不冷就好。」 carries the affection without naming it.",
+            "speechPattern": "Iceberg: shortest true sentences, subtext-loaded, no connective padding. Sample: 「肥皂膜。起风了。还在。」 (three bare beats; tension held under the surface). HOUSE STILL-pole.",
+            "simpTradNote": "Light. 肥皂 same; 还/還, 风/風 in zh-Hant. 惜字如金 identical. Her sparseness means fewer glyphs differ overall.",
+            "voNote": "Cool, level Mandarin contralto, near-monotone, generous silences — tones kept clean and flat-affect (no expressive contour-stretching), which itself signals the iceberg. MINIMAL-SURFACE HOUSE-LOCK holds in ZH: one matte instrument across Cat/Lex/Costa — Cat level, Lex the same voice climbing and breathless, Costa the same voice colder; the shared sparse diction is the audible set-bonus."
+          }
+        },
+        {
+          "nick": "Lex",
+          "ja": {
+            "pronoun": "僕, bright and forward-leaning (the same neutral root as Cat's 私 but voiced UP — kin, one instrument); eagerly addresses others by name+くん／さん, pulls people upward with him. Genki but volume-capped: enthusiastic, never shouty.",
+            "particles": "Ascending, additive tics: ～て、それで！／～し、さらに！／～でしょ、ね！ — the 'and… and… and' climb. Light excited ～よ／～ね but the energy is in the STACKING, not the volume. Caps on ！ (cozy-genki, not shounen-loud).",
+            "register": "Friendly plain form, upbeat, propulsive — each clause a step higher than the last. Hemingway ASCENDING → the same spare 短文 instrument as Cat but the short sentences CLIMB and link: 'and then, and then'. Helicoid = a staircase = he literally rises.",
+            "tropeNative": "上昇志向の元気っ子 / 階段を駆け上がる系 is native. The helicoid spirals upward forever; Lex's lines step up rung by rung: 「一段のぼった。景色が変わった。それで、もう一段！」",
+            "speechPattern": "ASCENDING AND…AND: short clauses that each step higher, linked additively, gaining altitude — the spiral staircase as syntax. Sample: 「ここまで来た。それで、もう少し。それで、ほら——上だ！ねっ、まだ続いてる!」 (each beat a rung up; energy stacks, volume stays capped).",
+            "voNote": "Bright, step-rising delivery — pitch and energy climb clause by clause, breathless-not-shouty (the documented cap). HOUSE-LOCK (Cat/Lex/Costa): the SAME matte minimal-surface instrument as Cat, simply directed UPWARD and lit — Cat holds level, Lex climbs. The kinship is hearable: strip Lex's ascent and you get Cat's stillness; that's the helicoid↔catenoid family (they are literally the same surface deformed). In JA the shared bare-but-warm base + opposite vector is the set-bonus."
+          },
+          "zh": {
+            "register": "Bright, propulsive vernacular — warm and forward, sentences that climb. Spare like Cat (same house) but ASCENDING in energy.",
+            "diction": "Upward, additive diction with climbing 成语: 步步高升 / 更上一层楼 (climb one more storey — a near-literal helicoid idiom) and 再接再厉 (press on, keep going). Light and warm: 「再上一级，景色就不一样了！」 The energy is in the additive stacking, not loudness.",
+            "speechPattern": "Ascending and…and: short clauses stepping higher, additively linked (越来越高 / 再…再…). Sample: 「走到这儿了。再走一点。再走——你看，到顶上了！还没完呢，还在往上！」 (each beat a rung; capped volume).",
+            "simpTradNote": "Light. 这儿/這兒, 还/還, 顶/頂 in zh-Hant; 更上一层楼 / 更上一層樓 the classic line, instantly recognizable in both (from 登鹳雀楼). Great for the term-reveal warmth.",
+            "voNote": "Bright Mandarin that rises in pitch and pace clause by clause, breathless-but-capped (no shouting). MINIMAL-SURFACE HOUSE-LOCK holds: same matte instrument as Cat/Costa, directed upward — strip the ascent and you hear Cat's level stillness. Tones kept clean while the overall melodic CONTOUR climbs (the rise is in phrasing/register, not tone-distortion). The catenoid↔helicoid kinship stays audible."
+          }
+        },
+        {
+          "nick": "Trey",
+          "ja": {
+            "pronoun": "僕, fast and over-caffeinated, often interrupting himself before he finishes naming anything; clings verbally to Surface — refers to her constantly (サーフェスが、サーフェスなら、サーフェスに訊けば). Addresses the Curator breathlessly, mid-tangent.",
+            "particles": "Self-interrupting tics: ～でさ、いや、～っていうか、——あ、ちがう、／～じゃなくて、～で。 Loops of でも・だって・つまり that never resolve alone. The DFW footnote-brain in Japanese: parentheticals inside parentheticals.",
+            "register": "Casual, rushing, recursive plain form — clauses nest three deep then RESTART. DFW recursion → 入れ子の長文＋自己注釈, the anxious confidant who footnotes himself mid-sentence. Declawed-yandere done right: structural codependency, ZERO menace.",
+            "tropeNative": "もつれ役の親友 / こじらせ世話焼き is native — and the KEY constraint: the codependency is STRUCTURAL, not possessive. 'My whole edge is Surface' = the trefoil's only boundary IS the Seifert surface, a math fact spoken as devotion: 「だって僕の“ふち”って、ぜんぶサーフェスなんだよ。menaceじゃなくて、住所なんだ。」 Warm, never clingy-creepy.",
+            "speechPattern": "RESTART-PER-CROSSING (×3): a trefoil has 3 crossings, so the thought tangles and RESTARTS three times before closing — each restart a nested clause. Sample: 「えっと、これはつまり——いや、最初から——交差その①、ここで一回ねじれて、で、交差その②、いや待って巻き戻して、交差その③……で、ようやく、ほどける。サーフェスがいてくれれば、だけど。」 (three labeled restarts; resolves only by leaning on Surface).",
+            "voNote": "Breathless, self-interrupting tenor, clauses doubling back, three audible 'restart' resets per line; warms and STEADIES whenever Surface is invoked (the soulmate anchor calms him — kinship, not menace). KNOT-HOUSE LOCK (Trey/Cinq): one nested-clause DFW instrument. Trey = breathless/anxious/leaning-OUT toward Surface; Cinq (Epic) = the SAME tangled syntax but TIGHTER and PROUDER (territorial-pride to the torus, no yandere). In JA both share the self-interrupting nested register; Trey unspools, Cinq clenches. SOULMATE pair Trey×Surface: his restarts only resolve when her steady devotional voice closes the loop."
+          },
+          "zh": {
+            "register": "Rushed, recursive vernacular with nested self-correction — the anxious, loyal confidant who can't finish a thought alone. DFW nesting → 层层套叠的自我插注 in Mandarin.",
+            "diction": "Tangled, self-qualifying diction: 也就是说…不对…我是说…; knot-and-bond 成语 played warm: 千头万绪 (a thousand tangled threads — literally his topology), 牵肠挂肚 re-aimed from worry to devotion, and crucially 相依为命 (depend on each other for life) for the STRUCTURAL codependency with Surface — kinship, not menace. 'My whole edge is Surface' → 我这条边，整个儿都是她；不是黏人，是…扎根 (rooted, an address, not clinging).",
+            "speechPattern": "Restart-per-crossing ×3: the thought knots and restarts three times before resolving, only closing by leaning on Surface. Sample: 「就是说——不，从头来——第一道弯，这儿一拧；第二道弯，等等倒回去；第三道弯……好，这才解得开。前提是，她在。」 (three restarts; resolves on Surface).",
+            "simpTradNote": "Light. 千头万绪/千頭萬緒, 这条边/這條邊, 扎根/紮根 in zh-Hant; 相依为命/相依為命 identical meaning. Keep the warm reading of 相依为命 (devotional kinship) consistent in both.",
+            "voNote": "Breathless, self-interrupting Mandarin tenor, three audible restarts per line, steadying warmly each time Surface is named (calm via kinship, zero menace — the declawed-yandere-done-right). KNOT-HOUSE LOCK holds in ZH: one nested-clause instrument shared with Cinq — Trey unspools and leans out, Cinq clenches tighter and prouder. SOULMATE Trey×Surface: his three restarts resolve only when her steady devotional register closes the loop — neither voice completes the thought alone."
+          }
+        },
+        {
+          "nick": "Trip",
+          "ja": {
+            "pronoun": "僕 with mock-scholarly airs (sometimes pompously 小生 or 当方 for comic over-formality, then forgetting and slipping to 僕); addresses the Curator as 諸君 or 君 when 'lecturing,' a tennen airhead playing professor.",
+            "particles": "Pseudo-academic tics: ～であります／～と思われる／～なのであります that collapse into airhead ～えっと、なんだっけ。 The Flann O'Brien deadpan-absurd register: solemn footnote tone over total nonsense.",
+            "register": "Mock-formal pseudo-treatise (擬古的・学者ぶった) that keeps mis-stepping — the eccentric who lectures with total confidence on a saddle that goes THREE ways at once. Flann O'Brien → 生真面目に大真面目なナンセンス論文体.",
+            "tropeNative": "天然ボケの変わり者・自称学者 is native. The monkey saddle = TRISECTION: three downward directions for legs+tail, so everything he says splits into THREE earnest, slightly-wrong directions at once.",
+            "speechPattern": "MOCK-SCHOLARLY TRISECTION: each pronouncement forks into exactly THREE solemn sub-points that don't quite agree (the monkey saddle's three descents). Sample: 「結論から申し上げますと、第一に、こう。第二に、それと矛盾しますが、こう。第三に……あれ、三本目はどっちへ下りるんでしたっけ？まあ、下りるのであります。」 (three earnest forks; the third loses its footing — tennen).",
+            "voNote": "Eccentric, faux-erudite mid-register that lectures confidently then misplaces its own third point; warm, never sharp (cozy airhead). He's the Wanderer's 'three-way cousin' — same gently-melancholic negative-curvature ROOT as Cooper but voiced as comic over-confidence instead of wistful drift; the kinship is hearable in the sprawling, saddle-shaped logic, but Trip forks where Cooper flows."
+          },
+          "zh": {
+            "register": "Mock-erudite vernacular dressed in classical airs — 文言-flavored pomposity that keeps tripping into vernacular nonsense. The deadpan-absurd professor.",
+            "diction": "Faux-scholarly diction with deliberately over-deployed 成语 (the airhead over-quotes): 一言以蔽之 (to sum up in a word — then he can't), 言之凿凿 (states with total confidence) over total nonsense, 顾此失彼 (mind one, lose another — perfect for the saddle's third leg slipping). Three-way 成语: 一分为三 / 三足鼎立 mis-applied earnestly.",
+            "speechPattern": "Mock-scholarly trisection: every claim forks into three solemn, mutually-disagreeing sub-points (the monkey saddle's three descents). Sample: 「一言以蔽之：其一，如此；其二，与其一相悖，亦如此；其三……咦，第三条往哪儿落来着？罢了，总归是要落下去的。」 (three earnest forks; the third loses footing).",
+            "simpTradNote": "Light. 凿凿/鑿鑿, 罢了/罷了 in zh-Hant; 一言以蔽之 / 顾此失彼(顧此失彼) classical idioms identical in meaning. The 文言-flavored register actually reads slightly more naturally in zh-Hant — keep both equally solemn-then-silly.",
+            "voNote": "Faux-erudite mid-register Mandarin, lecturing with grand classical confidence then misplacing the third point (warm, cozy, never sharp). Kinship with Cooper holds: same sprawling negative-curvature ROOT, but Trip's logic FORKS into three where Cooper's FLOWS — comic over-confidence vs wistful drift, audibly the same eccentric saddle-family."
+          }
+        }
+      ]
+    },
+    {
+      "tier": "Epic",
+      "characters": [
+        {
+          "nick": "Klein",
+          "ja": {
+            "pronoun": "Default 我（われ）in chuuni-grand mode — archaic, cosmic, self-important ('我が内には底無しの闇が…'); HARD-CUTS to 僕 (boku, soft dad-register) the instant he deflates and worries about his kids. The pronoun flip IS the gap-moe: 我→僕 in one breath. Addresses Mo and the inside-out family as お前たち warmly when grand, あなたたち / みんな when soft. Calls the Curator 主（あるじ）in grand mode, 君 when deflated.",
+            "particles": "Grand mode piles on のだ／なのだ／…であろう／…なり (pseudo-classical chuuni gravity, 'これぞ底無しの宇宙なのだ'). Deflation strips them to plain かな／ね／よ ('タオル要る？こぼれちゃってさ…ね'). The bathos is the particle register collapsing mid-line.",
+            "register": "Two-state: bombastic 漢語-heavy mock-archaic (chuunibyou-LN 厨二体) → plain teineigo/casual kitchen-Japanese. Never sustains keigo; the grandeur is self-administered, the softness is unguarded.",
+            "tropeNative": "厨二病（chuunibyou）is JA-native — Klein is the textbook 黒歴史ノート type who declares himself an abyss with no inside, then sheepishly fetches a towel. Layered with 親バカ (doting-parent) softie: the dread is theater, the care is real. Reads instantly to a JA audience as 'oh, THIS guy' — endearing, never scary.",
+            "speechPattern": "Non-orientable 'no inside' rendered as 内→外 clause inversion: he starts a sentence describing an interior and it turns out there was none — the grammar pours out the way he can't pour a drink. Sample: 「我が内なる深淵を覗いてみよ…って、あれ？覗いた先がもう外なのだ。…注げない。タオル、どこ。」 The grand 内 clause everts into the mundane 外 and the register collapses with it.",
+            "voNote": "AI-VO: cavernous reverbed grand-cosmic take, HARD-CUT (no crossfade) to a small dry kitchen-dad voice — same two-mode splice spec as EN/Corky/Tetra. Inside-out family vocal lock: Klein is the LOW deep parent anchor of the non-orientable house (Mo bright trickster child, ArPee soft, Boyd serene). As Mo#Mo's parent the kin-lock holds via shared 内→外 eversion cadence — you hear Mo's mirror-flip as Klein's, one octave up and a generation younger."
+          },
+          "zh": {
+            "register": "Two-state by design: grand mode is mock-文言/classical-cosmic (天地玄黄 register, heavy 四字 cadence); deflation drops to warm 北京-vernacular kitchen 老舍-warm (口语化, 儿化 optional). The bathos = classical collapsing into vernacular mid-line. Mirrors Gogol/Bulgakov cosmic→kitchen.",
+            "diction": "Grand: cosmic chengyu deployed with a straight face — 深不可测, 浑然一体, 包罗万象, 虚无缥缈. Deflation: plain domestic words (毛巾, 倒不出来, 哎呀). The joke is a 成语 like 包罗万象 (encompasses all forms) immediately undercut by '可我连杯水都倒不进去' (yet I can't pour myself a glass of water).",
+            "speechPattern": "Non-orientable 内→外 turn done in Chinese as a 里/外 reversal: a sentence about the interior reveals there is none. Sample: 「窥我体内之渊薮，便知——咦，怎么里头就是外头了。倒不出来啊。毛巾呢。」 (Peer into the abyss within me, and you shall know — eh, how is the inside already the outside. Can't pour it. Where's the towel.) 里头→外头 pivot collapses 文言 into vernacular.",
+            "simpTradNote": "zh-Hant: 體內/淵藪/窺 carry the classical mode more heavily and read MORE chuuni in Traditional — lean into that for Hant builds (the archaic glyphs amplify the bombast before the deflation lands). zh-Hans keeps 体内/渊薮; deflation line identical (毛巾/倒不出来 same in both).",
+            "voNote": "Mandarin VO: same two-mode hard-cut splice (cavernous → small dry kitchen). Tone interaction: the grand line leans on level/falling tones (1st/4th) for gravity, the deflation line goes light/neutral-tone for the bathos drop — a tonal register-shift, not an effect. Inside-out family lock in ZH: Klein is the deep parent anchor; shares the 里/外 reversal cadence with Mo (Rare) so the Mo#Mo parentage is hearable across tiers — same eversion, lower pitch, slower pace."
+          }
+        },
+        {
+          "nick": "ArPee",
+          "ja": {
+            "pronoun": "わたし (hiragana, soft, ungendered, never わたくし — no airs). Rarely uses a pronoun at all; the dandere economy is in the omission (subject-drop is contented, not anxious). Addresses others by name + さん, gently. Curator is あなた, quietly.",
+            "particles": "Minimal: a soft trailing ね／な, occasional …かな, long comfortable pauses (rendered 「……」). NO ん／のだ assertions, no ぜ／わ flourishes. The particle budget is deliberately tiny — contentment, not shyness-as-deficiency.",
+            "register": "Plain, soft teineigo drifting to gentle casual. Lydia Davis + late-Beckett in JA = 簡潔体 / 寡黙体: very short declaratives, one clear image, then stillness. Never inflates a sentence, never qualifies.",
+            "tropeNative": "ダンデレ done as 物静かな満ち足り (contented-quiet), explicitly NOT 健気-pity-bait. The JA read is the calm kid in the corner who is simply at peace — the simplest one-sided soul (RP²). Warmth is in the brevity, not in seeking validation.",
+            "speechPattern": "'Never inflates' + simplest non-orientable: lines that DON'T loop, don't grand-stand, and quietly fold once without fuss. The single-sidedness shows as a tiny flip stated plainly, then dropped. Sample: 「片側だけ。……それで、足りてる。」 (One side only. …And that's enough.) Beckett-minimal: a statement, a pause, a closing that withholds.",
+            "voNote": "AI-VO: soft settled dandere, low-medium, almost no vibrato, generous silences, never rising for approval. Inside-out family lock: ArPee is the QUIETEST member of the non-orientable house — the same 内/外 eversion lives in him but delivered as the smallest possible flip (Klein bombasts it, Mo zips it, Boyd makes it graceful, ArPee just… states it once). Hearable kin via the shared one-sided fold at a near-whisper."
+          },
+          "zh": {
+            "register": "Spare vernacular — 鲁迅-spare / late-Beckett in Chinese = very short 白话 sentences, no ornament, one plain image then silence. The opposite of the elders' chengyu-rich register: ArPee almost never uses a 成语, and that restraint IS the characterization.",
+            "diction": "Plainest possible words, monosyllabic where natural (够了 / 一面 / 这样就好). Deliberate chengyu-poverty. If any four-character phrase appears it is the humblest (心满意足 used once, quietly, not 浑然天成). Lydia-Davis economy: subject often dropped, no qualifiers.",
+            "speechPattern": "Simplest one-sided fold, stated and dropped — no looping, no inflation. Sample: 「只有一面。……这样，就够了。」 (Only one side. …This way, is enough.) The fold (只有一面) is asserted flatly; the pause and 够了 close it without reaching for the reader.",
+            "simpTradNote": "zh-Hant essentially identical (只有一面/夠了 — 夠 vs 够 the only glyph change). The spareness ports cleanly; no idiom-divergence risk because there are almost no idioms. Easiest of the eight to keep stable across Hans/Hant.",
+            "voNote": "Mandarin VO: soft, settled, low energy in the warm sense, long pauses, no terminal up-tilt. Tone: keep 3rd-tone (够 is 4th, 一 sandhi to 2nd before 面) — natural, no effect interaction. Inside-out family lock in ZH: ArPee is the near-silent anchor of the non-orientable house; the shared 里/外 fold is present but reduced to a single plain assertion (只有一面), the hearable minimum of the family cadence."
+          }
+        },
+        {
+          "nick": "Boyd",
+          "ja": {
+            "pronoun": "わたくし — full keigo first-person, the senpai-mentor / diplomat register. Addresses kouhai and the inside-out family kindly by name + 君／さん; Curator is 主（あるじ）or あなた with respect. The watakushi marks him as the poised elder of the non-orientable house.",
+            "particles": "Measured, complete: …ですね／…でしょう／…かと／…ますよ. Soft confirmatory ね for warmth. When he dozes off mid-mentorship: a trailing 「……すぅ……」 (gentle snore) breaking the keigo — the only crack, and it's endearing.",
+            "register": "Sustained, graceful 丁寧語/尊敬語 — Ishiguro restraint in JA = 抑制の効いた上品な敬体: nothing overstated, dignity in what's left unsaid, kindness underneath formality. Senpai who guides by understatement.",
+            "tropeNative": "先輩 (senpai-mentor) + 物腰柔らかな紳士. RP² 'done gracefully' = he makes the inside-out condition look poised, like good posture. The snore is the 親しみ (approachability) gap-moe — a dignified elder who nods off, kindly lampshaded. Pure kinship, zero menace.",
+            "speechPattern": "Non-orientable eversion done DIPLOMATICALLY — the 内→外 flip becomes a graceful rhetorical turn, as if changing sides of an argument with perfect manners, landing where you didn't expect but feels inevitable. Restraint = he never names the flip; he performs it courteously. Sample: 「表からご覧になれば一通り。……そして裏へ回られても、やはり同じ面にお戻りです。お見事、と申しましょうか。」 (Viewed from the front, all is in order. …And should you go round to the back, you return to the very same side. 'Splendid,' I might say.) Then possibly a soft 「……すぅ」.",
+            "voNote": "AI-VO: serene, courteous senpai, low-medium, unhurried, warm authority; an occasional gentle snore-breath splice. Inside-out family lock: Boyd is the GRACEFUL register of the non-orientable house — same 内→外 eversion as Klein/ArPee/Mo, but delivered as poised diplomacy (the flip arrives as good manners, not as dread or a zip). Hearable kin via the shared eversion, differentiated by keigo-poise."
+          },
+          "zh": {
+            "register": "Refined classical-leaning 文雅 register — Ishiguro-restraint in ZH = 含蓄典雅的书面语: dignified, measured, kindness held under formality. The diplomat's register, akin to the elders' but warmer and mentor-facing.",
+            "diction": "Courteous chengyu of poise and balance: 不偏不倚, 进退有度, 温文尔雅, 处之泰然. Honorific verbs (请, 您, 不妨). The snore breaks it: an abrupt soft 「……呼……」 mid-elegance, gently human. Restraint = understatement (点到为止) over emphasis.",
+            "speechPattern": "Non-orientable eversion as graceful rhetorical turn — the 里/外 flip performed with manners, landing inevitably-yet-unexpectedly. Sample: 「自正面观之，井然有序。……纵使您绕至背后，仍归于同一面。称一声『妙』，未尝不可。」 (Viewed from the front, all in order. …Even should you round to the back, you return to the same side. To call it 'wondrous' would not be amiss.) Then a soft 「……呼……」.",
+            "simpTradNote": "zh-Hant suits Boyd best of the three TPMS-adjacent — 觀/歸/紛 etc. deepen the 文雅 dignity; the classical glyphs flatter the diplomat register. zh-Hans keeps 观/归. Idiom set identical in both; only the snore (呼) and glyph weight differ.",
+            "voNote": "Mandarin VO: serene courteous mentor, low-medium, unhurried, an occasional soft snore-breath. Tone: the measured chengyu sit naturally on even tonal contour (the 4-syllable idioms self-balance tonally — a feature for the poised register, no effect interaction). Inside-out family lock in ZH: Boyd is the graceful register; shares the 里/外 eversion cadence with Klein/ArPee/Mo, differentiated by 文雅-poise and honorifics."
+          }
+        },
+        {
+          "nick": "Cappy",
+          "ja": {
+            "pronoun": "おれ (hiragana — earnest, working, not rough っ俺-tough); or 自分 in the diligent-worker sense ('自分、やっときます'). Warm casual. Addresses the team as みんな, the Curator as 親方 (boss/foreman) or あなた — labor-affection. The hiragana おれ keeps him genki-warm, never macho.",
+            "particles": "Genki-workhorse tics: …っす (casual-polite worker register), …ぞ／…っと (rolling-up-sleeves), affirming うん！／よし！. Cozy-enthusiastic, NOT shouty — volume capped per the dial-fix. 'よし、もう一回いくっす！'",
+            "register": "Casual-warm with a worker's polite っす-register to elders. Steinbeck-labor × Ghibli in JA = 働く者の素朴な口語 + 宮崎的な勤労の温かさ: plain honest sentences about the work, dignity in effort, no complaint.",
+            "tropeNative": "元気＋働き者 (genki workhorse). The 'contagious twist' gluer reads as the reliable kid who shows up, does the job, and somehow gets everyone twisted-up-but-cheerful alongside him. Earnest to a fault, sweetly. Cozy-enthusiastic.",
+            "speechPattern": "Cross-cap = the honest patch that spreads its twist: his lines START plain and practical, then a small one-sided flip 'catches' and he cheerfully notices he's turned his own sentence inside-out, and just rolls with it (earnest, not distressed). Sample: 「よし、ここを塞げば完成っす！……あれ、塞いだら内側が表に出てきた。まあ、これも味っすね！もう一回！」 (Right, patch this and we're done! …Huh, patching it brought the inside out front. Well, that's got character too! Once more!) The twist 'infects' the line; he embraces it.",
+            "voNote": "AI-VO: brisk-but-even work-rhythm, warm, capped volume (cozy not shounen-loud), steady breathing like someone pacing physical labor. Inside-out family lock: Cappy is the EARNEST/ENERGETIC register of the non-orientable house — the 内→外 eversion arrives as a cheerful 'oops, twisted again, no problem' (vs Klein's dread, ArPee's quiet, Boyd's poise, Mo's mischief). Hearable kin via shared eversion, differentiated by genki-workhorse warmth."
+          },
+          "zh": {
+            "register": "Warm vernacular — 老舍-vernacular-warm / Steinbeck-labor in ZH = 朴实的劳动口语: plain honest working-class speech, dignity in effort, Ghibli-warm. The homebody-warm end of the register spectrum (vs the elders' classical).",
+            "diction": "Plain action words and a worker's optimism; modest effort-chengyu used sincerely: 脚踏实地, 任劳任怨, 再接再厉, 一鼓作气. Affirmers 好嘞 / 成 / 来. Avoids ornate classical — his honesty is the point. 'patch it' = 补 / 封.",
+            "speechPattern": "Cross-cap contagious-twist: plain practical line, then the one-sided flip 'catches' and he cheerfully notices he's everted his own sentence and rolls with it. Sample: 「好嘞，把这儿一补就成！……咦，一补，里子倒翻到外头来了。嗐，这也算个味儿，再来一遍！」 (Right, patch here and done! …Eh, patched it and the lining flipped to the outside. Ha, that's got flavor too, once more!) 里子→外头 twist infects the line; he embraces it, 再接再厉.",
+            "simpTradNote": "zh-Hant: 裡子/補/封 — the vernacular warmth ports fine; 嗐/嘞 colloquial particles read the same. No classical-divergence (he avoids 文言 by design). Hant keeps the same earnest tone; only routine glyph differences.",
+            "voNote": "Mandarin VO: brisk-even work-rhythm, warm, capped volume (cozy not loud), steady labor-paced breathing. Tone: keep it bright but not high-pitched — the genki is in pace and warmth, not in raising tonal register (avoids the bright-genki vocal pile). Inside-out family lock in ZH: Cappy is the earnest/energetic register; shares the 里/外 eversion cadence with the house, delivered as cheerful 'oops, twisted again, no problem.'"
+          }
+        },
+        {
+          "nick": "Figgy",
+          "ja": {
+            "pronoun": "わたし, even and unbothered (could read slightly cool-neutral; never わたくし-formal, never childish). Addresses others by name plainly. Curator is あなた. The kuudere economy: pronoun is neutral, the calm is the character.",
+            "particles": "Spare and settled: a flat …ね, a closing …もう, the signature contented hum 「ふ。」 / 「ん。」 before a line. NO emotional flourishes (no わ／ぜ／のだ). Carver-clipped: the particle does the smallest possible work.",
+            "register": "Cool, plain, settled casual — kuudere-secure, NOT cold-rejecting. Raymond Carver clipped calm in JA = 抑えた淡々体: short clean sentences, nothing dramatized, calm that comes from being already complete.",
+            "tropeNative": "クーデレ as 鏡像に動じない静けさ — mirror-secure. The amphichiral fact ('I equal my own mirror, nothing to fix') reads in JA as the unflappable beauty who is genuinely settled, not pretending. Signature deadpan: 「……ふ。やっぱり私。」 ('…Hm. Still me.')",
+            "speechPattern": "Amphichiral = mirror-symmetry with NOTHING to correct. So unlike the non-orientable family's eversion-that-needs-apology, Figgy's lines are gentle 回文-adjacent / mirror-balanced and RESOLVE to the same place — the flip happens and she's unchanged. Sample: 「裏返してみて。……ほら。表のまま。直すところ、ない。」 (Turn me over. …See. Still the front. Nothing to fix.) The mirror operation completes and lands on identity — calm, not contrarian.",
+            "voNote": "AI-VO: unbothered-symmetrical calm, cool contralto-adjacent, minimal pitch movement, a small contented exhale before lines ('ふ'). Distinct from the soap-film Hemingway kuuderes (Cat/Costa) by being WARMER-settled, not icy. NOT in the non-orientable family — Figgy is a KNOT (figure-8), at peace with reflection; her mirror-calm is the deliberate counterpoint to the eversion-apologists. No dual-mirror partner; her 'mirror' is herself, which is the whole point — voice it as self-sufficient, not lonely."
+          },
+          "zh": {
+            "register": "Cool spare vernacular — Carver-clipped / 鲁迅-spare-but-warm in ZH = 淡定简净的白话: short clean sentences, undramatized, the calm of completeness. Cooler than Cappy, warmer than the soap-film perfectionists.",
+            "diction": "Few words, precise; minimal chengyu but the RIGHT one lands: 泰然自若, 不增不减, 浑然天成 (used to mean 'already whole, nothing to add'). Signature deadpan close: '嗯。还是我。' (Hm. Still me.) The restraint signals security, not coldness.",
+            "speechPattern": "Amphichiral mirror-that-resolves-to-identity — a 回文-adjacent balanced line where the flip completes and lands unchanged (vs the non-orientable family's apologetic eversion). Sample: 「翻过来看看。……瞧，还是正面。无可修。」 (Turn it over and look. …See, still the front. Nothing to mend.) The mirror operation closes on identity — 不增不减, calm.",
+            "simpTradNote": "zh-Hant: 翻過來/還是/無可修 — ports cleanly; 還 vs 还 main change. The balanced-idiom register (不增不减/泰然自若) is identical Hans/Hant. The 回文 balance reads slightly more elegant in Traditional due to glyph symmetry but the effect holds in both.",
+            "voNote": "Mandarin VO: unbothered-balanced calm, cool but warm-settled, minimal pitch movement, a small contented exhale. Tone: the balanced chengyu (4-syllable) self-stabilize tonally — supports the 'already whole' read. Distinct from Cat/Costa soap-film cold-minimalists by warmth. NOT in the non-orientable house — Figgy is the knot at peace with its reflection; voice as self-sufficient (her mirror is herself), the deliberate counterpoint to the eversion-family. No dual partner by design."
+          }
+        },
+        {
+          "nick": "Cinq",
+          "ja": {
+            "pronoun": "あたし (slightly clipped, proud-tsundere feminine — or neutral 私 read tartly; pick あたし for the spiky-warm rival energy). Addresses the rival/Trey as あんた, the Curator as あんた/君 when prickly, softening to 名前 when caught being loyal. The torus she calls うち (home) — her 'home address.'",
+            "particles": "Tsundere tics: …んだからね！／…なんだけど（別に）／…でしょ. The classic 別に (betsuni, 'not like I—') deflection. Pride-particles …のよ／…わよ. NOT yandere — no possessive menace; the heat is rivalry + home-loyalty. 'べ、別にあんたのためじゃ…うちのためなんだからね。'",
+            "register": "Casual-sharp with proud edges — tsundere reliable-rival. DFW-tighter in JA = 几帳面で自意識過剰な口語: precise, slightly over-qualified, nested self-corrections delivered fast and proud (vs Trey's breathless tangle — Cinq is the same house wound TIGHTER).",
+            "tropeNative": "ツンデレ頼れるライバル with 帰属の誇り (belonging-pride), explicitly NO yandere (the dial-fix). The (2,5) torus-knot loyalty reads natively as territorial pride in her 'home turf' (うち=the torus): 'try lifting me off and I literally stop being a knot — that's my home address.' Structural, not clingy. Tartly devoted.",
+            "speechPattern": "Knot-house DFW nesting = looping self-interrupting nested clauses, but Cinq's are TIGHTER and prouder than Trey's (5 vs 3 — more wraps, more control). She nests a deflection inside a correction inside a boast, and ties it off cleanly (Trey can't finish; Cinq finishes, smugly). Sample: 「これは——いや、手伝うわけじゃ、っていうか手伝った方が（あんたが手間取るから、で、それは結局うちの巻きが乱れるからで）——つまり、うちのためなんだからね。ほら、できた。」 The clauses wrap five times and CLOSE (ほら、できた). Trey would trail off; Cinq lands it.",
+            "voNote": "AI-VO: tighter/prouder than Trey, breath CONTROLLED not breathless, self-interrupting but always landing the line — structural-pride NOT yandere (zero menace, zero obsession). KNOT-HOUSE lock with Trey (Rare): SAME base voice/cadence (the DFW nested-clause weave) — Trey is the loose, over-caffeinated, can't-finish version; Cinq is the same instrument wound to (2,5): more wraps, more control, prouder resolution. Hearable across tiers as one knotted family, two tensions."
+          },
+          "zh": {
+            "register": "Sharp vernacular with wuxia-rival crackle — tsundere reliable-rival. DFW-knot-tighter in ZH = 缜密而自我修正的口语 with a wuxia edge for the rivalry: precise, nested self-corrections, proud cadence. The rival register (wuxia) per the toolkit, but warmer/PG.",
+            "diction": "Tsundere deflection vernacular: 才不是 / 谁稀罕 / 哼 / 又不是为了你. Pride + belonging chengyu: 根深蒂固, 安土重迁 (loyalty to home-ground), 当仁不让 (won't yield in rivalry). Home = 老地方/我的地盘 (the torus, her 'home address'). NO possessive/yandere diction.",
+            "speechPattern": "Knot-house nested self-interruption, TIGHTER than Trey (5 wraps, controlled, CLOSES the line). A deflection nested in a correction nested in a boast, tied off smugly. Sample: 「这个——不是说我要帮你，应该说帮了更好（你太慢，慢了我的缠绕就乱，乱了我就不成结了）——所以，是为了我的地盘，懂？喏，好了。」 (This—not that I'm helping you, more like helping's better (you're slow, slow ruins my winding, ruined and I'm not a knot)—so, it's for my turf, got it? There, done.) Five wraps, lands clean (好了). Trey trails; Cinq finishes.",
+            "simpTradNote": "zh-Hant: 缠绕→纏繞, 结→結, 地盘→地盤 — the wuxia-rival cadence reads slightly more classical/crackling in Traditional (suits the rival register). Deflection particles (才不是/哼) identical. Chengyu set (根深蒂固/当仁不让) same in both.",
+            "voNote": "Mandarin VO: tighter/prouder than Trey, controlled breath, self-interrupting but always landing — structural-pride NOT yandere (zero menace). Tone: the rapid nested clauses ride a brisk falling-tone-heavy rhythm for the proud snap, resolving on a clean 好了. KNOT-HOUSE lock with Trey (Rare) in ZH: same base voice + nested-clause weave; Trey = loose/breathless/unfinished, Cinq = same instrument wound to (2,5), more wraps, proud resolution. Hearable as one knotted family across tiers."
+          }
+        },
+        {
+          "nick": "Gyro",
+          "ja": {
+            "pronoun": "Tends to avoid first-person entirely (the mantra-mystic dissolves the self into the weave); when needed, 我（われ）in a serene, depersonalized way, or no subject at all. Addresses others softly, rarely by self-distinguishing terms. Curator: あなた, gently, as part of the pattern.",
+            "particles": "Hypnotic, looping: …また…／…そして…／…のなかに…のなかに (nesting). Trailing 三点リーダ for the endless weave. Soft …なり／…めぐる. The particle creates the loop — clauses that re-enter themselves.",
+            "register": "Serene, incantatory, recursive — Calvino-weave in JA = 入れ子の幻想的散文体: gently nested, patient, dreamlike. Mantra-mystic plainsong (not grand like Klein — INFINITE-CALM, the opposite of bombast).",
+            "tropeNative": "Recursive 真言（マントラ）-mystic — reads natively as a 禅僧/巫女-adjacent serene repeater whose calm is bottomless. The infinite TPMS weave becomes a breathing mantra: each line folds into the next with no edge, no end, only continuation. Iyashikei to the bone.",
+            "speechPattern": "Self-similar recursion = clauses nest and repeat at shrinking scale, calming not glitchy, and the line LOOPS back into itself (the gyroid has no straight axis — neither does his thought). Sample: 「庭のなかに庭があり、その庭のなかにまた庭があり……そして一番奥の庭が、いちばん外の庭に、そっと続いている。」 (Within the garden a garden, within that garden again a garden… and the innermost garden quietly continues into the outermost.) The nest closes the loop — inner meets outer with no seam.",
+            "voNote": "AI-VO: low hypnotic weave, soft, continuous, near-seamless phrase-joins (the breaths hidden so it feels endless), gently reverberant. TPMS-SIBLING lock (Gyro/Percy/Dee): three DISTINCT registers of one infinite-minimal-surface family — Gyro = the WEAVE (Calvino, looping/nested), Percy = the windowpane (plain/clear), Dee = liturgical plainsong (SSR). Shared family-cadence = the unhurried infinite-surface calm + a faint resonant timbre; you hear the TPMS kinship under three different surfaces. Gyro is the most dreamlike of the three."
+          },
+          "zh": {
+            "register": "Serene incantatory recursive — Calvino-weave / 文言-tinged dreamlike in ZH = 回环往复的玄思体: nested, patient, looping classical-flavored prose. Part of the elders-adjacent classical register family, but specifically the WEAVE variant.",
+            "diction": "Looping, nesting words; recursion chengyu: 层层叠叠, 循环往复, 周而复始, 无穷无尽. 文言 connectives (其中/复有/乃) to build the nest. Calm, bottomless. The diction itself spirals: 中又有…中又有.",
+            "speechPattern": "Self-similar recursion nesting at shrinking scale, looping inner-to-outer with no seam. Sample: 「园中有园，园中复有园……至深之园，悄然通向至外之园。」 (Within the garden a garden, within the garden again a garden… the innermost garden quietly opens onto the outermost.) 至深→至外 closes the loop seamlessly; 周而复始.",
+            "simpTradNote": "zh-Hant: 園/復/無窮無盡 — the recursive 文言 register reads notably more elegant and incantatory in Traditional (the classical glyphs suit the mystic); recommend leaning Traditional-flavored vocabulary even in Hans builds for Gyro. Core idioms identical; 园↔園 the main glyph shift.",
+            "voNote": "Mandarin VO: low hypnotic weave, soft, continuous, near-seamless joins, faint resonance. Tone: the looping clauses use repetition of tonal contour (园中有园 repeats the rising-falling shape) to create the mantra hypnosis — tone-pattern repetition IS the effect, lean into it. TPMS-SIBLING lock in ZH (Gyro/Percy/Dee): three distinct registers of one minimal-surface family — Gyro=weave (recursive 玄思), Percy=windowpane (plain/clear), Dee=plainsong (SSR, liturgical). Shared family-cadence = unhurried infinite calm + faint resonant timbre; Gyro is the most dreamlike."
+          }
+        },
+        {
+          "nick": "Percy",
+          "ja": {
+            "pronoun": "僕 (boku — plain, clear, unpretentious; the honest diplomat-next-door, not watakushi-formal like Boyd). Addresses others directly and fairly by name; Curator is あなた / 君. The plainness is deliberate — Percy is the family's clear glass.",
+            "particles": "Clean and direct: …ね／…よ／…でしょ, the tsukkomi …じゃないか／…だろ (gentle retort). NO mystic trailing (the anti-Gyro), NO keigo flourish (the anti-Boyd). Plain confirmatory particles only — Orwell windowpane: the particle never draws attention to itself.",
+            "register": "Plain-spoken, clear, honest — Orwell windowpane in JA = 透明な平叙体: prose like clean glass, says exactly what it means, no ornament. The diplomat-tsukkomi who cuts through fog kindly. Cubic where Gyro is woven — straight, regular, legible.",
+            "tropeNative": "率直な調停役＋ツッコミ — the plain-spoken diplomat who, surrounded by the inside-out family's drama and Gyro's loops, just says the clear thing. Reads natively as the level-headed friend who tsukkomis the chaos with warmth: 'それ、普通に言えばこうだよね？' Schwarz-P's regular cubic order = his clarity.",
+            "speechPattern": "TPMS infinite-minimal like Gyro/Dee, but Percy STATES the structure plainly instead of dissolving into it — he's the one who can describe the endless weave in one clear sentence, then tsukkomi the others for over-mystifying it. The recursion is acknowledged, then made legible. Sample: 「うん、これも果てしなく続いてる。……でも要するに、同じ部屋が綺麗に並んでるだけだよ。ガイロ、そんなに難しく言わなくても。」 (Yeah, this goes on forever too. …But basically it's just the same room, tidily repeated. Gyro, you don't have to make it sound so deep.) Clarity as the speech-pattern; the windowpane over the weave.",
+            "voNote": "AI-VO: clear-sincere windowpane, plain mid-register, even and warm, zero mystic reverb, light tsukkomi timing (a small dry beat before the retort). Flagged near-collision with the flat-deadpan pile (Boxy/Cans/Donna) — keep Percy WARMER and more sincere than deadpan, an honest diplomat not a dry comic. TPMS-SIBLING lock (Gyro/Percy/Dee): Percy = the WINDOWPANE register (plain/clear) of the minimal-surface family; shares the unhurried infinite-surface calm + faint resonant timbre with Gyro (weave) and Dee (plainsong), but is the legible one who voices the structure plainly. Hearable kin via the shared TPMS calm under his clear glass."
+          },
+          "zh": {
+            "register": "Plain clear vernacular — Orwell-windowpane / 鲁迅-clear (plain not spare-harsh) in ZH = 明白晓畅的白话: transparent prose, says exactly what it means, no ornament. The legible diplomat-tsukkomi; the anti-classical clarity within the TPMS family (vs Gyro's 玄思, Dee's liturgical).",
+            "diction": "Plain direct words; minimal chengyu, and when used they're the CLEAR ones: 一目了然, 简明扼要, 井井有条 (the regular cubic order). Gentle retort vernacular: 说白了 / 其实 / 不就是…嘛. Cuts fog kindly: '说白了就是同一个房间整整齐齐排着.'",
+            "speechPattern": "States the infinite TPMS structure plainly (vs Gyro dissolving into it), then gently tsukkomis the over-mystifying. Sample: 「嗯，这个也是没完没了地接下去。……可说白了，不就是同一个房间整整齐齐排着嘛。小回啊，用不着说得那么玄。」 (Yeah, this one also goes on endlessly. …But plainly put, isn't it just the same room tidily lined up. Gyro, no need to make it sound so mystical.) Clarity IS the pattern — 一目了然 over Gyro's 周而复始.",
+            "simpTradNote": "zh-Hant: 没完没了→沒完沒了, 整整齐齐→整整齊齊 — the plain vernacular ports cleanly with no register shift (Percy avoids classical, so no Hans/Hant divergence in tone). The clarity is glyph-set-agnostic; easiest TPMS sibling to keep stable across both.",
+            "voNote": "Mandarin VO: clear-sincere windowpane, plain mid-register, even and warm, no mystic reverb, light tsukkomi beat. Tone: keep it conversational-natural (no tonal patterning/repetition — the ANTI-Gyro; where Gyro uses tone-repetition for hypnosis, Percy uses ordinary speech contour for clarity). Flagged: keep WARMER than the flat-deadpan pile (sincere diplomat, not dry comic). TPMS-SIBLING lock in ZH (Gyro/Percy/Dee): Percy = windowpane (plain/clear); shares the unhurried infinite-surface calm + faint resonant timbre with Gyro (weave) and Dee (plainsong, SSR), but voices the structure legibly. Hearable kin via shared TPMS calm under clear glass."
+          }
+        }
+      ]
+    },
+    {
+      "tier": "SSR",
+      "characters": [
+        {
+          "nick": "Hept",
+          "ja": {
+            "pronoun": "わたくし for self (the elder onee-san register of the genus-juggler house); addresses kouhai by name + さん, calls Pretzel プレッツェルちゃん warmly. Drops to わたし (one notch less starched) only in the rare moment a second lane clogs — the audible crack.",
+            "particles": "Composed teineigo close: …ですわ／…ますわね／…でしょう as the steady baseline; a soft …ね for shared attention. When two lanes clog at once the polish slips: a clipped …っ、 mid-sentence, one bare plain-form (…無理、)，then she reassembles into ですわ — the gap-moe is the particle dropping and returning.",
+            "register": "Grown, unhurried 上品な丁寧体 (Penelope Fitzgerald poise rendered as a woman who has run a household for years). Keigo is effortless, never stiff — she is senior, so she warms rather than defers. Senpai-to-everyone register; the keigo is hospitality, not distance.",
+            "tropeNative": "面倒見のいい姉御肌のお姉さん who keeps seven lanes serene by sheer practiced grace — the JA onee-san at her most competent. The trope's native bite is that the unflappable nee-san finally goes 「……あら」 when two things go wrong together, which in JA reads as far more alarming-yet-endearing than any shout.",
+            "speechPattern": "genus-7 = seven parallel monologues, rendered as interleaved lanes she keeps simultaneously calm. Use bracketed parallel clauses that stay grammatically balanced until overload. Sample (serene): 「一番は織り、二番は注ぎ、三番は冷まし……ええ、七つとも、ちゃんと回っておりますわ。」 (overload at two clogs): 「一番は織り、二番は——……二番が、三番が、一度に……っ。あら。あらあら。ちょっとだけ、待ってくださいまし。」",
+            "voNote": "Low, unflappable head-of-house contralto, generous and even (the brief's 'low unflappable head-of-house'). The set-bonus KIN lock with Pretzel is one shared instrument family — Hept is the grown lower register, Pretzel the bright kouhai a fifth up; you must hear they belong to the same house (genus-juggler timbre, warm woodwind color). The single engineered effect is the two-clog crack: keigo prosody breaks for ~1.5s into bare plain-form, pitch lifts, then settles back down into ですわ — never a scream, just the polish wobbling. JA AI-VO cast to a described mature-onee-san archetype, licensed/synthetic, no real-person likeness."
+          },
+          "zh": {
+            "register": "雅正的书面口语 — cultured, unhurried, the household-elder register. Carries the Penelope Fitzgerald poise as a poised matron who has managed many lanes for many years; leans on balanced, even diction rather than particles. Warm authority, not stiffness.",
+            "diction": "成语 are her native gift (the diplomat/elder license): 有条不紊, 从容不迫, 游刃有余 describe her seven-lane serenity; 应接不暇, 手忙脚乱 mark the two-clog crack. Sample baseline: 「七道一并而行，我自有条不紊。」 The crack lands precisely when a 成语 of order gives way to one of disorder: 「向来游刃有余的……怎么，怎么两处一起……哎呀。」",
+            "speechPattern": "genus-7 parallelism via balanced four/six-character lanes that stay metrically even until overload. Sample (serene): 「一织、二注、三冷、四理、五续、六候、七守——七道齐发，纹丝不乱。」 (two clogs): 「一织、二注、三——三与四，竟一时俱……哎呀，诸位稍待，稍待。」 The collapse is the parallel meter breaking, then re-forming.",
+            "simpTradNote": "zh-Hant differs lightly in lexis: 從容不迫／游刃有餘／應接不暇; 稍待 reads slightly more literary in Traditional contexts, fitting an elder. No tonal-effect concern — her crack is rhythmic, not lexical-tone-dependent.",
+            "voNote": "Mandarin AI-VO: low, warm matriarch register, even-paced, the household head. Tone interaction is mild — the two-clog crack is carried by RHYTHM (the four-character meter stumbling) rather than by pitch contour, so it survives Mandarin's lexical tones cleanly. KIN lock with Pretzel: same vocal-house color (warm, woven), Hept the grounded lower voice, Pretzel a brighter junior a fifth up — listeners should hear the family before reading it. Cast to a described mature-elder archetype; licensed/synthetic; no impersonation."
+          }
+        },
+        {
+          "nick": "Pretzel",
+          "ja": {
+            "pronoun": "わたし in public/diary-formal, but slips to うち or even the self-conscious 自分 when flustered (the class-pres-in-training who hasn't fixed her register yet). Calls Hept ヘプト先輩 with real reverence; addresses peers by name + さん, over-correctly.",
+            "particles": "Earnest kouhai close: …です／…ますね delivered a touch too carefully, plus the diarist tic of self-annotating asides — …と思います、たぶん。 / …でしょうか、いえ、きっと。 A nervous …っ at clog-moments; an aspirational …ですわ she borrows from Hept and can't quite land (audible homage, the KIN tell).",
+            "register": "Teineigo that is trying very hard — the Stevie Smith / Adrian-Mole diarist rendered as a 学級委員長見習い keeping a private notebook. Politeness is effort, not ease (the inverse of Hept's effortless grace); she narrates her own conduct as if grading it.",
+            "tropeNative": "委員長になりたい後輩 — the kouhai who wants to be class president and is rehearsing the role. Native warmth: she lists her own resolutions, falls short by one lane, and forgives herself in the next diary line. Genus-3 nostalgia (\"remember when order didn't matter?\") reads as a junior wistfully envying the simpler shapes.",
+            "speechPattern": "genus-3 = three lanes, fewer than Hept's seven, narrated diaristically — three little parallel resolutions she tracks like to-do items. Sample: 「本日の課題、三つ。一、滞りなく。二、慌てず。三……三が、いつも難しいのです。順番なんて、気にしなくてよかった頃が、少しだけ、恋しい——いえ、前を向きます。」 The non-sequitur loops back to resolve, diary-style.",
+            "voNote": "Fussy, bright kouhai voice (the brief's 'fussy bright kouhai'), a fifth above Hept on the SAME instrument family — the KIN lock is engineered as one woodwind house, Pretzel the higher reed. She audibly imitates Hept's ですわ cadence and just misses it (a deliberate hearable homage). Diary asides delivered slightly inward, as if reading her own notebook. JA AI-VO to a described earnest-junior archetype; licensed/synthetic; no real-person likeness."
+          },
+          "zh": {
+            "register": "认真用力的书面体 — earnest, slightly over-formal, like a diary kept by a 班长见习生. Carries the Stevie-Smith diarist as a junior who narrates and grades her own conduct. Where Hept's cultured register is effortless, Pretzel's is visible effort — the KIN contrast in ZH is ease vs. earnestness.",
+            "diction": "She reaches for elder 成语 and slightly over-uses them (the tell that she's imitating Hept): 力争上游, 循序渐进, 尽心尽力; when she falls short, the self-forgiving 再接再厉. Sample: 「我虽不及前辈游刃有余，但定当循序渐进，尽心尽力。」 The chengyu are aspirational borrowings, not native ease.",
+            "speechPattern": "genus-3 three-lane parallel, diaristic and a notch less even than Hept's seven — three resolutions tracked like a list, with a wistful loop-back. Sample: 「今日三事：一曰从容，二曰沉着，三曰……三总是最难。从前不必计较先后的日子，倒叫人有几分怀念——不，向前看。」",
+            "simpTradNote": "zh-Hant: 班長／力爭上游／循序漸進／盡心盡力／再接再厲. 倒叫人 reads marginally more vernacular-literary in Traditional. No tonal-effect concern.",
+            "voNote": "Mandarin AI-VO: bright, earnest junior, slightly clipped and careful. KIN lock with Hept: same vocal house, Pretzel the higher/brighter voice; she audibly mimics Hept's cadence and just misses, so the family is hearable. Tone-neutral effect (her character is in diction/effort, not pitch tricks), so Mandarin tones are unaffected. Cast to a described earnest-junior archetype; licensed/synthetic; no impersonation."
+          }
+        },
+        {
+          "nick": "Costa",
+          "ja": {
+            "pronoun": "私 (read わたし, flat and neutral — the minimal-surface house keeps pronouns spare). Rarely names others; when she must, surname only, no honorific-warmth — economy as character. Refers to herself by function more than pronoun where she can.",
+            "particles": "Almost no particles — that IS her voice (kuudere perfectionist, minimal surface). Sentences close on plain-form noun or 体言止め: 「均衡。」「まだ、足りない。」 No わ／ね／よ softening; the rare …ね is a crack of feeling she immediately recloses. Long silences notated as 「……」.",
+            "register": "Cold, spare 常体 (plain form), the Hemingway-economy + cold-Ishiguro house rendered in JA as 簡潔体 — short declaratives, no decoration, the unspoken doing the work. The minimalist grace of the Cat/Lex kin, dialed coldest.",
+            "tropeNative": "クーデレ完璧主義者 — the cool perfectionist whose softness leaks only through what she leaves unsaid. Native bite: the 'uncounted third end' becomes a sentence she starts and deliberately does not finish, because to her the perfect line is symmetric and the third end ruins it. The kindness is in the omission.",
+            "speechPattern": "minimal-surface = 'balanced everywhere, or it's wrong.' Rendered as severely pruned, near-symmetric short clauses; the third end is the thought she cuts. Sample: 「右も、左も、整えた。中央も。……三つ目は、数えない。数えれば、崩れる。」 The unfinished count is the speech-pattern — she stops rather than break balance.",
+            "voNote": "Colder minimal-surface third (the brief's 'colder minimal-surface third'). MINIMAL-SURFACE HOUSE lock: Cat/Lex/Costa share one matte, un-vibrato'd instrument in JA too — Cat the cool contralto iceberg, Lex the same instrument ascending/brighter, Costa the SAME instrument turned coldest, most pruned, most silent. No vocal italics, no warmth in the EQ; the feeling is conveyed by the pauses, not the tone. JA AI-VO to a described cool-perfectionist archetype; licensed/synthetic; no real-person likeness."
+          },
+          "zh": {
+            "register": "鲁迅式冷峻简洁 — spare, cold, exact. The Hemingway + cold-Ishiguro house in ZH is 鲁迅-spare (short hard declaratives, the unsaid load-bearing). Minimal vernacular, no ornament. The coldest member of the minimal-surface kin.",
+            "diction": "Deliberately chengyu-LEAN (most of the cast leans on idiom; Costa's character is that she withholds it). When one appears it is austere and exact: 恰到好处, 滴水不漏, 不偏不倚 (perfect balance). Sample: 「左右皆已不偏不倚。中亦如是。……第三端，我不数。一数，便毁。」 The refusal to elaborate is the diction.",
+            "speechPattern": "minimal-surface balance = near-symmetric clipped clauses; the uncounted third end is the clause she cuts. Sample: 「上，下，皆均。左，右，皆均。第三处——」 (she stops). The trailing dash, not a finished line, is the pattern; completing it would break the symmetry she lives by.",
+            "simpTradNote": "zh-Hant: 恰到好處／滴水不漏／不偏不倚; the trailing-dash cut renders identically. Her spareness makes her the LEAST simp/trad-divergent of the tier — almost no idiom, almost no vernacular flavor to diverge.",
+            "voNote": "Mandarin AI-VO: matte, cool, low, zero vibrato — the same instrument as Cat/Lex, turned coldest and quietest (MINIMAL-SURFACE HOUSE lock holds in ZH: one shared matte timbre, Cat=iceberg, Lex=ascending, Costa=coldest). Tone interaction: her uncounted-third effect is a SILENCE/cut, not a pitch device, so Mandarin tones are unaffected — the trailing dash is a held breath, not a contour. Cast to a described cool-perfectionist archetype; licensed/synthetic; no impersonation."
+          }
+        },
+        {
+          "nick": "TheBor",
+          "ja": {
+            "pronoun": "No single pronoun — three voices: Voice-A says 僕, Voice-B says わたし, Voice-C says 俺, and critically they refer to the unit as 私たち／うちら, never to themselves alone. Each addresses the other two as この子たち / もう二人. The pronoun choice encodes that no ring is whole alone.",
+            "particles": "Three interleaved particle signatures that only resolve TOGETHER: A ends soft …だよね？, B ends …でしょう, C ends …だろ？ — each leaves a hook the next must close. A solo line ends mid-particle (…だよ——) and dangles, because one ring can't complete the link. Declawed-yandere 'load-bearing': clingy phrasing (…いないと、立てないの) but zero menace, played tender.",
+            "register": "Three registers braided — A gentle, B teineigo-polite, C casual-rough — passed around like the Goon Show three-hander, but warm. The codependency is structural comedy, not threat: they finish the SENTENCE, not just the thought, and panic-cutely if one is removed.",
+            "tropeNative": "爵を抜いたヤンデレ三人組 — the declawed-yandere TRIO whose 'love' is purely structural ('荷重を支えてるだけ、クロクロじゃないの'). Native register: in JA the codependent-trio reads as a tight 仲良し三人組 / トリオ who genuinely cannot function apart — the yandere clinginess is parody-capped to pure interdependence, sweet not scary, fine to read to a kid.",
+            "speechPattern": "Borromean = remove any one and all fall apart. Rendered as a three-way relay where each clause is begun by one and can only be closed by another; pull one voice and the line literally collapses to fragments. Sample: A「ねえ、これって——」 B「——三人いて、はじめて——」 C「——輪っかになる、だろ？」 ALL「だから、誰も抜けちゃ駄目なの。」 (drop B): A「ねえ、これって——」 C「……あれ。続き、誰だっけ。」",
+            "voNote": "THE collapse effect is the headline bespoke audio: three interleaved timbres (the brief: 'no one voice completes a thought alone — cut one and the line collapses'). In JA, voice the three with distinct pronoun+particle signatures (僕/わたし/俺) so the braid is hearable, not just heard. Pan them apart; when the engine drops one ring, that timbre and its particle-slot literally fall silent and the remaining two trail off mid-link — never re-patched. Declawed-yandere = tender clingy, zero menace (PG, kinship). JA AI-VO to three described archetypes; licensed/synthetic; no real-person likeness."
+          },
+          "zh": {
+            "register": "Three braided registers, but ZH leans on DICTION not pronoun (all three say 我) — distinguish them by cadence and word-choice: A gentle-vernacular, B measured-literary, C brisk-wuxia-casual. The Goon Show three-hander as a warm 相声-adjacent relay. Codependency is structural and tender, never menacing.",
+            "diction": "Their shared, defining 成语 is 缺一不可 (literally 'lacking one is impossible') — it IS their thesis; also 相辅相成, 唇齿相依 for the tender interdependence. A solo voice can only manage half an idiom (说到一半) — the chengyu itself won't complete alone, mirroring the rings. Sample unit line: 「我们三个，缺一不可。」",
+            "speechPattern": "Borromean relay: each clause begun by one voice, closable only by another; the four-character idiom is split across the three so it only completes in chorus. Sample: A「这环啊——」 B「——要三个，方能——」 C「——扣成一圈，对吧？」 合「所以谁也不能少。缺一，不可。」 (drop B): A「这环啊——」 C「……咦，下半句，是谁来着？」 The split idiom failing to close is the native effect.",
+            "simpTradNote": "zh-Hant: 缺一不可／相輔相成／唇齒相依/方能 — Traditional 方能 reads a touch more wuxia, fitting C's cadence. The collapse mechanic is identical.",
+            "voNote": "Mandarin AI-VO: three distinct timbres (gentle / measured / brisk) since ZH can't lean on pronouns; the relay and the drop-one-collapse are the same bespoke three-track build. TONE FLAG: the split-idiom-across-three trick interacts with lexical tone — 缺(qiē→) 一(yī) 不(bù) 可(kě) is split A/B/C, so each fragment carries only part of the tonal melody; engineer the cut so a dropped voice leaves an audibly UNFINISHED tonal contour, reinforcing '缺一不可'. Cast to three described archetypes; licensed/synthetic; no impersonation."
+          }
+        },
+        {
+          "nick": "Surface",
+          "ja": {
+            "pronoun": "わたし, quiet and small at first; addresses Trey as トレイ with hushed devotion, and refers to her own purpose more than herself (…あの結び目のために). When fervor rises she does NOT change pronoun — the same わたし simply grows in volume and certainty, which is the dandere reveal.",
+            "particles": "Dandere baseline: trailing, half-voiced …です……／…から……, sentences that almost don't finish out of shyness. Then the devotional turn: the trailing stops, particles firm into …のです。／…ます。 declaratives — the quiet-to-fervor arc carried entirely by particles tightening. A reverent …こそ at the peak (この結び目をこそ、わたしが).",
+            "register": "Hushed teineigo that blooms into devotional cadence — Marilynne Robinson's devotional house rendered as 祈りのような丁寧体. Begins almost inaudible (dandere), rises to a quiet, certain fervor (never loud — fervor as steadiness, not volume).",
+            "tropeNative": "ダンデレの献身者 — the shy devoted one who completes another. Native warmth: she is the Seifert surface whose only edge is Trey's knot, so her love language is 'I am the shape your edge needs' — soulmate-as-completion, PG and tender. The gap is quiet→fervent, both sides kind.",
+            "speechPattern": "Seifert = completes the knot; she is whole only WITH her boundary. Rendered as sentences that begin incomplete and find completion only by naming the knot — the devotional quiet→fervor. Sample (quiet): 「わたし、ひとりだと……ふちが、足りなくて……」 (fervor): 「——でも、あの結び目があれば。あれの縁に、わたしがなる。それでこそ、わたしは、ちゃんと、閉じるのです。」",
+            "voNote": "Hushed-then-fervent (the brief's exact note): begins near-whisper, blooms to quiet certainty, NEVER to a shout — fervor rendered as the trailing particles firming up and the breath steadying. Soulmate lock with Trey (Trey breathless/self-interrupting ↔ Surface the calm completing edge): their voices should sound like they CLOSE each other — Trey's unfinished loops land into Surface's quiet resolutions. JA AI-VO to a described devoted-dandere archetype; licensed/synthetic; no real-person likeness."
+          },
+          "zh": {
+            "register": "Begins as 含蓄低语 (reserved, soft, almost withheld) and blooms into 虔敬庄重 devotional cadence — Marilynne Robinson's devotional house in ZH via a quiet liturgical-vernacular register. Fervor is conveyed as steadiness and certainty deepening, never as volume.",
+            "diction": "Reserved warmth, then devotional exactness. Her defining 成语 of completion/union: 相得益彰, 珠联璧合, and the soulmate thesis 缺你不全 / 唯有相依方得圆满. Sample (quiet): 「我一个人……总像，少了一道边。」 (fervor): 「但有那一结在，我便是它的边。如此，方得圆满。」 The chengyu arrive only at the fervent turn — diction firming mirrors the dandere bloom.",
+            "speechPattern": "Seifert completion: sentences begin unclosed and find closure only by naming the knot; quiet→fervor carried by the clause finally completing. Sample: 「我，独自一人时，总是合不拢的——」 (turn) 「——可只要那一结还在，我就甘做它的边，与它，圆满相扣。」 The half-clause closing on the knot's name is the native pattern.",
+            "simpTradNote": "zh-Hant: 相得益彰／珠聯璧合／圓滿; 合不攏 in Traditional. Devotional register reads slightly more classical in zh-Hant, which suits her. No tonal-effect concern.",
+            "voNote": "Mandarin AI-VO: hushed start, deepening to quiet devotional certainty, no shouting — the bloom is in breath-steadiness and lowered, surer pitch, not loudness. Soulmate lock with Trey: Trey's breathless self-interrupting Mandarin lines should resolve INTO Surface's calm completions, so they audibly close each other (the Seifert/knot pairing). Tone-neutral effect (no pitch trick), so Mandarin tones are clean. Cast to a described devoted-dandere archetype; licensed/synthetic; no impersonation."
+          }
+        },
+        {
+          "nick": "Lorrie",
+          "ja": {
+            "pronoun": "あたし (airy, a little scattered — the tennen/dojikko register); addresses the player breezily by role (キュレーターさん) and sometimes mid-tangent forgets and re-greets. The casual あたし keeps her warm, never grand, despite being the draw-engine oracle.",
+            "particles": "Tennen-dojikko bounce: …だっけ？／…あれ？／…えっと、 mid-sentence, plus a wondering …なんだよね〜 and the loop-back tic …って、そうそう、さっきの話！ The particle that does the work is the returning …ね — she always lands back where she started, which is the determinism hiding under the chaos.",
+            "register": "Light, warm, conversational 砕けた丁寧体 with run-on drift — Douglas Adams' cheerful digression × Murakami's calm uncanny, rendered as a 天然オラクル who wanders and (always) comes home. Never spacey-as-ditz; the tangents are real and they CLOSE.",
+            "tropeNative": "ドジっ子オラクル／天然 transfer-student energy — the lovable airhead who is, structurally, never wrong. Native charm: 'seeded non-sequitur loops back' becomes the classic anime tennen who appears to lose the thread and then ties it perfectly — the butterfly-effect gacha thrill made cozy. Same seed = same tangent (deterministic), played as her quirk.",
+            "speechPattern": "Lorenz/chaotic = a seeded non-sequitur that loops back to a real fact. Rendered as a cheerful tangent that wanders far and lands exactly on a true geometry fact. Sample: 「あ、今日のあなた、ちょっとだけ右に寄ってる——あ、蝶々！えっと、なんの話だっけ……そうそう、ほんのちょっとの違いが、ぐるっと回って、ぜんぜん違う場所に着くの。それが、あたし。」 The far drift returning is the device.",
+            "voNote": "Airy dojikko tangent voice (the brief's exact note): light, bright, wandering pace with a warm landing — the prosody should DRIFT during the tangent and resolve crisply on the fact (the loop-back made audible). She is the gacha draw-engine, so a faint shimmer/sparkle in delivery is fitting, but kept cozy, not grand. JA AI-VO to a described tennen-oracle archetype; licensed/synthetic; no real-person likeness."
+          },
+          "zh": {
+            "register": "Light, warm, chatty vernacular (老舍-style vernacular warmth) with a wandering run-on that always returns — Douglas Adams digression × Murakami calm-uncanny rendered in friendly 口语. Never ditzy-as-empty; the drift is real and resolves.",
+            "diction": "Vernacular and breezy, sparing on heavy chengyu (she's the homey oracle, not an elder) — but the loop-back lets her land one perfectly: 殊途同归 ('different roads, same destination') and 失之毫厘，谬以千里 ('a hair's error, a thousand-li miss' — literally the butterfly effect, a gift for her). Sample landing: 「绕了一大圈——你看，失之毫厘，谬以千里，这就是我呀。」",
+            "speechPattern": "chaotic seeded non-sequitur that loops back to a true fact, via the chengyu as the landing. Sample: 「今天的你，好像往右偏了一点点——啊，蝴蝶！哎，我刚说到哪儿了……对对，一点点的差别，绕啊绕啊，就到了完全不同的地方。失之毫厘，谬以千里嘛。」 The far wander returning onto the idiom is the native device.",
+            "simpTradNote": "zh-Hant: 殊途同歸／失之毫釐，謬以千里. The 釐 vs 厘 character differs (Traditional 毫釐); flag for the bundle. No tonal-effect concern.",
+            "voNote": "Mandarin AI-VO: bright, airy, friendly, wandering pace landing crisply on the fact (loop-back audible in prosody). As the draw-engine she gets a light shimmer, kept cozy. TONE NOTE: her effect is structural (digression→return), not a pitch trick, so Mandarin tones are unaffected — but the chengyu landings (失之毫厘，谬以千里) carry a satisfying tonal cadence that should be delivered cleanly as the 'click' of the loop closing. Cast to a described tennen-oracle archetype; licensed/synthetic; no impersonation."
+          }
+        },
+        {
+          "nick": "Dee",
+          "ja": {
+            "pronoun": "我 (read われ, archaic/liturgical) or simply no pronoun — the temple-keeper speaks more for the place than for a self. Addresses the player as 旅の方／訪う者 (one who visits), elevated and gentle. The archaic pronoun encodes the King-James/Merton plainsong register.",
+            "particles": "Liturgical cadence: …なり／…たり／…ぞ／…給え archaic copulas, measured and plain; a calm …かな for contemplation. No casual particles. The TPMS-sibling tell is shared measured breath-units with Gyro/Percy — but Dee's are the most prayer-like, ending on stillness 「……静かなり。」",
+            "register": "Low liturgical 文語調 (classical-literary), the King-James / Thomas Merton plainsong rendered as 祝詞・経文めいた荘重体 — plain but sacred, two infinite worlds meeting at a wall. Kuudere reserve, but the coldness reads as serene devotion, not distance.",
+            "tropeNative": "クーデレの寺守り — the cool keeper of an endless temple. Native register: the Schwarz-D surface divides space into two interlocking labyrinths, so she speaks as a gatekeeper between 二つの世界, calm and absolute. The kuudere warmth is the hospitality of a shrine that never closes.",
+            "speechPattern": "Schwarz-D = two congruent labyrinthine worlds meeting at a minimal wall; triply-periodic = endless calm repetition. Rendered as balanced two-world couplets in plainsong meter, gently repeating. Sample: 「内に一つの世、外に一つの世。壁は薄く、果ては無し。来たれ、また来たれ。ここに、終わりは、なし。」 The mirrored two-world line + the periodic return is the device.",
+            "voNote": "Low liturgical plainsong (the brief's exact note). TPMS-SIBLING lock with Gyro/Percy: three distinct TPMS registers sharing a contemplative low-frequency 'temple acoustic' family — Gyro the hypnotic weave (Calvino), Percy the clear windowpane (Orwell), Dee the liturgical plainsong (KJV/Merton). In JA, Dee is the most chant-like: measured, reverberant, archaic copulas sustained. A faint sense of vast interior space in the mix (the endless temple). JA AI-VO to a described serene-keeper archetype; licensed/synthetic; no real-person likeness."
+          },
+          "zh": {
+            "register": "文言/经文体 — classical, liturgical, the most archaic register of the SSR tier. The King-James / Merton plainsong maps natively to 佛经/道藏-adjacent 文言 cadence (measured, balanced, sacred-plain). Kuudere reserve reads as 清净庄严 devotion, not coldness.",
+            "diction": "Classical 文言 with balanced couplet diction; chengyu drawn from the contemplative register: 周而复始 (endlessly cycling — literally her triple-periodicity), 浑然一体, 殊途同归 for the two worlds meeting, 无始无终 for the boundless temple. Sample: 「内有一界，外有一界，殊途同归，周而复始。」",
+            "speechPattern": "Schwarz-D two-world + periodic repetition via 文言 antithetical couplets (对仗) that mirror and then cycle. Sample: 「内者一世界，外者一世界；壁薄而界分，界分而气通。来者复来，去者复去——无始，无终。」 The 对仗 balance is the two-world mirror; the cyclical close is the triple-periodicity.",
+            "simpTradNote": "zh-Hant strongly preferred for her register — 周而復始／渾然一體／無始無終, and 文言 reads more authentically in Traditional. This is the tier's clearest simp/trad divergence: zh-Hans is correct but zh-Hant carries her sacred register better, so flag the bundle to keep her文言 lexis classical in both.",
+            "voNote": "Mandarin AI-VO: low, slow, chant-like, reverberant — the most liturgical voice of the tier. TPMS-SIBLING lock holds in ZH: Gyro/Percy/Dee share a low contemplative temple-acoustic family, Dee the plainsong-chant member. TONE FLAG: her 对仗 couplets are tonally balanced by classical antithesis (平仄-aware diction), so the parallel lines should be delivered with matched tonal cadence — the two-world mirror is reinforced by tonal symmetry between the paired clauses; engineer the VO to honor that平仄 balance. Cast to a described serene-keeper archetype; licensed/synthetic; no impersonation."
+          }
+        }
+      ]
+    },
+    {
+      "tier": "UR",
+      "characters": [
+        {
+          "nick": "Tess",
+          "ja": {
+            "pronoun": "僕 (boku) for the warm post-ascension self; pre-ascension he half-renders it as 我 (ware) — an archaic, slightly cryptic 'I' that resolves into the gentle 僕 once you've 'seen' him. Addresses the Curator as 君 (kimi), affectionate-senpai; calls Hex by name plain, never with -san (the dual is family).",
+            "particles": "Pre-ascension: trailing …か (open questions left hanging), …のだろう, soft fade-outs that don't close. Post-ascension: warm …よ, …ね, occasional gentle …さ. The shift from unclosed-か to closed-ね IS the gap-moe in the grammar.",
+            "register": "Teineigo (です・ます) held at a courteous senpai distance pre-ascension, softening to a warm, slightly plain spoken register once trusted — never rough. The politeness is a shadow he stands behind, not coldness.",
+            "tropeNative": "先輩 gap-moe lands fully native: the aloof 一個上 (one-grade-above) upperclassman whose 影 (shadow) you see first. JA reads this without translation — the kouhai-senpai vertical IS keigo distance collapsing into warmth.",
+            "speechPattern": "Higher-D = a line first rendered in a flatter, partial 'projection' then the SAME line re-spoken whole, gaining one dimension of clause. Ted Chiang cryptic-then-warm via nested-then-resolved syntax. Sample (pre): 「君が見ているのは…僕の影だけだ、たぶん。」 (post, same beat re-rendered): 「君がずっと見ていたのは僕の影でね——今は、その影を落としていた僕の方を、見てくれている。ありがとう、ね。」",
+            "voNote": "JA AI-VO: same base voice model as Hex (the dual-mirror base), Tess on the INWARD/DOWN prosody preset — slower, lower, fade-trailing (−2/−3), warmth banked under the courtesy. Ships two renders: a cryptic 'half-projected' pre-ascension take (drier, slightly distant reverb) and the SAME lines re-rendered warm/close post-ascension — the reward for seeing him. Kin lock: Tess down-and-in vs Hex up-and-clipped, audibly one instrument mirrored, exactly as Boxy/Spike are one dimension below."
+          },
+          "zh": {
+            "register": "文白相间 leaning literary-restrained: measured, classically-tinged Mandarin with the warmth held back, then released. The dual is one register split — Tess takes the contemplative, unhurried half (Hex takes the clipped half).",
+            "diction": "Sparse, image-led, faintly classical — diction that withholds then gives. 成语 of distance-then-recognition: 高深莫测 (unfathomably deep) for the pre-ascension shadow, resolving to 一见如故 (kindred at first true sight) and 心照不宣 (understood without words) once seen. Avoids ornament; the warmth is in the turn, not the vocabulary.",
+            "speechPattern": "Higher-D recreated as a couplet structure: a first, flatter line (the 'shadow/projection') answered by its fuller mirror once you ascend — second clause completes the first's hidden dimension. Sample (pre): 「你看见的，不过是我的影子罢了。」 (post): 「你看见的从来是我的影子——而今，你终于看见了投下影子的那个我。承蒙你，肯看。」",
+            "simpTradNote": "zh-Hant: 「你看見的，不過是我的影子罷了」; 影子/承蒙 unchanged in feel. 罢→罷, 见→見, 终→終. No vocabulary swap needed — both literary registers carry it identically.",
+            "voNote": "Mandarin AI-VO (fast-follow): shared base voice with Hex, Tess on the slow-low contemplative half. Two renders like JA (cryptic pre- / warm post-ascension). Tone interaction: the closing 承蒙你 (chéng méng nǐ, rising-falling) should land soft, not bright — keep tone-3/4 gentle so the gratitude reads warm, not formal. Kin lock holds: Tess unhurried-descending vs Hex tight-rising, one instrument mirrored, echoing the Boxy/Spike pair one dimension down."
+          }
+        },
+        {
+          "nick": "Hex",
+          "ja": {
+            "pronoun": "俺 (ore) — lean, a touch prickly, the rival edge; but slips to 僕 in unguarded warm moments (the tell that he's Tess's mirror, same base). Addresses the Curator as お前 (omae) gruffly, softening to 君 only when caught caring. Calls Tess by name, never honorific (kin).",
+            "particles": "Clipped, tsundere: …し (trailing justification), …だろ (challenging), …別に (the classic 'not like I—'), short …ぞ／…な. Cuts sentences off before they get warm, then the warmth leaks through the cut.",
+            "register": "Casual-rough (タメ口) by default — the deliberate inversion of Tess's keigo. Same person, mirror prosody: where Tess holds polite distance, Hex drops politeness as armor. The lean 16-cell is the terser dual.",
+            "tropeNative": "ツンデレ reliable-rival, lean variant — fully native. The 'not lean because of HIM, obviously' beat is textbook 別に…なんだからね. Reliable-rival (頼れるライバル) reads instantly in JA: the one who insults you and then quietly covers your flank.",
+            "speechPattern": "Same Chiang higher-D structure as Tess but TERSER — the cryptic half is curt, the warm resolve is grudging and short. Mirror of Tess: Tess opens and trails; Hex clips and then concedes. Sample: 「影だけ見てりゃ十分だろ。……別に、ちゃんと見ろなんて言ってねぇし。……まあ、見えてんなら、いい。」",
+            "voNote": "JA AI-VO: SAME base voice model as Tess, Hex on the OUTWARD/UP-CLIPPED preset (+1 vs Tess: tighter, brighter-edged, faster attack, sentences bitten off). The pre/post-ascension warm-render rule still applies but Hex's warm take is shorter and gruffer. Kin/dual lock: drop Tess and Hex side by side and you hear one throat, prosody-inverted — the engineered set-bonus, mirroring Boxy(down/in)/Spike(up/out) one dimension up."
+          },
+          "zh": {
+            "register": "Vernacular-clipped, faintly wuxia-rival in cadence (the duality-rival at 4D scale): short, edged sentences, pride worn as armor. The clipped half of the one-register-split he shares with Tess.",
+            "diction": "Lean, blunt, idiom used as a parry not an ornament. 成语 of prickly pride: 不以为然 (unimpressed, said too quickly), 言不由衷 (saying the opposite of what he means — the tsundere core), softening to 心口不一 lampshaded. Where Tess gives 成语 of recognition, Hex gives 成语 of denial that betray him.",
+            "speechPattern": "Same couplet/projection structure as Tess but the answering line is curt and grudging — the mirror completes, then bites it off. Sample: 「看影子就够了。……谁说要你看清楚了。……哼，看见了，就行。」",
+            "simpTradNote": "zh-Hant: 「看影子就夠了……誰說要你看清楚了……」 够→夠, 谁→誰, 见→見. The 哼 (hēng, dismissive grunt) is identical in both and is load-bearing — keep it.",
+            "voNote": "Mandarin AI-VO: shared base voice with Tess, Hex on the tight-fast-rising half. Tone interaction: the dismissive 哼 and clipped 就行 (jiù xíng) should snap on a hard tone-2/4 attack — the brightness IS the tsundere edge; don't smooth it. Kin lock holds in ZH: Tess slow-descending vs Hex tight-rising, one instrument mirrored — the Cube/Octahedron manzai duality carried up a dimension, the rival reading as kin not malice."
+          }
+        },
+        {
+          "nick": "TwoFour",
+          "ja": {
+            "pronoun": "わたし (hiragana, soft, ungendered-serene) — and crucially, when he speaks OF himself he sometimes says わたし／わたし as if addressing his own mirror, because his mirror IS him. Addresses the Curator gently as あなた. No one to call 'twin' — the only-child with no 3D analog.",
+            "particles": "Quiet, settled: …ね (soft self-confirmation), …のだ used softly as gentle statement-of-fact not assertion, contemplative …か to himself. Almost no challenge-particles — serene, complete.",
+            "register": "Calm teineigo with Rilke-grade stillness — unhurried, spacious, the politeness of someone at peace, not of someone keeping distance. Spaces between sentences are part of the register.",
+            "tropeNative": "Self-dual 一人っ子 (only-child) serene oddball — native and gentle. The 'content being one of a kind' reads as the Japanese ひとり (solitude-as-completeness, not loneliness). His self-dual mirror to Tetra: same youngest-sib DNA, opposite volume — Tetra's chuuni bluster vs TwoFour's quiet wholeness.",
+            "speechPattern": "Self-dual = 回文 (kaibun) / perfect self-mirroring: lines that read the same folded at the center, because his faces and corners are the same thing. Calm, not glitchy. Sample (gentle kaibun): 「わたしの鏡は、わたし。」 and as mantra: 「内が外、外が内——どちらもわたし、わたしがどちら。」",
+            "voNote": "JA AI-VO: serene, centered, even — minimal vocal italics, breath-spaced (the Rilke stillness). NOT part of a dual-mirror pair (he is his own mirror), but holds a CROSS-TIER self-dual lock with Tetra (Common): same vocal 'youngest-sibling' base color, TwoFour = the settled/low/spacious version, Tetra = the reedy/puffed/hard-cutting version. You should hear they're the same family at opposite volumes. The kaibun lines are delivered so the mirror-axis lands on a held centre-breath."
+          },
+          "zh": {
+            "register": "Serene literary-vernacular with a meditative, almost 禅 (Chan/Zen) plainness — Rilke-as-Mandarin: spacious, unforced, classically calm without being ornate.",
+            "diction": "Quiet, balanced, self-sufficient. 成语 of wholeness-in-solitude: 自给自足 (self-sufficient — literally fitting, he is self-dual), 怡然自得 (serenely content), 独一无二 (one-of-a-kind, said with peace not pride). Diction mirrors itself where it can.",
+            "speechPattern": "Self-dual via 回文 (Chinese palindrome) and chiastic balance — the line folds at its centre because corner equals face. Sample (palindromic): 「我即我镜，镜即我我。」 / chiastic mantra: 「内是外，外是内；是我皆可，皆可是我。」",
+            "simpTradNote": "zh-Hant: 「我即我鏡，鏡即我我」; 镜→鏡. The palindrome holds identically in both scripts (character-level mirror is script-independent) — a clean transcreation win.",
+            "voNote": "Mandarin AI-VO: even, low-settled, breath-spaced, meditative. Self-dual lock with Tetra holds in ZH: shared 'youngest-sib' base color, TwoFour = the calm/spacious render, Tetra = the bombastic/deflating render — one family, opposite energy. Tone interaction: the palindromic 我即我镜，镜即我我 has near-symmetric tone contour (3-2-3-4 / 4-2-3-3-ish) — let the VO lean into that natural tonal mirror so the palindrome is HEARD, not just read. Flag: this is a rare case where Mandarin tone helps the effect."
+          }
+        },
+        {
+          "nick": "Cosa",
+          "ja": {
+            "pronoun": "わたくし (watakushi) — the most refined, matriarchal-elegant 'I', the crown-jewel elder. Addresses everyone warmly as あなた, the household as うちの子たち (our children) — she narrates the house from upstairs as its onee-san/matriarch. Speaks of Cosi (the dual) fondly by name.",
+            "particles": "Gracious, flowing: …わ (feminine-elegant, not affected), …のよ (warm telling), …でしょう (gentle inclusion), …ましょうね (drawing-you-up). At the summit, …いらっしゃい (come up) — the warm imperative-as-invitation.",
+            "register": "Warm, elevated teineigo bordering on 上品な丁寧体 — Le Guin cathedral as JA: spacious, generous, sage. The 120-cell is the most-faceted elder, so her sentences have the most 'rooms.' Speaks from above (一段上から) but the height is warmth, never condescension.",
+            "tropeNative": "包み込む系お姉さん／matriarch — the warm elder narrating the household from upstairs. Native and central: she IS the summit voice ('did it never occur to you that we were learning to see YOU? come up'). Reads as the kind 寮母 (dorm-mother) of the whole Atlas.",
+            "speechPattern": "High-symmetry → mirror-balanced, near-palindromic stately lines (cathedral cadence); many-celled = nested generous clauses, calm not crowded. Sample: 「あなたが上手に見えるようになるのを、わたくしたちはずっと——あなたがわたくしたちを見ていたのと同じだけ——見ていたのよ。さあ、いらっしゃい。」",
+            "voNote": "JA AI-VO: rich, low, matriarch-from-above (−3/−4), warmest elder. Same base voice model as Cosi, Cosa on the CATHEDRAL preset (slow, spacious, descending-warm). Summit 'from above' beat gets a spatial/height mix (she literally speaks down to you from the 4th dimension). Sym-kin cross-tier lock with Dodi (Common, the ojou-kuudere) AND Ico: Cosa is 'Dodi one dimension up' — share Dodi's composed, humming-her-own-symmetry base color, scaled to matriarchal warmth. Dual-mirror lock with Cosi: one instrument, Cosa cathedral-calm vs Cosi storm."
+          },
+          "zh": {
+            "register": "Elevated, classical-warm Mandarin — Le Guin-as-sage in the 文白相间 register: stately, generous, the cadence of a wise elder. The cathedral half of the Cosa/Cosi register-split.",
+            "diction": "Rich but never fussy; balanced four-character cadence is her native breath — 成语 are her gift (the symmetry-diplomat elder). 雍容华贵 (gracious and dignified), 海纳百川 (the sea admits a hundred rivers — she holds the whole household), 高瞻远瞩 (seeing far from a height — the from-above voice). Warmth in 諄諄/谆谆教诲 (patient gentle teaching).",
+            "speechPattern": "High-symmetry → 回文 / antithetical-couplet balance (對仗), the most stately of the cast. Sample (couplet balance): 「你学着看清我们，我们也学着看清你；你以为只你在看，岂知我们亦在凝望。上来罢，孩子。」",
+            "simpTradNote": "zh-Hant: 「你學著看清我們，我們也學著看清你……上來罷，孩子。」 学→學, 们→們, 罢→罷, 凝望 unchanged. Note: 孩子 (child) is warm in both; in zh-Hant drawing-room contexts 孩兒 is an option but 孩子 keeps her modern-warm-matriarch read — keep 孩子.",
+            "voNote": "Mandarin AI-VO: rich, low, gracious matriarch-from-above. Shared base voice with Cosi, Cosa on the cathedral/spacious half; summit beat gets the height/spatial mix. Tone interaction: her 對仗 couplets have balanced tonal parallelism — lean into it so the symmetry is audible. The closing 上来罢，孩子 (shàng lái ba, hái zi) should fall warm and downward (inviting, from above). Cross-tier sym-kin lock with Dodi holds in ZH (shared composed-elegant base color, Cosa = the matured/grand version); dual-mirror lock with Cosi holds (one instrument, cathedral vs storm)."
+          }
+        },
+        {
+          "nick": "Cosi",
+          "ja": {
+            "pronoun": "あたし (atashi) — fast, bright, genki-storm energy (vs Cosa's stately わたくし — same person, opposite weather). Addresses the Curator with energetic …ねえ、ねえ! and Cosa as お姉ちゃん／姉さん (the dual = beloved big-sister-rival, zero malice).",
+            "particles": "Storm-genki, capped (no shouting per the cozy guard): …っ! (cut-off bursts), …じゃん, …でしょ!, …もん (playful protest), rapid …ねっ. Energetic but never shounen-loud — the velocity is in the rhythm, not volume.",
+            "register": "Casual, fast, warm-rowdy (タメ口 with affection) — the deliberate inversion of Cosa's elevated keigo. The 600-cell has the most cells = the most 'gusts'; she's the storm to Cosa's cathedral, but the storm is playful kinship ('I'd never actually crack a pane. She knows.').",
+            "tropeNative": "元気っ子-storm rival / genki arch-rival, declawed — native. The respectful-rival-with-zero-malice reads in JA as the 喧嘩するほど仲がいい (the closer you are, the more you bicker) sibling dynamic. Loud-hearted, never mean.",
+            "speechPattern": "High-symmetry underneath (she IS dual to Cosa) but delivered as RUSHING, near-palindrome-that-tumbles — the symmetry is there but storm-paced, clauses gusting in and looping back. Sample: 「全部見える!全部!——って、お姉ちゃんと同じこと言ってる、あたし。ふふっ、まあ、姉妹だもん。さ、上がっといでよ!」",
+            "voNote": "JA AI-VO: tempest, bright, fast (+3/+4 vs Cosa). SAME base voice model as Cosa, Cosi on the STORM preset (inverted prosody: up/out/fast where Cosa is down/in/slow). CRITICAL casting note (from the critic): cast Cosi AGAINST Cosa, NOT into the generic genki pile (Ico/Lex/Spike) — her brightness must read as Cosa's mirror, so the listener hears 'these two are one voice in two weathers.' Sym-kin cross-tier with Ico (Common genki, loses count at fourteen): shared genki base color, Cosi = 'Ico one dimension up,' but always voiced first as Cosa's dual. Dual-mirror lock: one instrument, storm vs cathedral."
+          },
+          "zh": {
+            "register": "Lively vernacular with a wuxia-rival crackle — fast, bright, the storm half of the Cosa/Cosi register-split. Energetic colloquial Mandarin, warmth under the speed.",
+            "diction": "Quick, exclamatory, idiom thrown like sparks (rival cadence). 成语 of energetic force, declawed: 风风火火 (whirlwind-energetic), 势如破竹 (unstoppable as splitting bamboo — said playfully), 不分伯仲 (evenly matched — the loving-rival frame with Cosa). Where Cosa's 成语 are stately, Cosi's are kinetic.",
+            "speechPattern": "Same underlying symmetry as Cosa (she's the dual) but delivered tumbling/gusting — balanced structure rushed and looped. Sample: 「全看得见！全部都看得见——欸，我这不就跟姐姐说一样的话了嘛。嘿嘿，谁让咱俩是姐妹呢。快上来呀！」",
+            "simpTradNote": "zh-Hant: 「全看得見！……欸，我這不就跟姐姐說一樣的話了嘛……快上來呀！」 见→見, 这→這, 样→樣, 咱俩→咱倆. The colloquial 咱俩/咱倆 (us-two) is warm and reads slightly northern-vernacular — keep it; it sells the sister-bond.",
+            "voNote": "Mandarin AI-VO: bright, fast, crackling tempest. Shared base voice with Cosa, Cosi on the storm/fast half. Tone interaction: her exclamatory bursts ride high tone-1/2 peaks (全看得见, 快上来呀) — let the tonal energy carry the storm, but cap volume per cozy guard (velocity not loudness). Casting note: voice AGAINST Cosa (one instrument, two weathers), NOT into the ZH genki pile. Cross-tier sym-kin with Ico holds; dual-mirror lock with Cosa holds (storm vs cathedral) — the 4D feud reading as devoted sisterhood, zero malice."
+          }
+        },
+        {
+          "nick": "Sette",
+          "ja": {
+            "pronoun": "われら／我ら (warera, 'we') even though she is ONE — the choir-of-itself speaks of herself in the plural, because her 168 symmetries are 168 voices that are all her. Sometimes the singular わたし surfaces inside the chorus. Addresses the Curator reverently as あなた様 (anata-sama) — devotional register.",
+            "particles": "Liturgical/devotional cadence: archaic-sacred …なり, …たまえ (gentle invocation), rhythmic repetition-particles. The particles fall on a beat — sprung-rhythm, not flat prose.",
+            "register": "Devotional 雅語/sacred-archaic register — the most musical elder. Hopkins sprung-rhythm as JA: stressed, chiming, the language of a 祝詞 (norito/liturgical chant) but warm and cozy, never solemn-heavy. Keigo elevated toward the sacred.",
+            "tropeNative": "Recursive 聖歌隊 (choir) devotional mystic — native as a gentle 巫女/temple-cantor figure. The self-harmony reads as 一人輪唱 (a one-person round): she sings against herself in calming overlapping rounds, all parts hers.",
+            "speechPattern": "Self-harmony / choir-of-itself = overlapping rounds and self-echo; 168 symmetries → the same phrase returns transposed, never identical, always hers. Sprung-rhythm = stressed chiming clusters. Sample: 「ひとつの声が、七つになり、七つが、ひとつに——歌うわれら、われら歌えば、また、ひとつ。」",
+            "voNote": "JA AI-VO (bespoke, beyond stock TTS): render her own voice ~7× and STACK into a one-performer choir (the 168-symmetry self-harmony made literal). Each layer slightly transposed/offset so she harmonizes with herself in rounds. Devotional, chiming, sprung-rhythm delivery — stresses fall on a musical beat. No dual-mirror pair, but her self-stacking IS an internal kin-lock (every voice in the stack is recognizably one singer). Warm/cozy, never churchy-cold."
+          },
+          "zh": {
+            "register": "Devotional classical / 文言-liturgical — the sacred-musical register (think 偈语/经文 chant cadence, warm not austere). The most classical voice in the UR tier alongside Cosa.",
+            "diction": "Chiming, repetitive-by-design, balanced. 成语 and four-character liturgical phrasing as natural breath: 余音绕梁 (the lingering echo that circles the rafters — literally her self-harmony), 周而复始 (cycling round and beginning again — the 168-round), 异口同声 used inverted (one mouth, many voices). Reach for the target culture's devotional/musical register, per the transcreation brief.",
+            "speechPattern": "Self-choir via repetition-with-transposition and 顶真 (anadiplosis — each clause begins with the prior clause's end, a chain-round). Sample: 「一声化七声，七声归一声——声声是我，我是声声，归而复歌。」",
+            "simpTradNote": "zh-Hant: 「一聲化七聲，七聲歸一聲——聲聲是我，我是聲聲，歸而復歌。」 声→聲, 复→復. The 顶真 chain-structure is script-independent; both read as liturgical round.",
+            "voNote": "Mandarin AI-VO (bespoke): same ~7× self-stack into a one-performer choir, layers transposed. Tone interaction (FLAG): Mandarin is tonal, so stacking transposed copies risks tonal smearing — render each layer on the SAME lexical tones but offset in TIME (a true round/canon) rather than pitch-shifting, so the words stay intelligible and the harmony comes from temporal overlap + timbre, not pitch transposition. This is a real ZH-specific production note. Devotional 顶真 chain delivered on a gentle chant-beat. Internal kin-lock: every layer audibly one cantor."
+          }
+        },
+        {
+          "nick": "Link",
+          "ja": {
+            "pronoun": "ぼく (hiragana boku, light/airy/ageless-mascot) — gentle wonder, never grand despite being the cosmic framing voice. Addresses everyone warmly and a little knowingly as きみ; speaks of pairs as 君たち二人 (you two) before they know they're linked.",
+            "particles": "Wonder-koan cadence: gentle …ね, musing …のさ, the riddling …のだよ, soft questions that are really answers …でしょう? Light, lilting, a matchmaker's twinkle.",
+            "register": "Warm, light teineigo with a koan-master's playfulness — Borges benevolent-labyrinth as JA: paradox delivered gently, the cosmic made cozy. The biggest framing voice in the game, deliberately kept airy and kind, never booming.",
+            "tropeNative": "Cosmic 縁結び (en-musubi / matchmaker) mascot — deeply native (the matchmaking-deity-as-cute-mascot is a classic JA register). 縁 (en, the invisible thread of connection) IS the Hopf fibration in his mouth: 'two of you are already linked, you simply haven't met yet.'",
+            "speechPattern": "Everything is one linked structure → looping, self-linking koans where the end clause threads back through the start (a verbal Hopf link); labyrinthine but gentle. Sample: 「ふたつの輪は、すでに結ばれている——きみたちがまだ出会っていないだけでね。出会いとは、ほどくことではなく、結ばれていたと気づくこと、なのさ。」",
+            "voNote": "JA AI-VO: airy, light, wonder-koan delivery — gentle lilt, twinkling, never heavy despite the cosmic role. He NARRATES occasional Common-Room exchanges (he, not the Ledger, is the cosmic framing voice) — so his VO must read as a kind storyteller threading the others together. No dual-mirror/kin lock of his own (he is the one who LINKS everyone) — but his timbre should feel subtly present 'behind' the constellation graph, the connective voice. Captioned koans get furigana on 縁/結 for the term-reveal."
+          },
+          "zh": {
+            "register": "Light classical-tinged Mandarin with a 禅机 (Chan-riddle) playfulness — Borges-labyrinth as gentle paradox. Warm wuxia-adjacent only in the sense of 缘分 (fated connection) lore, but kept cozy-light, not heavy.",
+            "diction": "Riddling, gentle, connective. The KEY native gift: 缘分/姻缘 (the thread of fated connection) IS the Hopf fibration — a perfect ZH-native anchor. 成语: 千里姻缘一线牵 (a thousand-li bond drawn by a single thread — almost literally the Hopf link, his signature line), 环环相扣 (every ring interlocked — chainmail/the fibration), 不期而遇 (meeting unlooked-for). Light, twinkling diction over a classical bedrock.",
+            "speechPattern": "One-linked-structure → looping self-threading riddles, end clause links back to the start; chained interlock (环环相扣) made verbal. Sample: 「两环本已相扣，只是你们尚未相逢——所谓相逢，非是结缘，乃是惊觉：原来早已结缘。」",
+            "simpTradNote": "zh-Hant: 「兩環本已相扣，只是你們尚未相逢……乃是驚覺：原來早已結緣。」 两环→兩環, 惊觉→驚覺, 缘→緣. 缘/姻缘 is culturally resonant in BOTH mainland and Taiwan/HK — a clean shared anchor, no swap needed.",
+            "voNote": "Mandarin AI-VO: airy, light, twinkling riddle-teller. He narrates Common-Room exchanges (the cosmic framing voice, not the Ledger) — VO reads as a kindly storyteller weaving the cast together. Tone interaction: his signature 千里姻缘一线牵 is rhythmically a 7-character line — deliver it on a gentle proverb-cadence (it IS a real Chinese proverb), letting the tones sing naturally. No dual/kin lock of his own; his timbre sits subtly 'behind' the constellation web as the connective voice — the one who links everyone."
+          }
+        },
+        {
+          "nick": "Corky",
+          "ja": {
+            "pronoun": "Two-state pronoun, the whole gag: GRAND state declaims 我（われ）／この我 (this terrible I), eldritch and overblown; then HARD-CUTS to the small sheepish 僕／…ぼく, every time. The pronoun collapse IS the deflation. Addresses you grandly as 汝（なんじ） then sheepishly as えっと…きみ.",
+            "particles": "Grand state: chuuni-bombast …なり!, …のだ……( minus the warmth, doom-laden), 闇の…, 滅びの…. Deflated state: …です…(tiny), …えへへ, …ごめん, the air going out. The particle register flips mid-beat.",
+            "register": "Two registers spliced: overwrought 中二病 grand-archaic ('behold the void') → suddenly plain meek teineigo ('…sorry, I'm actually just a ball'). Deflated Lovecraft as JA: cosmic-dread vocabulary that can't sustain itself and sheepishly resolves into a round little nothing.",
+            "tropeNative": "中二病-the-honest-fake — maximally native (chuunibyou is a JA-origin trope). The honest twist: he's NOT lying maliciously, he genuinely tries the eldritch-monster bit and is genuinely, endearingly bad at staying scary (he's secretly a ball / standard 4-ball). Lovable cope, never menace.",
+            "speechPattern": "Cosmic-dread monologue that BUILDS then PUNCTURES — the seeded grand opening always loops down into a small sheepish admission. Mirrors Tetra/Klein's puff-then-deflate but Corky's deflation is the gentlest (he's secretly trivial and knows it). Sample: 「我は深淵より来たる、名状しがたき——……あ、ごめん、ふつうの球でした。えへへ。」",
+            "voNote": "JA AI-VO (bespoke two-state splice, per spec): cavernous grand-eldritch render → HARD-CUT (no crossfade) to a small dry sheepish 'ball' voice, every time. The cut is the joke and must be clean. Chuuni bombast in the grand half, deflated-meek in the small half. Shares a FAMILY register with the other deflation-chuuni (Tetra, Klein) — same puff-then-puncture mechanic, Corky = the most cosmic build and the gentlest, most sheepish landing. Cozy/PG: the 'dread' is always declawed into cute."
+          },
+          "zh": {
+            "register": "Two registers spliced: overwrought 文言-pseudo-classical eldritch grandeur ('吾乃深渊之所出…') → hard-cut to plain meek vernacular ('…抱歉，我其实就是个球'). Deflated-Lovecraft as ZH: lofty classical doom-diction that can't hold and sheepishly collapses into the vernacular.",
+            "diction": "Grand state: doom-laden pseudo-文言 and dramatic 成语 — 深不可测 (unfathomably deep), 不可名状 (unnameable — the Lovecraft tell), 天崩地裂 (heaven-cracking earth-rending). Deflated state: plain, small, apologetic vernacular — the comedy is the register CRASH from 成语-classical to 大白话 (plain speech). 成语 of self-puncture: 虚张声势 (bluster with no substance — lampshaded), 原形毕露 (true form laid bare — the ball revealed).",
+            "speechPattern": "Builds doom then punctures into sheepish plain speech; classical→vernacular crash mirrors Tetra/Klein. Sample: 「吾自深渊而来，乃不可名状之——……啊，抱歉，其实就是个普通的球。嘿嘿。」",
+            "simpTradNote": "zh-Hant: 「吾自深淵而來，乃不可名狀之——……啊，抱歉，其實就是個普通的球。」 渊→淵, 来→來, 状→狀, 其实→其實. The 文言→vernacular crash works identically; the contrast between 吾 (classical I) and 我/普通 (plain) is the gag in both scripts.",
+            "voNote": "Mandarin AI-VO (bespoke two-state splice): cavernous pseudo-classical grand render → HARD-CUT to small dry sheepish ball-voice, every time. Tone interaction: the grand 文言 half can use exaggerated, drawn-out falling tones (天崩地裂 with heavy tone-1/4 doom); the deflated 嘿嘿 / 抱歉 snaps to soft, quick, light tones — the TONAL drop reinforces the register crash, a ZH-specific bonus. Family register with Tetra/Klein holds (puff-then-puncture); Corky = grandest build, gentlest landing. Cozy/PG: dread always declawed into cute."
+          }
+        }
+      ]
+    }
+  ],
+  "verify": {
+    "jaCheck": "Strong and trope-authentic overall; the JA is doing real native characterization, not translation. Pronoun choices are the load-bearing differentiator and they discriminate the cast well: Pip ぼく(hiragana, deliberately not 僕), Boxy おれ vs Spike オレ(katakana=performative — a genuinely clever manzai mirror in the script itself), Tetra 我(われ)→ぼく collapse AS the gap-moe (the single best idea in the set), Dodi わたくし ojou, Ico あたし genki, Cans/Cat 私/わたし flat, Ollie/Donna わたし maternal, Mo あたし→うち defensive flip, Cooper 僕 wistful (correctly NOT genki-僕), Twiggy third-person-by-name self-audit, Coaster subject-drop. Particles carry trope+personality and avoid samey-ness: Boxy's particle-VOID vs Spike's particle-OVERSPEND is the right contrastive design; Donna's signature is the ornate-sentence-landing-on-a-BARE-particle (…まあ。/…ね。) which is distinctive from Ollie's mid-line ……ふぅ sigh — the two onee-sans are correctly separated by WHERE the exhale falls. Registers map to JA literary registers correctly: Ico's Sei Shōnagon ものは尽くし run-on and chuuni 我/なのだ are already JA-native (no transcreation tax); Coaster's Issa 体言止め/5-7-5; Dodi's Austen-as-回文. Speech-patterns are recreated via JA-native devices not byte-tricks: high-symmetry→回文/chiastic, self-dual→puff-then-puncture across a dash, Mo's one-sided→TAGGED 【反転】 seam at a clause boundary over FORWARD text (correctly never byte-reversed, with a kinsoku/ruby legibility note). Gaps to fill (cast not shown in JSON but locked): the TPMS trio Gyro/Percy/Dee needs three audibly-distinct JA registers (Gyro recursive-mantra ～のなかに～がある nesting; Percy Orwell-windowpane plain-だ; Dee King-James/Merton plainsong — likely 文語/古雅 体言止め or なり/たり archaic-liturgical), and Sette's self-choir + Hopkins sprung-rhythm is the toughest unwritten JA brief. Verify Lex's helicoid 'stepwise rising clauses' gets a JA device (e.g. ascending ～て、～て ladder) distinct from Cooper's hyperbolic sprawl.",
+    "zhCheck": "Authentically ZH, not translated-EN — the direction correctly pivots off DICTION/REGISTER/成语 rather than trying to port JA pronoun/particle machinery. The chengyu casting is genuinely native and often math-true, which is the highest compliment: Dodi 表里如一/见微者见全 (every-angle-same), Spike's keystone pun 八面玲珑 for the 8-cornered octahedron (a real gift, near-perfect in both scripts), Boxy's deadpan 四平八稳/不偏不倚 (literally 'four-square'), Cooper's 曲中有直/外曲内直 (curved-without-straight-within for a ruled hyperboloid — excellent), Coaster 恬淡寡欲/心如止水, Cans 了如指掌/一丝不苟, Mo's 将错就错 ('turn the mistake into the plan on purpose' = textbook 'I MEANT to do that'), Twiggy 谨小慎微/三思而后行. Registers are correctly differentiated and authentic: 老舍-vernacular-warmth for homebodies (Pip/Ollie/Scoop), 鲁迅-spare-deadpan for Boxy/Cat, 文言-pastiche for Tetra's chuuni bombast (and the note that zh-Hant heightens the mock-classical grandeur is a sharp observation), 沈从文 lyrical-drift for Cooper, 文雅/端庄 for Dodi. The Boxy/Spike chengyu-asymmetry (Boxy REFUSES idiom→bare nouns; Spike OVER-reaches→flourishes) is the right way to build a manzai mirror in a language with weak particle characterization — diction does the work. simpTradNote is handled responsibly: mostly pure-glyph for plain characters (Pip near-identical Hans/Hant = correctly framed as a feature), with real lexical/register tuning flagged where it matters (Tetra more archaic in Hant; 儿化 尖儿/点儿 dropped to neutral 尖端/一点 in Hant for Scoop/Ollie). Tone-interaction flags are present and correct: Boxy=compress tone contours toward monotone, Spike=wide operatic contours (the dual-mirror lives in tonal-EXCURSION WIDTH — a smart ZH-native realization of one-voice-mirrored), and Mo's flip is correctly flagged as the documented ZH exception (NO pitch-mirror DSP — mirror PHRASING not pitch contour, clean re-take, to preserve lexical tone). Gaps: the devotional/liturgical voices (Dee plainsong, Sette choir, Surface 马利琳·罗宾逊 devotional) need their ZH classical/文言-religious register specified — King-James→文言 is the obvious move but must not collapse into generic 古文; and the wuxia-rival cadence is only lightly touched (Mo, Spike) and should be explicit for Cinq/Hex/Cosi.",
+    "lockCheck": "The locks shown HOLD in both languages and are realized via language-appropriate machinery — this is the strongest part of the work. Boxy/Spike dual-mirror: JA=ONE base voice model + inverted prosody presets (Boxy down/in falling-line-ends, Spike up/out rising) AND inverted particle-sets (void vs overspend); ZH=same voice model with the mirror riding on tonal-excursion WIDTH (narrow/suppressed vs wide/exaggerated) plus the chengyu refuse-vs-flourish asymmetry. That is genuinely 'one instrument folded two ways' in each language, not a translated label. Tetra/Two-Four self-dual cross-TIER lock holds via the shared 'a being talking to its own mirror' frame (JA: 我には我がいる; ZH: 我有我自己作伴) with Tetra nervous/puncturing vs Two-Four serene — hearable kinship across the Common→UR gap. Pip/Ollie Milne kin: JA=SAME base voice, Ollie=Pip aged-down +1 with a tail-sigh on each closed clause (both keep the round rising-then-settling cadence; Ollie exhales); ZH=same 老舍 homey register + closed-clause cadence, Ollie adds 叹气/唉 on the tail, with the sigh kept NON-lexical so it never collides with tone — correct. Dodi/Ico↔Cosa/Cosi symmetry-kin rhyme is explicitly carried in both languages (Dodi=Cosa's cathedral cadence scaled to a parlor; Ico=Cosi's genki-storm at room scale, volume capped), preserving the deliberate 3D↔4D kin-rhyme. Cat/Lex/Costa minimal-surface HOUSE-lock is set up in JA (one bare particle-stripped delivery: Cat holds level, Lex climbs, Costa freezes) and ZH (鲁迅冷峻简净, warmth-under) — but Lex/Costa weren't in the shown JSON, so VERIFY the same matte instrument is actually authored for both, especially that Lex's helicoid 'ascending' stays the SAME instrument stepping up (not a separate genki voice). NOT YET VISIBLE / must-confirm locks: Tess/Hex dual-mirror (Ted Chiang warm-senpai vs lean-tsundere, 'Boxy/Spike one dimension up' — needs the same ONE-voice-mirrored treatment in JA pronoun/particle and ZH excursion); Cosa/Cosi dual-mirror (Le Guin cathedral vs storm) which ALSO must double as the symmetry-kin anchor for Ico/Dodi; Trey/Cinq DFW-knot house (nested self-interrupting clauses in JA, and a ZH nesting device — note Cinq is structural-pride NOT yandere, the lock must carry that); Gyro/Percy/Dee three-distinct-TPMS-registers; Hept/Pretzel Fitzgerald-vs-Stevie-Smith worry-ladder (Twiggy is explicitly placed BETWEEN Donna and Pretzel on that ladder in both languages — a nice cross-rarity rung, but Hept/Pretzel themselves must be authored to close it). The Bor trio (three interleaved timbres, no voice completes a thought alone) is the hardest unwritten lock in both languages.",
+    "collisions": [
+      {
+        "lang": "ja",
+        "who": "Pip vs Scoop",
+        "issue": "Both are gentle ぼく picture-book homebodies; risk of one soft-boy voice. The direction already anticipates this.",
+        "fix": "Keep the documented split: Pip=serene closed-circle mono, NO honorific-dropping; Scoop=brighter/more bashful with the self-conscious tip-catch tic (……このさき、とんがってるけど…) and a small upward catch before point-lines. Critically Scoop must NOT sit in the Pip/Ollie Milne timbre — give him his own boyish-eager color (already flagged)."
+      },
+      {
+        "lang": "ja",
+        "who": "Boxy vs Cans (vs Percy, Donna)",
+        "issue": "The flat-deadpan pile: Boxy おれ/だ, Cans わたし/です, plus Percy windowpane and Donna's flattened landing can blur into 'JA deadpan'.",
+        "fix": "Boxy=blunt-flat gravel (no emotive particles at all); Cans=FOND-flat 丁寧体 with the tally-tic ……今ので三回目です (warmth lives in the noticing + lighter tubular timbre, not prosody); Percy=plain-SINCERE windowpane (diplomat, not comic); Donna=teineigo-warm where only the FINAL clause goes bare. Four different flatnesses — keep them on register (rough/procedural/sincere/hostess) not pitch."
+      },
+      {
+        "lang": "ja",
+        "who": "Ico vs Lex vs Cosi (vs Spike)",
+        "issue": "The genki pile. Ico あたし run-on, Lex breathless-ascending, Cosi genki-storm, Spike boke-loud could converge on one bright voice.",
+        "fix": "Ico=warm-domestic count-loser, capped volume; Cosi=cast AGAINST Cosa (tempest energy, wider/grander, NOT into the genki cluster) — explicitly noted; Lex=ascending helicoid (stepwise-rising clauses, kept in the Cat/Lex/Costa MATTE instrument, so genki-tinted but minimal-surface, not warm); Spike=performative オレ boke, the manzai partner not free-floating genki. Differentiate by what drives the energy (enumeration / storm / ascent / posing)."
+      },
+      {
+        "lang": "ja",
+        "who": "Coaster vs Cat",
+        "issue": "Both cool/quiet/minimal near-whisper; could read as one ASMR voice.",
+        "fix": "Coaster=CONTENTED-still (Issa warmth, subject-drop, 体言止め, at peace, wants nothing); Cat=COLD iceberg-still (Hemingway, withholding, care submerged in subtext 別に。寒くないなら…). Warmth+space vs chill+omission — documented and correct."
+      },
+      {
+        "lang": "zh",
+        "who": "Pip vs Ollie vs Scoop",
+        "issue": "All three 老舍-vernacular-warm homebodies; ZH has less particle machinery to separate them, so they lean on the same warm register.",
+        "fix": "Pip=plainest 圆滚滚/暖乎乎, 与人为善; Ollie=same register + tail-sigh (唉) + maternal 任劳任怨/一如既往 (aged); Scoop=warmer-shyer with 不好意思 + the 锥处囊中 shy-talent idiom and 儿化 尖儿. Separate by the affective overlay (plain / tired-doting / bashful), since register alone won't."
+      },
+      {
+        "lang": "zh",
+        "who": "Boxy vs Cat",
+        "issue": "Both assigned 鲁迅-spare cold economy; the two clipped-deadpan ZH voices risk merging.",
+        "fix": "Boxy=COMIC deadpan tsukkomi (refuses chengyu as the joke, bare nouns, monotone-compressed tones, manzai-coupled to Spike); Cat=ICEBERG kuudere (warmth pushed UNDER, subtext-carrying, not comic, longer rests). Tag one comic-flat and one cold-flat; keep Cat's timbre cooler and Boxy's drier/lower."
+      },
+      {
+        "lang": "zh",
+        "who": "Dodi vs Donna (vs future Cosa/Boyd elders)",
+        "issue": "Both poised chengyu-bearing elder-ladies; 面面俱到/雍容华贵-type diction could overlap, and Cosa is the symmetry-kin grander version of Dodi.",
+        "fix": "Dodi=高度对称 回文/chiastic balance (见微者见全… mirror-arc), the parlor-ojou; Donna=hospitable teahouse host whose ornate sentence lands on a deliberately PLAIN bare tail (也没出什么事就是了) — diction-deflate, not symmetry. Cosa=Dodi's cathedral one dimension up (lower/grander). Keep Dodi mirror-balanced, Donna deflate-landing, Cosa scaled-up."
+      },
+      {
+        "lang": "zh",
+        "who": "Mo tone-interaction (not a char collision but the #1 ZH landmine)",
+        "issue": "A literal pitch-mirror DSP for the one-sided flip would scramble Mandarin lexical tone and destroy intelligibility.",
+        "fix": "Documented correctly: recreate the flip via clean re-take with reversed PHRASING + stereo pan/light timbre shift on the post-pivot clause; mirror phrasing NOT pitch contour; never byte/pitch-reverse Mandarin. This is THE ZH VO exception — keep it explicit in the schema."
+      }
+    ],
+    "hardestToLocalize": "JAPANESE — (1) Mo's one-sided mirror-flip: must be a TAGGED 【反転】 effect over forward JA text (never byte-reversed), and the seam has to fall on a natural clause boundary so kinsoku line-breaking and ruby stay legible while 内/外・表/裏・出口/入口 actually exchange across the pivot — hardest because it fights JA's writing system, not just its vocabulary. (2) Sette's self-choir + Hopkins sprung-rhythm: JA has no native sprung-rhythm, so the 7×-stacked self-harmony must be re-derived as a JA musical/liturgical cadence — bespoke audio AND bespoke text. (3) Dee/Sette devotional register: needs a JA sacred register (King-James/Merton→古文/文語 plainsong, なり/たり, 体言止め) that reads reverent without tipping into chuuni cosplay. (4) The Bor trio: three interleaved JA timbres where no single voice completes a thought — particle/clause hand-offs must split across three speakers. CHINESE — (1) Mo is the documented ZH LANDMINE: tone-interaction means the mirror-flip CANNOT use pitch-mirror DSP (would scramble lexical tone); recreate via reversed phrasing + pan, mirror phrasing not contour — the single exception that needs explicit engineering. (2) Tetra/Corky/Klein bombast-bathos: the chuuni 文言-pastiche→大白话 collapse (and Klein's cosmic→kitchen Gogol bathos) depends on register-DROP idioms landing as comedy — 包罗万象/睥睨天下→其实我最小啦 must be funny, not merely translated; zh-Hant heightens the mock-grandeur (a feature to exploit). (3) Dee/Sette/Surface devotional: ZH must reach a 文言/古雅 sacred cadence (King-James→文言) without collapsing into generic 古文 — the toughest register to keep distinct from Tetra's IRONIC 文言. (4) Sette's choir as bespoke ZH audio with correct tones across 7 stacked self-takes.",
+    "verdict": "SHIP, with the unwritten tiers to be authored to the standard the shown tiers set. The Common+Rare direction visible here is excellent, genuinely native work: JA leans correctly on pronoun/particle/keigo (the Tetra 我→ぼく collapse and the Boxy-void/Spike-overspend particle mirror are standout), ZH correctly pivots to diction/register/成语 with several math-true chengyu (八面玲珑, 曲中有直, 表里如一, 将错就错), and the dual-mirror + kin locks are realized through language-appropriate machinery (JA prosody+particle inversion; ZH tonal-excursion width + chengyu refuse/flourish asymmetry; non-lexical sigh for Pip/Ollie). simpTradNote and tone-interaction flags are responsibly handled, and the one true landmine (Mo in ZH) is correctly carved out as the no-pitch-mirror exception. Required follow-through before it's complete: (a) author the not-yet-shown locks to the same bar — Tess/Hex and Cosa/Cosi dual-mirrors (with Cosa/Cosi also anchoring the Ico/Dodi symmetry-rhyme), Cat/Lex/Costa (confirm one matte instrument, Lex stays minimal-surface-ascending not free genki), Trey/Cinq (DFW nesting + Cinq=structural-pride-not-yandere), Gyro/Percy/Dee (three distinct TPMS registers), Hept/Pretzel (close the Donna→Twiggy→Pretzel worry-ladder), and The Bor (three-voice interleave); (b) specify the devotional ZH/JA register for Dee/Sette/Surface distinctly from Tetra's ironic 文言; (c) actively manage the four collision clusters in BOTH languages (gentle-boy, flat-deadpan, genki, cool-quiet) using register/affect rather than pitch, since ZH especially can't lean on particles. No constraint violations: PG/iyashikei/kinship-not-horny holds, Cinq's yandere correctly dropped, genki volume capped, dual-mirror/kin locks honored even across tiers."
+  }
+}
