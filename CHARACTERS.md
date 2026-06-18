@@ -175,6 +175,49 @@ flip) is the single hardest; **Tetra/Corky** (bombast vocabulary), **Klein** (ba
 (reach for the target culture's devotional/musical register) are medium. **Kinship must stay hearable in every
 language** — voice paired characters with one shared cadence (mirrored for duals); it's a gameplay signal.
 
+### AI-voice casting (the spoken realization of the layers)
+
+VO is **AI-generated** (§6 cap #1), so each character ships a `voiceDirection` brief. Two principles make it
+more than text-to-speech:
+
+- **The speech-pattern is audible in the delivery.** Flat curvature = zero vocal italics (Boxy's deadpan);
+  one-sidedness = a mid-line **mirror-flip** (Mo); self-dual = puff-up-then-puncture in one breath (Tetra);
+  helicoid = stepwise rising clauses (Lex); choir-of-itself = literally **self-harmonized** (Sette).
+- **Family cadence is engineered as a hearable set-bonus.** Dual-mirror pairs use **one base voice model +
+  inverted prosody presets** (Boxy = down/in, Spike = up/out; Tess/Hex and Cosa/Cosi likewise); kin houses
+  share a base register (Pip/Ollie Milne warmth; Cat/Lex/Costa one matte minimal-surface instrument).
+- **Ethics (verified clean):** every brief is a *described archetype* + prose-register anchor for a
+  **licensed/synthetic** provider — author names scope the *writing/delivery register*, never a voice
+  likeness; **zero real-person/celebrity impersonation**.
+
+**Voices needing bespoke audio beyond stock TTS:** **Sette** (render her own voice ~7× and stack into a
+one-performer choir), **The Bor** (three interleaved timbres so no one voice completes a thought alone —
+cut one and the line collapses), **Mo** (mirror-flip DSP — render the inverted half as a take and
+pitch-mirror/pan it; **authored as a tagged *effect* over forward text, never byte-reversed English** — the
+one real i18n landmine), **Corky/Klein/Tetra** (two-state splice: cavernous grand → small dry "ball" voice,
+hard-cut, no crossfade), the **higher-D elders** (Tess/Cosa: a *cryptic* pre-ascension render + the *same
+lines re-rendered warm* post-ascension), and **Cosa's summit "from above"** (spatial/height mix).
+
+**Compact vocal table** (full briefs become `/content` rows): Pip warm mono storybook (+2/+3, flat-soft) ·
+Boxy gravel-flat deadpan (−2/−3) ↔ Spike glassy fencer (+3/+4 lively) · Tetra reedy cardboard-knight that
+hard-cuts to small · Dodi composed, very steady · Ico tumbling lose-count (capped volume) · Cans tubular
+fond deadpan + tally-pulse · Coaster near-whisper ASMR Issa-haiku · Ollie Pip-aged-down (+1, sighing) ·
+Donna buttery-warm, **only the final clause flattens** · Mo bright trickster + mirror-flip · Cooper low
+wistful drift · Cat cool contralto iceberg ↔ Lex bright step-rising (same instrument) · Trey breathless
+self-interrupting ↔ Cinq tighter/prouder (structural-pride, **not** yandere) · Klein grand-cavern→kitchen ·
+Ar-Pee soft settled dandere · Boyd serene courteous senpai · Cappy brisk-but-even work-rhythm · Figgy
+unbothered-symmetrical calm · Gyro low hypnotic weave · Percy clear-sincere windowpane · Hept low
+unflappable head-of-house ↔ Pretzel fussy bright kouhai · Costa colder minimal-surface third · Surface
+hushed-then-fervent · Lorrie airy dojikko tangent · Dee low liturgical plainsong · Tess shadow-senpai
+(−2/−3) ↔ Hex lean rival (+1 vs Tess) · Two-Four serene centered · Cosa rich-low matriarch-from-above
+(−3/−4) ↔ Cosi tempest (+3/+4 vs Cosa) · Sette 7× self-choir · Link airy wonder-koans · Corky two-mode
+eldritch→ball.
+
+*(Casting critic flagged four near-collisions to keep distinct — Coaster vs Cat, the flat-deadpan pile
+Boxy/Cans/Donna/Percy, the bright-genki pile Ico/Lex/Cosi/Spike (keep Cosi cast against Cosa, not the genki
+cluster), and Pip/Ollie's kin-lock vs Scoop's separate instrument — all resolved via the per-voice knobs
+above.)*
+
 ---
 
 ## 3. Bond / affinity system
@@ -235,6 +278,52 @@ the thematic capstone.
 - **The two drums** (isospectral pair) — turns the "sound of a drum" exploit into a buddy comedy with a real Euler-budget-saving payoff.
 - **Pip × anyone** (Sphere identity) — the zero-risk on-ramp that teaches shipping from minute one.
 - **Tess × Hex** (Tesseract × 16-cell) — mid-tier rivals; explicit callback to the Boxy/Spike tutorial, "the same idea one dimension up."
+
+### Ensemble & group scenes (3+ characters — where the styles collide)
+
+Pairs are §4; this is the 3+ tier, and it's where the authorial-style clashes pay off. It stays inside the
+**One Character Surface** rule.
+
+**Surfaces.** A new **Common Room** (an opt-in sub-tab of Bonds — not a 6th destination): a lamp-lit back
+room showing whichever shapes are in your active loadout "hanging out off-shift," drifting ambient banter
+like a fish tank — *no input, fully dismissible, pausable, globally togglable off*. After the summit it
+becomes the **Late-Atlas Lounge** (an upstairs window → 4D-aware banter). Group scenes also surface as small
+polygons on **Link's constellation graph** (tap a lit group-glyph to play). Nothing ever appears on the
+Gallery/ASMR loop; a pure idler can finish the whole game and never open it.
+
+**The combinatorial bark engine (cheap, near-infinite, coherence-guaranteed).** Each character ships short
+1–2-sentence **barks** tagged in `/content` by speaker + its four layers + a **conversational role** (OPEN /
+ESCALATE / TSUKKOMI / BOKE / AGREE / DEFLATE / OBSERVE / CLOSE) + engine-state predicates + kinship. An
+exchange is a short **grammar over roles** (`OPEN → TSUKKOMI|BOKE|OBSERVE → optional DEFLATE|CLOSE`); the
+engine picks 2–3 currently-loaded characters whose kinship + tags satisfy the chain and fills typed slots
+(`{other_name}`, `{engine_state}`) from live truth. Coherence guards: a **kinship gate** (no strangers
+bicker), **role complement** (a BOKE needs a TSUKKOMI-capable answerer — the manzai physics), **style-clash
+as a feature but capped at 2 clashing styles/exchange**, **calm ceiling** (one exchange at a time, ~20–40s
+cadence, ESCALATE chains ≤2, no shouting). Same loadout + same tick-seed ⇒ same exchange (**deterministic,
+testable**: bark predicates are a typed enum read from the Rust core, with a "no bark fires on a clear board"
+test). **Link** narrates the occasional exchange in his Borges matchmaker register (he, *not* the Ledger, is
+the cosmic framing voice). Cheap because ~10 archetype banks (12–20 barks) + richer banks for the 15 heroes
++ 1–3 barks for commons ≈ 300–450 short rows → thousands of coherent exchanges.
+
+**The 7 scripted set-pieces** (locked count; alongside the ~10 pair cutscenes): ① **The Bor's House Meeting**
+(the trio that collapses if any two leave) · ② **Tea with the Inside-Out Family** (Klein's deflated-Lovecraft
+dread punctured by Mo's Wildean one-liner — "Dad. It's a Tuesday. The void is the kettle") · ③ **The Two
+Drums Do a Bit** (the isospectral pair nobody — not even you — can tell apart) · ④ **Elders' Landing** (Cosa
+narrating the household; sets up the summit) · ⑤ **The Feud, Refereed** (Cosa × Cosi with Link reframing the
+rivalry as kinship) · ⑥ **Manzai Night** (Boxy/Spike + deadpans catch a chuuni — lampshades the whole engine)
+· ⑦ **The Full-Choir, Now With Words** (NG+ recontextualization of the wordless finale: one shared spoken
+line per family, from above). Each set-piece, once seen, **seeds new barks** into the engine.
+
+**NG+ deepening:** the Common Room is a major back-loaded surface — after the summit every bark/set-piece
+gains a higher-vantage variant ("you only ever heard my equator talk; this is all of me"), Link's fibration
+"re-weaves one dimension richer" so **new group edges** appear that couldn't exist before (a 3D trio revealed
+as a 4D quartet's shadow), Bond-6 opens cross-cycle group slots, capped at the cycle-5 finale.
+
+**i18n:** group banter is the most transcreation-heavy content (stacked stylized voices colliding, where the
+*contrast* must survive), so it's bounded structurally — barks are `plain|transcreate`-tagged, their
+existing layer-tags **auto-generate the translator brief** ("answer the prior BOKE as a deadpan TSUKKOMI in
+the target language"), the corpus is capped (few-hundred short rows + 7 scenes/locale), and the combinatorics
+are **free per locale** (recombination runs on already-localized barks). Verdict: ship.
 
 ---
 
