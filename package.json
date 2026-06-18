@@ -1,0 +1,14 @@
+{
+  "name": "shipshapeshop",
+  "private": true,
+  "description": "Ship Shape Shop — a gacha + idle game of mathematical shapes. Monorepo root (convenience scripts).",
+  "scripts": {
+    "build:core": "wasm-pack build core --target web --out-dir pkg --dev",
+    "build:core:release": "wasm-pack build core --target web --out-dir pkg --release",
+    "setup": "pnpm run build:core && pnpm -C web install",
+    "dev": "pnpm -C web dev",
+    "build": "pnpm run build:core:release && pnpm -C web build",
+    "test": "cargo test --manifest-path core/Cargo.toml && pnpm -C web test",
+    "lint": "cargo clippy --manifest-path core/Cargo.toml -- -D warnings"
+  }
+}

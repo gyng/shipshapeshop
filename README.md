@@ -17,5 +17,21 @@ effect, off by default.
 | [`CHARACTERS.md`](./CHARACTERS.md) | The character layer: narrative frame (the Atlas), personality engine, anime/LN trope layer, authorial house styles, AI-voice casting, bonds, shipping, the 41-character roster. |
 | [`AGENTS.md`](./AGENTS.md) | Engineering guide: clean architecture, TDD, atomic design, IA/UX/psychology, gamedev practices, procedural-geometry verification, i18n. (`CLAUDE.md` is a bare import of it.) |
 
-Status: **design phase** — no code yet. Next step is the feel-first vertical slice (one gorgeous
-pull-and-reveal gem).
+## Development
+
+Monorepo: `core/` (Rust → WASM simulation core), `web/` (Vite + React + TS), `content/` (data, later).
+The WASM core must be built **before** installing web deps (`web` depends on `core/pkg` via `file:`):
+
+```sh
+pnpm run setup     # build the WASM core, then install web deps
+pnpm run dev       # start the Vite dev server
+pnpm run test      # cargo tests + web tests
+pnpm run build     # release WASM (wasm-opt) + production web build
+```
+
+Requires: Node ≥ 20, pnpm, Rust + `wasm32-unknown-unknown` target, `wasm-pack`.
+
+## Status
+
+**In active development** — building toward a complete, fully-playable game (see the milestone roadmap;
+AI voice deferred). M0 (scaffold + Rust→WASM↔React pipeline) is done; M1 is the simulation core.
