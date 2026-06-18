@@ -11,7 +11,7 @@ use crate::rng::{rand_u64, rand_unit};
 const BANNER: u64 = 1;
 
 /// Rarity, ordered Common < … < Ur.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Rarity {
     Common,
     Rare,
@@ -42,7 +42,7 @@ const P_RARE_GIVEN_LOW: f64 = (50.0 + 30.0) / 94.0;
 
 /// Pity / resonance counters. Per the save spec these persist with the banner and the RNG `counter`
 /// advances on every committed pull (save-scum resistance).
-#[derive(Clone, Default)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct PityState {
     pub counter: u64,                 // RNG counter = total pulls on this banner
     pub since_top: u32,               // pulls since SSR-or-better
@@ -113,25 +113,23 @@ impl Default for Collection {
     }
 }
 
-/// One pull, mutating pity + collection. The "wanted banner" is modelled by steering **top** grants to a
-/// still-missing shape of that tier (UR pull → a missing UR, SSR pull → a missing SSR); lower tiers are
-/// uniform coupon-collector draws. Returns the rarity granted.
-pub fn pull(
-    seed: u64,
-    pity: &mut PityState,
-    coll: &mut Collection,
-    spark_spills_to_ssr: bool,
-) -> Rarity {
+/// The outcome of one rarity roll (pity already advanced).
+pub struct Roll {
+    pub rarity: Rarity,
+    /// True if this pull crossed the Resonance Spark threshold (the caller then claims a wanted shape).
+    pub spark_fired: bool,
+}
+
+/// Roll one pull's rarity and advance all pity/resonance counters. Pure function of `(seed, pity.counter)`.
+/// The caller decides which concrete shape is granted, so this is reused by both the simulate harness and
+/// the real game layer (which steers to a missing "wanted" shape).
+pub fn roll_rarity(seed: u64, pity: &mut PityState) -> Roll {
     let c = pity.counter;
-    // four independent draws derived from the pull index — keeps the whole pull a pure fn of (seed, c)
     let u_top = rand_unit(seed, BANNER, c * 4);
     let u_split = rand_unit(seed, BANNER, c * 4 + 1);
     let u_low = rand_unit(seed, BANNER, c * 4 + 2);
-    let u_idx = rand_u64(seed, BANNER, c * 4 + 3);
 
-    let is_top = u_top < pity.p_top();
-
-    let rarity = if is_top {
+    let rarity = if u_top < pity.p_top() {
         pity.since_top = 0;
         pity.since_epic = 0;
         let is_ur = if pity.guaranteed_featured_top {
@@ -144,11 +142,7 @@ pub fn pull(
             pity.guaranteed_featured_top = true;
             false
         };
-        let r = if is_ur { Rarity::Ur } else { Rarity::Ssr };
-        // steered: fill a missing slot of this top tier if possible, else a dupe
-        let idx = coll.first_missing(r).unwrap_or(0);
-        coll.grant(r, idx);
-        r
+        if is_ur { Rarity::Ur } else { Rarity::Ssr }
     } else {
         pity.since_top += 1;
         let r = if pity.since_epic + 1 >= EPIC_FLOOR {
@@ -165,19 +159,48 @@ pub fn pull(
         } else {
             pity.since_epic += 1;
         }
-        let pool = match r {
-            Rarity::Common => N_COMMON,
-            Rarity::Rare => N_RARE,
-            _ => N_EPIC,
-        };
-        coll.grant(r, (u_idx as usize) % pool);
         r
     };
 
-    // Resonance Spark: at the threshold, claim a missing featured TOP shape — UR first, then (the fix) SSR.
     pity.resonance += 1;
-    if pity.resonance >= SPARK_AT {
+    let spark_fired = pity.resonance >= SPARK_AT;
+    if spark_fired {
         pity.resonance = 0;
+    }
+    pity.counter += 1;
+    Roll { rarity, spark_fired }
+}
+
+/// Uniform shape index within a tier (the 4th draw of the pull), for non-steered coupon-collector grants.
+pub fn shape_index(seed: u64, counter: u64, pool: usize) -> usize {
+    (rand_u64(seed, BANNER, counter * 4 + 3) as usize) % pool
+}
+
+/// One simulate-pull: rolls rarity, grants into `coll` (tops steered to a missing shape, low tiers random),
+/// and applies the spark. Used by `simulate_core` and the tests; the real game does its own granting.
+pub fn pull(
+    seed: u64,
+    pity: &mut PityState,
+    coll: &mut Collection,
+    spark_spills_to_ssr: bool,
+) -> Rarity {
+    let c = pity.counter;
+    let roll = roll_rarity(seed, pity);
+    match roll.rarity {
+        r @ (Rarity::Ur | Rarity::Ssr) => {
+            let idx = coll.first_missing(r).unwrap_or(0);
+            coll.grant(r, idx);
+        }
+        low => {
+            let pool = match low {
+                Rarity::Common => N_COMMON,
+                Rarity::Rare => N_RARE,
+                _ => N_EPIC,
+            };
+            coll.grant(low, shape_index(seed, c, pool));
+        }
+    }
+    if roll.spark_fired {
         if let Some(idx) = coll.first_missing(Rarity::Ur) {
             coll.grant(Rarity::Ur, idx);
         } else if spark_spills_to_ssr {
@@ -186,9 +209,7 @@ pub fn pull(
             }
         }
     }
-
-    pity.counter += 1;
-    rarity
+    roll.rarity
 }
 
 /// Pulls needed to 100% the core (all 41 named shapes) for a given seed. Bounded by `cap` as a safety net.
