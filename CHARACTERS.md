@@ -189,6 +189,10 @@ more than text-to-speech:
 - **Ethics (verified clean):** every brief is a *described archetype* + prose-register anchor for a
   **licensed/synthetic** provider — author names scope the *writing/delivery register*, never a voice
   likeness; **zero real-person/celebrity impersonation**.
+- **Dual/tri-language by design.** VO ships **EN + JA at launch** ("JP audio / EN text" is first-class —
+  audio is chosen independently of text) and **Mandarin fast-follow** (Tier-1.5). Each character is cast
+  *natively per language* (JA leans on pronoun + sentence-final particles + keigo; ZH on diction + 成语 +
+  classical/vernacular register), and the **dual-mirror/kin locks hold within each language**. (`AGENTS.md` §10.)
 
 **Voices needing bespoke audio beyond stock TTS:** **Sette** (render her own voice ~7× and stack into a
 one-performer choir), **The Bor** (three interleaved timbres so no one voice completes a thought alone —
@@ -409,9 +413,10 @@ The character layer is fundable for a free no-revenue game only with hard scopin
    manifest *vocally*), authored as a `voiceDirection` field on the bible. The **Eigenmode-Orchestra timbre**
    survives as a complementary *musical/economy* signature, and a **captioned + waveform-glyph fallback**
    stays for accessibility / muted / mobile. **Ethics:** cast to *described vocal archetypes* via a licensed
-   AI-voice provider — never clone real actors or real people without consent. AI voice also **re-casts
-   cheaply per locale**, strengthening i18n (each locale gets voice-direction notes on the transcreation
-   track).
+   AI-voice provider — never clone real actors or real people without consent. **VO is dual-audio EN + JA at
+   launch (Tier-1), Mandarin (ZH) fast-follow (Tier-1.5)**; the player picks audio language **independently
+   of text**. Each `voiceDirection` is authored **natively per language** (JA: pronoun/particles/keigo;
+   ZH: register + 成语), not translated — see `AGENTS.md` §10.
 2. **Tier the writing — the 15 deep heroes are the chase tiers: all 7 SSR + all 8 UR.** That's where
    attachment converts to retention (you grind toward and bond with the rares hardest), so the deep writing
    budget goes there. ~10 archetype voices drive everyone; the ~26 commons/rares get 1–3 flavored lines.

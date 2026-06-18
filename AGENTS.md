@@ -294,6 +294,17 @@ more mechanics, procedural families, NG+2–5. *(See `CHARACTERS.md` §6 for pro
 i18n is nearly free if designed in from day one and painful to retrofit, so **bake it in from the first
 commit**. The bar: *adding a language = adding a resource bundle, never touching code.*
 
+**Locale tiers (build the plumbing for all three now; tiers differ only in how much bespoke
+transcreation/VO each gets):**
+- **T1 — English + Japanese, co-primary, authored in parallel, dual-audio VO.** Given the anime/LN DNA,
+  Japanese is not a port of English but arguably the *native* register (the tropes are literally Japanese).
+- **T1.5 — Chinese (Simplified `zh-Hans` first, Traditional `zh-Hant` derived).** A huge market, planned
+  upfront: full localized **text at launch-or-fast-follow**, **Mandarin VO as a fast-follow** (AI-generated,
+  same casting framework).
+- **T2 — everything else** via the add-a-bundle path.
+
+JA and ZH specifics are in the CJK subsection below.
+
 - **No hardcoded player-facing strings, ever.** All UI copy lives in locale resource files keyed by ID
   (`en.json`, `ja.json`, …), resolved at runtime (react-i18next / FormatJS / Lingui). An **ESLint rule fails
   the build on literal JSX text.** (This is just the prime directive again — strings are *presentation*, so
@@ -340,3 +351,38 @@ full **localization *quality* of the stylized voices is a per-locale content inv
 shape curation gate and bounded by the production caps (15 deep heroes carry most of it; commons/rares are
 light). Tag each string `plain | transcreate` in the content schema so the two tracks are explicit from day
 one.
+
+### CJK & the language-character toolkits (JA Tier-1, ZH Tier-1.5)
+
+Each language characterizes through *different machinery*, so the per-character voice is **authored
+natively per language**, never translated. Build the schema to hold a `localeVoice` block (`ja`, `zh-Hans`,
+`zh-Hant`, …) per character from day one.
+
+**Japanese (T1) — richer toolkit than English.**
+- **Dual-audio VO:** every character voiced in EN *and* JA (AI); player picks **VO language independently of
+  text** (the gacha-standard "JP audio / EN text"). Dual-mirror & kin **voice locks hold within each language**.
+- **Pronouns** (私／わたくし／僕／俺／うち／我…) and **sentence-final particles / tics** (わ／ぜ／のだ／なのじゃ／っす…)
+  carry trope + personality the way English *diction* does — primary per-character casting choices. **Keigo**
+  encodes senpai/kouhai & ojou natively, so JA uses the tropes *directly*.
+- **Speech-patterns re-create via JA-native devices:** high-symmetry palindrome → **回文 (kaibun)**;
+  non-orientable flip → a 内/外 or clause reversal at the pivot. **Authorial styles** map to JA registers
+  (Ico's Sei Shōnagon and the chuunibyou are already JA-native).
+- **Furigana/ruby is a feature:** gloss kanji *and* deliver the edutainment **term-reveals** (クラインの壺 +
+  ruby — "intuition first, term as reward"). Apply **kinsoku** line-breaking.
+
+**Chinese (T1.5) — a different toolkit again.**
+- **Simplified (`zh-Hans`, the mainland market) first; Traditional (`zh-Hant`) as a derived bundle** — two
+  bundles, *not* a blind auto-convert (vocabulary & idiom differ).
+- **Less pronoun/particle characterization than JA** (mostly 我; particles 啊/吧/呢/啦/嘛 are light), so ZH
+  voice leans on **diction, register, and 成语 (four-character idioms)** — chengyu are a gift for the
+  symmetry-diplomats & elders (compact, balanced, classical); **文言/classical** register for the
+  devotional/upperclassman voices vs **vernacular warmth** for homebodies. **Authorial styles** map to ZH
+  registers (e.g. 鲁迅-spare, 老舍-vernacular-warm, wuxia cadence for the rivals).
+- **Speech-patterns:** Chinese has **回文** palindromes too (high-symmetry); chengyu balance for diplomats;
+  mirror-flip / self-choir / nesting re-created natively.
+- **Numbers:** zh-Hans myriad grouping is **万/亿** (vs JA 万/億) — the big-number formatter keys the myriad
+  glyphs per locale.
+- **Mandarin VO (fast-follow):** same casting framework; dual-mirror/kin locks must hold in ZH too. **Tone**
+  is a real factor — flag any voice whose effect (e.g. Mo's mirror-flip) interacts with lexical tone.
+- Fonts: ship Simplified **and** Traditional glyph coverage; CJK line-breaking (break between characters,
+  with punctuation rules).
