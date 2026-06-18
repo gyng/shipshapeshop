@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0d0d16"/>
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff5d8f"/>
+      <stop offset="1" stop-color="#b985ff"/>
+    </linearGradient>
+  </defs>
+  <!-- a stylised faceted gem / torus-ish glyph -->
+  <circle cx="256" cy="256" r="150" fill="none" stroke="url(#g)" stroke-width="36"/>
+  <circle cx="256" cy="256" r="58" fill="none" stroke="#5fe0c6" stroke-width="26"/>
+</svg>
