@@ -19,6 +19,7 @@ import { FACET_INFO } from './content/facets'
 import { chatterFor } from './content/chatter'
 import { BANNER_INFO, rotatingBannerId } from './content/banners'
 import { shapeEffect } from './content/effects'
+import { generateMessages, type ChatMsg } from './content/chatlas'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
@@ -53,8 +54,8 @@ function useFluxDisplay(): number {
   return disp
 }
 
-type Tab = 'gacha' | 'room' | 'gallery' | 'engine' | 'forge' | 'shop' | 'ledger'
-const TABS: Tab[] = ['gacha', 'room', 'gallery', 'engine', 'forge', 'shop', 'ledger']
+type Tab = 'gacha' | 'room' | 'chatlas' | 'gallery' | 'engine' | 'forge' | 'shop' | 'ledger'
+const TABS: Tab[] = ['gacha', 'room', 'chatlas', 'gallery', 'engine', 'forge', 'shop', 'ledger']
 
 export function App() {
   const { ready, boot } = useGame()
@@ -86,7 +87,7 @@ export function App() {
         else if (g.lastForge) g.dismissForge()
         else if (g.offline) g.dismissOffline()
         else setInspect(null)
-      } else if (k >= '1' && k <= '7') {
+      } else if (k >= '1' && k <= '8') {
         setTab(TABS[Number(k) - 1])
       }
     }
@@ -103,7 +104,7 @@ export function App() {
       <nav style={S.nav}>
         {TABS.map((t, i) => (
           <button key={t} onClick={() => setTab(t)} title={`Shortcut: ${i + 1}`} style={{ ...S.navBtn, ...(tab === t ? S.navBtnActive : {}) }}>
-            {t === 'gacha' ? tr('nav.pull') : t === 'room' ? '🛋 Room' : t === 'shop' ? '🛍 Shop' : t === 'ledger' ? '📊 Ledger' : tr(`nav.${t}`)}
+            {t === 'gacha' ? tr('nav.pull') : t === 'room' ? '🛋 Room' : t === 'chatlas' ? '💬 Chatlas' : t === 'shop' ? '🛍 Shop' : t === 'ledger' ? '📊 Ledger' : tr(`nav.${t}`)}
           </button>
         ))}
       </nav>
@@ -111,6 +112,7 @@ export function App() {
         <div key={tab} className="fade-in">
           {tab === 'gacha' && <GachaView />}
           {tab === 'room' && <RoomView />}
+          {tab === 'chatlas' && <ChatlasView />}
           {tab === 'gallery' && <GalleryView onInspect={setInspect} />}
           {tab === 'engine' && <EngineView />}
           {tab === 'forge' && <ForgeView />}
@@ -461,6 +463,40 @@ function RoomView() {
         )}
         {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
         {!bubble && roster.length > 0 && <div style={S.floorTag}>💬 tap a shape to chat &amp; pet · drag to look around</div>}
+      </div>
+    </div>
+  )
+}
+
+// Chatlas — the curators' procgen group chat. New lines drift in over time + auto-scroll (a living feed).
+function ChatlasView() {
+  const shapes = useGame((s) => s.shapes)
+  const view = useGame((s) => s.view)
+  const [msgs, setMsgs] = useState<ChatMsg[]>([])
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const ownedIds = view ? shapes.filter((s) => view.owned[s.id] > 0).map((s) => s.id) : []
+    setMsgs(generateMessages(shapes, ownedIds, 16))
+    const id = setInterval(() => setMsgs((m) => [...m.slice(-50), ...generateMessages(shapes, ownedIds, 1)]), 7000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shapes.length])
+  useEffect(() => {
+    ref.current?.scrollTo({ top: ref.current.scrollHeight, behavior: 'smooth' })
+  }, [msgs])
+  return (
+    <div style={S.board}>
+      <div style={S.boardIntro}>
+        <h3 style={S.boardTitle}>💬 Chatlas</h3>
+        <p style={S.boardDesc}>The curators’ group chat — hot takes, shipping gossip, and 3am flux-watching from collectors across the Manifold. Procedurally generated, entirely in good fun.</p>
+      </div>
+      <div ref={ref} style={S.chatFeed}>
+        {msgs.map((m, i) => (
+          <div key={i} className="fade-in" style={S.chatMsg}>
+            <span style={{ ...S.chatHandle, color: m.color }}>@{m.handle}</span>
+            <span style={S.chatText}>{m.text}</span>
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -1580,6 +1616,10 @@ const S: Record<string, CSSProperties> = {
   dupe: { marginLeft: 'auto', color: '#8a90a8', fontSize: 12 },
   starBadge: { marginLeft: 'auto', color: '#ffd76b', fontSize: 10, letterSpacing: -1 },
   effectBox: { background: '#0e1620', border: '1px solid #243042', borderRadius: 10, padding: '8px 12px', margin: '2px 0 8px' },
+  chatFeed: { height: 'min(62vh, 500px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: 14 },
+  chatMsg: { display: 'flex', flexDirection: 'column', gap: 1, background: '#14151d', borderRadius: 10, padding: '8px 12px' },
+  chatHandle: { fontSize: 11, fontWeight: 800 },
+  chatText: { fontSize: 13.5, color: '#cdd2e0', lineHeight: 1.45 },
   engine: { maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 },
   engineHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   engineBtns: { display: 'flex', gap: 8 },
