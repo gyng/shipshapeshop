@@ -8,11 +8,22 @@ import { useGame, type ShapeRow } from '../game/store'
 import { sceneById } from '../content/cosmetics'
 import { useGfxPreset } from '../gfx'
 
+const RANK: Record<keyof typeof RARITY_COLOR, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4 }
+
 // A deployed gem on the floor: a jewel on a glowing ring, lit by its own coloured light, with rising Flux.
+// The ring + emissive "breathe" at a rarity-scaled rate (rarer = livelier), offset per-gem so they don't sync.
 function FloorGem({ family, rarity, pos }: { family: string; rarity: keyof typeof RARITY_COLOR; pos: [number, number, number] }) {
   const ref = useRef<THREE.Mesh>(null)
-  useFrame((_, dt) => {
+  const ringRef = useRef<THREE.MeshBasicMaterial>(null)
+  const gemRef = useRef<THREE.MeshPhysicalMaterial>(null)
+  const rank = RANK[rarity]
+  const freq = 1.2 + rank * 0.3
+  const baseEmissive = 0.45 + rank * 0.12
+  useFrame((state, dt) => {
     if (ref.current) ref.current.rotation.y += dt * 0.7
+    const w = 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * freq + pos[0] * 1.7)
+    if (ringRef.current) ringRef.current.opacity = 0.4 + 0.32 * w
+    if (gemRef.current) gemRef.current.emissiveIntensity = baseEmissive * (0.78 + 0.44 * w)
   })
   const col = RARITY_COLOR[rarity]
   return (
@@ -20,19 +31,20 @@ function FloorGem({ family, rarity, pos }: { family: string; rarity: keyof typeo
       {/* glow ring on the floor under the gem */}
       <mesh position={[0, -0.4, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.26, 0.42, 40]} />
-        <meshBasicMaterial color={col} transparent opacity={0.55} toneMapped={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial ref={ringRef} color={col} transparent opacity={0.55} toneMapped={false} side={THREE.DoubleSide} />
       </mesh>
-      <pointLight position={[0, 0.4, 0]} color={col} intensity={2.2} distance={2.6} decay={1.6} />
+      <pointLight position={[0, 0.4, 0]} color={col} intensity={2.2 + rank * 0.4} distance={2.6} decay={1.6} />
       <Float speed={2.2} rotationIntensity={0} floatIntensity={0.7} floatingRange={[0, 0.16]}>
         <mesh ref={ref} geometry={getGeometry(family)} scale={0.4} castShadow>
           <meshPhysicalMaterial
+            ref={gemRef}
             color={col}
-            metalness={0.3}
+            metalness={0.3 + rank * 0.06}
             roughness={0.08}
             clearcoat={1}
             clearcoatRoughness={0.08}
             emissive={col}
-            emissiveIntensity={0.5}
+            emissiveIntensity={baseEmissive}
             envMapIntensity={1.6}
             side={OPEN_FAMILIES.has(family) ? THREE.DoubleSide : THREE.FrontSide}
           />

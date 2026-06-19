@@ -128,6 +128,18 @@ export function sfxMilestone() {
   tone(1568, 0.5, 0.32, 'sine', 0.07) // shimmer up top
 }
 
+// Ascension (Recrystallize → New Game+): the grandest sting — a full rising sweep + a held shimmering chord.
+export function sfxAscend() {
+  ;[392, 523, 659, 784, 988, 1175].forEach((f, i) => tone(f, 0.6, i * 0.09, 'triangle', 0.1))
+  tone(1568, 0.9, 0.55, 'sine', 0.08)
+  tone(2093, 0.9, 0.62, 'sine', 0.05) // high shimmer
+}
+
+// Bond level-up: a warm, gentle rising third — affectionate, not fanfare.
+export function sfxBondUp() {
+  ;[523, 659, 880].forEach((f, i) => tone(f, 0.4, i * 0.07, 'sine', 0.09))
+}
+
 // A rising arpeggio that gets taller/brighter the bigger the upgrade (intensity ~1..6).
 export function sfxUpgrade(intensity: number) {
   const base = 330

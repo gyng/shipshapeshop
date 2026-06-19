@@ -56,17 +56,19 @@ export function HeroGem({ family, rarity, spin = 0.4, geom }: { family: string; 
 /** Cheap thumbnail material for the collection grid (no transmission → many can render at once). */
 export function ThumbGem({ family, rarity, owned }: { family: string; rarity: RarityName; owned: boolean }) {
   const ref = useRef<THREE.Mesh>(null)
+  const rank = RARITY_RANK[rarity]
   useFrame((_, dt) => {
     if (ref.current) ref.current.rotation.y += dt * 0.6
   })
+  // Rarity reads in HOW the gem catches light, not just its hue: rarer = glossier, more metallic, more lit.
   return (
     <mesh ref={ref} geometry={getGeometry(family)} scale={1.3}>
       <meshStandardMaterial
         color={owned ? RARITY_COLOR[rarity] : '#2a2c3a'}
-        roughness={0.35}
-        metalness={0.3}
+        roughness={owned ? Math.max(0.16, 0.42 - rank * 0.06) : 0.5}
+        metalness={owned ? 0.32 + rank * 0.08 : 0.1}
         emissive={owned ? RARITY_COLOR[rarity] : '#000000'}
-        emissiveIntensity={owned ? 0.15 : 0}
+        emissiveIntensity={owned ? 0.12 + rank * 0.07 : 0}
         flatShading={false}
       />
     </mesh>

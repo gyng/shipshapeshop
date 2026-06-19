@@ -1,7 +1,10 @@
 import { create } from 'zustand'
 import init, { Game, shapes_json, recipes_json, upgrades_json, milestones_json, facets_json, core_version } from 'shipshape-core'
-import { sfxPull, sfxReveal, sfxForge, sfxMilestone, rarityRank } from '../audio'
+import { sfxPull, sfxReveal, sfxForge, sfxMilestone, sfxAscend, sfxBondUp, rarityRank } from '../audio'
 import { useFloaters } from '../juice'
+import { glyphOf } from '../content/glyphs'
+
+const screenCx = () => (typeof window !== 'undefined' ? window.innerWidth / 2 : 500)
 
 const SHARD_C = '#5ad4ff'
 const FLUX_C = '#ffcf6b'
@@ -304,6 +307,14 @@ export const useGame = create<Store>((set, get) => ({
     if (game?.recrystallize()) {
       get().refresh()
       persist()
+      // Ascension is the second-biggest moment in the game — celebrate it loudly.
+      sfxAscend()
+      const cx = screenCx()
+      const ng = get().view?.ng_cycle ?? 1
+      useFloaters.getState().spawn(`NEW GAME+${ng} 🌌`, { color: '#b388ff', big: true, x: cx, y: 170 })
+      for (let k = 0; k < 12; k++) {
+        useFloaters.getState().spawn(k % 2 ? '✦' : '🌌', { color: k % 2 ? FLUX_C : '#b388ff', big: true, x: cx + (k - 6) * 26, y: 210 })
+      }
     }
   },
   inspect: (id) => {
@@ -313,8 +324,17 @@ export const useGame = create<Store>((set, get) => ({
   },
   pat: (id) => {
     if (game) {
+      const before = get().view?.bond_levels[id] ?? 0
       game.pat(id)
       get().refresh() // rate-limited in the UI; the 5s autosave persists it
+      const after = get().view?.bond_levels[id] ?? 0
+      if (after > before) {
+        // Bond level-up: a warm chime + a flutter of hearts (the SDT-relatedness payoff).
+        sfxBondUp()
+        const cx = screenCx()
+        for (let k = 0; k < 6; k++) useFloaters.getState().spawn('♥', { color: '#ff5d8f', big: true, x: cx + (k - 3) * 22, y: 250 })
+        persist()
+      }
     }
   },
   forge: (a, b) => {
@@ -325,7 +345,18 @@ export const useGame = create<Store>((set, get) => ({
       persist()
       sfxForge()
       set({ lastForge: r })
-      if (r.is_discovery) useFloaters.getState().spawn('Discovery! +100 ◈', { color: SHARD_C, big: true, y: 120 })
+      if (r.is_discovery) {
+        useFloaters.getState().spawn('Discovery! +100 ◈', { color: SHARD_C, big: true, y: 120 })
+        // a shower of the newly-discovered shape's glyph — parity with the pull reveal
+        const out = get().shapes[r.out_id]
+        if (out) {
+          const cx = screenCx()
+          for (let k = 0; k < 7; k++) {
+            const j = k
+            setTimeout(() => useFloaters.getState().spawn(glyphOf(out.family), { color: FLUX_C, big: true, x: cx + (j - 3) * 26, y: 200 }), k * 60)
+          }
+        }
+      }
     }
   },
   claimRelic: () => {

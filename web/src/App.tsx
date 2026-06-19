@@ -338,8 +338,8 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
             {tiles.map((s) => {
               const owned = view.owned[s.id] > 0
               return (
-                <button key={s.id} onClick={() => onInspect(s.id)}
-                  style={{ ...S.tile, borderColor: owned ? RARITY_COLOR[r] : '#23252f', color: owned ? '#fff' : '#555' }}>
+                <button key={s.id} onClick={() => onInspect(s.id)} className="chip"
+                  style={{ ...S.tile, borderColor: owned ? RARITY_COLOR[r] : '#23252f', color: owned ? '#fff' : '#555', background: owned ? `${RARITY_COLOR[r]}14` : '#13141d' }}>
                   <span style={S.tileGlyph}>{owned ? glyphOf(s.family) : '❓'}</span>
                   {owned ? s.nick : '???'}
                   {view.owned[s.id] > 1 && <span style={S.dupe}>×{view.owned[s.id]}</span>}
@@ -554,10 +554,18 @@ function EngineView() {
 }
 
 function Meter({ label, pct, color }: { label: string; pct: number; color: string }) {
+  const p = Math.min(1, pct)
+  // Ramp toward the pink "ready" colour as a guarantee nears; pulse once full — a wordless "you're close".
+  const fill = p >= 1 ? '#ff5d8f' : p > 0.88 ? '#ff9d6b' : color
   return (
     <div style={S.meter}>
       <span style={S.meterLabel}>{label}</span>
-      <div style={S.meterTrack}><div style={{ ...S.meterFill, width: `${Math.min(100, pct * 100)}%`, background: color }} /></div>
+      <div style={S.meterTrack}>
+        <div
+          className={p >= 1 ? 'meter-ready' : undefined}
+          style={{ ...S.meterFill, width: `${p * 100}%`, background: fill, transition: 'width .4s ease, background .4s ease' }}
+        />
+      </div>
     </div>
   )
 }
@@ -572,6 +580,7 @@ function RevealModal() {
     <div style={S.modal} onClick={dismissReveal}>
       <div className="pop-in" style={{ ...S.revealCard, position: 'relative', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
         {shape && <div className="flash" style={{ background: `radial-gradient(circle, ${RARITY_COLOR[shape.rarity]}, transparent 60%)` }} />}
+        {shape && RARITY_ORDER.indexOf(shape.rarity) >= 4 && <div className="flash-ring" style={{ color: RARITY_COLOR[shape.rarity] }} />}
         <div style={S.revealStage}>{shape && <HeroView key={shape.family} family={shape.family} rarity={shape.rarity} spin={0.8} />}</div>
         {shape && <h2 style={{ color: RARITY_COLOR[shape.rarity] }}>{shape.nick}</h2>}
         {shape && <p style={S.revealSub}>{best.is_new ? tr('reveal.new') : `+${best.dupe_shards} ◈ ${tr('hud.shards')}`}</p>}
@@ -1178,6 +1187,7 @@ function MilestoneToast() {
         <div style={{ color: '#e8eaf2', fontSize: 13 }}>{info.name}</div>
       </div>
       <span style={{ marginLeft: 'auto', color: '#5fe0c6', fontWeight: 800 }}>+{Math.round((def?.bonus ?? 0) * 100)}%</span>
+      <div className="toast-drain" style={S.toastDrain} />
     </div>
   )
 }
@@ -1259,9 +1269,9 @@ function ShipWatcher() {
 const S: Record<string, CSSProperties> = {
   loading: { color: '#9aa6c2', background: '#0d0d16', height: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'system-ui', fontSize: 18 },
   app: { background: '#0d0d16', color: '#e8e8f0', minHeight: '100vh', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' },
-  hud: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderBottom: '1px solid #1c1e2a', flexWrap: 'wrap', gap: 8 },
+  hud: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderBottom: '1px solid #1c1e2a', flexWrap: 'wrap', gap: 8, background: 'linear-gradient(180deg, rgba(255,207,107,0.05), transparent)' },
   fluxLabel: { color: '#8a90a8', marginRight: 8, fontSize: 13 },
-  fluxValue: { fontSize: 26, fontWeight: 700, fontVariantNumeric: 'tabular-nums' },
+  fluxValue: { fontSize: 28, fontWeight: 800, color: '#ffe1a3', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 14px rgba(255,207,107,0.35)' },
   rate: { color: '#5fe0c6', marginLeft: 10, fontSize: 13 },
   hudStats: { display: 'flex', gap: 16, fontSize: 13, color: '#aab', alignItems: 'center' },
   langSwitch: { display: 'flex', gap: 4 },
@@ -1277,9 +1287,9 @@ const S: Record<string, CSSProperties> = {
   focusFam: { color: '#8a90a8', fontStyle: 'normal', fontWeight: 400, fontSize: 13 },
   pitymeters: { display: 'flex', flexDirection: 'column', gap: 6 },
   meter: { display: 'flex', flexDirection: 'column', gap: 3 },
-  meterLabel: { fontSize: 11, color: '#8a90a8' },
-  meterTrack: { height: 6, background: '#1c1e2a', borderRadius: 3, overflow: 'hidden' },
-  meterFill: { height: '100%', borderRadius: 3, transition: 'width 0.3s' },
+  meterLabel: { fontSize: 11, color: '#a6adc4' },
+  meterTrack: { height: 7, background: '#2a2e3e', borderRadius: 4, overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.45)' },
+  meterFill: { height: '100%', borderRadius: 4, transition: 'width 0.3s' },
   pullRow: { display: 'flex', gap: 10 },
   pullBtn: { flex: 1, background: 'linear-gradient(135deg,#ff5d8f,#b985ff)', border: 'none', color: '#fff', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer' },
   pullBtn10: { flex: 1, background: '#1c1e2a', border: '1px solid #ff5d8f', color: '#fff', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer' },
@@ -1338,7 +1348,7 @@ const S: Record<string, CSSProperties> = {
   chipNick: { fontSize: 14, fontWeight: 700 },
   chipProd: { fontSize: 12, color: '#9aa0b4', fontWeight: 600 },
   chipMeta: { fontSize: 11, color: '#6b7088' },
-  emptyHint: { gridColumn: '1 / -1', fontSize: 13, color: '#6b7088', fontStyle: 'italic', padding: '8px 2px' },
+  emptyHint: { gridColumn: '1 / -1', fontSize: 13, color: '#9aa0b4', lineHeight: 1.6, background: '#0e0f17', border: '1px dashed #2a2e3e', borderRadius: 12, padding: '22px 16px', textAlign: 'center' },
   relicPanel: { display: 'flex', alignItems: 'center', gap: 12, background: 'linear-gradient(90deg, #1f1a0e, #14151c)', border: '1px solid #6b5a2a', borderRadius: 12, padding: 14 },
   summonBtn: { background: 'linear-gradient(90deg,#ffce5c,#ff9d5c)', color: '#2a1d00', border: 'none', borderRadius: 8, padding: '10px 14px', fontWeight: 800, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' },
   recipeGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(232px, 1fr))', gap: 10 },
@@ -1390,7 +1400,7 @@ const S: Record<string, CSSProperties> = {
   galleryControls: { display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 8 },
   filterChips: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   filterChip: { background: '#101119', border: '1px solid', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' },
-  tileGlyph: { fontSize: 15, lineHeight: 1, marginRight: 2 },
+  tileGlyph: { fontSize: 18, lineHeight: 1, marginRight: 2 },
   kbd: { fontSize: 10, background: 'rgba(0,0,0,0.32)', border: '1px solid rgba(255,255,255,0.28)', borderRadius: 4, padding: '0 5px', marginLeft: 5, fontFamily: 'ui-monospace, monospace' },
   shipModel: { position: 'relative', width: 132, height: 132, borderRadius: 12, overflow: 'hidden', transition: 'all 0.25s ease' },
   shipModelName: { position: 'absolute', left: 0, right: 0, bottom: 4, textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#fff', textShadow: '0 1px 4px #000', pointerEvents: 'none' },
@@ -1405,7 +1415,8 @@ const S: Record<string, CSSProperties> = {
   objRow: { display: 'flex', alignItems: 'center', gap: 8 },
   objLabel: { fontSize: 12, color: '#cdd2e0', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   objNum: { fontSize: 11, color: '#5fe0c6', fontWeight: 700, flexShrink: 0 },
-  mileToast: { position: 'fixed', top: 58, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(30,24,12,0.96)', border: '1px solid #6b5a2a', borderRadius: 12, padding: '10px 16px', zIndex: 60, minWidth: 290, maxWidth: '92vw', boxShadow: '0 6px 24px rgba(0,0,0,0.55)', cursor: 'pointer' },
+  mileToast: { position: 'fixed', top: 58, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(30,24,12,0.96)', border: '1px solid #6b5a2a', borderRadius: 12, padding: '10px 16px', zIndex: 60, minWidth: 290, maxWidth: '92vw', boxShadow: '0 6px 24px rgba(0,0,0,0.55)', cursor: 'pointer', overflow: 'hidden' },
+  toastDrain: { position: 'absolute', left: 0, bottom: 0, height: 2, width: '100%', background: '#ffd76b', borderRadius: 2 },
   tourWrap: { position: 'fixed', left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', padding: '0 12px 18px', zIndex: 70, pointerEvents: 'none' },
   tourCard: { pointerEvents: 'auto', width: 'min(460px, 94vw)', background: 'rgba(18,19,26,0.97)', border: '1px solid #3a3d4f', borderRadius: 14, padding: '14px 16px', boxShadow: '0 8px 30px rgba(0,0,0,0.6)' },
   patSurface: { position: 'absolute', inset: 0, cursor: 'grab', touchAction: 'none', zIndex: 3, overflow: 'hidden' },

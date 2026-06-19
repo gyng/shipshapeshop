@@ -50,6 +50,8 @@ export function Stage({ children, controls = false, rarity = 'Common' }: { child
       <color attach="background" args={[cornell ? '#0a0a0a' : '#0b0a16']} />
       <ambientLight intensity={0.45} />
       <directionalLight position={[4, 6, 5]} intensity={1.1} />
+      {/* rarity-hued rim/back light so the hero reads as a luminous jewel (stronger for rarer shapes) */}
+      {!cornell && <pointLight position={[-3.5, 2.5, -2]} intensity={2.2 + rank} distance={16} decay={1.4} color={RARITY_COLOR[rarity]} />}
       {cornell ? (
         <Suspense fallback={null}>
           {children}
@@ -63,9 +65,9 @@ export function Stage({ children, controls = false, rarity = 'Common' }: { child
           {rank >= 2 && <Sparkles count={Math.round((20 + rank * 22) * g.sparkle)} scale={[4.5, 4.5, 4.5]} size={3.4} speed={0.5} opacity={0.9} color={RARITY_COLOR[rarity]} />}
           <Suspense fallback={null}>
             {children}
-            <Environment resolution={256} background backgroundBlurriness={0.75} backgroundIntensity={0.5} environmentIntensity={1.15}>
+            <Environment resolution={256} background backgroundBlurriness={0.75} backgroundIntensity={0.58} environmentIntensity={1.3}>
               <Lightformer form="rect" intensity={3} position={[0, 0, -10]} scale={[24, 24, 1]} color={backdrop} />
-              <Lightformer form="rect" intensity={5} position={[6, 5, 4]} scale={[9, 9, 1]} color={key} />
+              <Lightformer form="rect" intensity={6} position={[6, 5, 4]} scale={[9, 9, 1]} color={key} />
               <Lightformer form="rect" intensity={3} position={[-7, 2, 3]} scale={[7, 9, 1]} color={cool} />
               <Lightformer form="rect" intensity={2.6} position={[0, -6, 4]} scale={[12, 4, 1]} color={warm} />
               <Lightformer form="ring" intensity={4} position={[-4, 5, -5]} scale={3} color={cool} />

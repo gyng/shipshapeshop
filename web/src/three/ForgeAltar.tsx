@@ -27,28 +27,55 @@ function Pedestal({ pos, color, intensity = 3 }: { pos: [number, number, number]
 
 function AltarGem({ shape, pos, scale, show }: { shape?: ShapeRow; pos: [number, number, number]; scale: number; show: boolean }) {
   const ref = useRef<THREE.Mesh>(null)
-  useFrame((_, dt) => {
-    if (ref.current) ref.current.rotation.y += dt * 0.8
-  })
+  const matRef = useRef<THREE.MeshPhysicalMaterial>(null)
   const known = show && !!shape
+  const baseE = known ? 0.55 : 0.3
+  useFrame((state, dt) => {
+    if (ref.current) ref.current.rotation.y += dt * 0.8
+    if (matRef.current) {
+      const w = 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 1.8 + pos[0])
+      matRef.current.emissiveIntensity = baseE * (0.82 + 0.36 * w)
+    }
+  })
   const col = known ? RARITY_COLOR[shape!.rarity] : '#a98bff'
   const geom = getGeometry(known ? shape!.family : 'icosahedron')
   return (
     <Float speed={2} rotationIntensity={0} floatIntensity={0.5} floatingRange={[0, 0.14]}>
       <mesh ref={ref} geometry={geom} position={pos} scale={scale} castShadow>
         <meshPhysicalMaterial
+          ref={matRef}
           color={col}
           metalness={0.3}
           roughness={0.08}
           clearcoat={1}
           clearcoatRoughness={0.08}
           emissive={col}
-          emissiveIntensity={known ? 0.55 : 0.3}
+          emissiveIntensity={baseE}
           envMapIntensity={1.6}
           side={known && OPEN_FAMILIES.has(shape!.family) ? THREE.DoubleSide : THREE.FrontSide}
         />
       </mesh>
     </Float>
+  )
+}
+
+// The forge core: a pulsing molten disc + light beneath the result — makes the altar feel like it's working.
+function ForgeCore() {
+  const lightRef = useRef<THREE.PointLight>(null)
+  const matRef = useRef<THREE.MeshStandardMaterial>(null)
+  useFrame((state) => {
+    const w = 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 2.4)
+    if (lightRef.current) lightRef.current.intensity = 5.5 + 3 * w
+    if (matRef.current) matRef.current.emissiveIntensity = 1.8 + 1.4 * w
+  })
+  return (
+    <>
+      <pointLight ref={lightRef} position={[0, 0.3, -0.6]} color="#ffce5c" intensity={7} distance={6} decay={1.5} />
+      <mesh position={[0, -0.46, -0.6]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.7, 40]} />
+        <meshStandardMaterial ref={matRef} color="#ff9d3c" emissive="#ffb74d" emissiveIntensity={2.4} toneMapped={false} transparent opacity={0.9} />
+      </mesh>
+    </>
   )
 }
 
@@ -99,12 +126,8 @@ export function ForgeAltar({ a, b, out, discovered }: { a?: ShapeRow; b?: ShapeR
       <Pedestal pos={[0, 0.25, -0.6]} color={outCol} intensity={5} />
       <AltarGem shape={out} pos={[0, 0.25, -0.6]} scale={0.62} show={discovered} />
 
-      {/* glowing forge core beneath the result */}
-      <pointLight position={[0, 0.3, -0.6]} color="#ffce5c" intensity={7} distance={6} decay={1.5} />
-      <mesh position={[0, -0.46, -0.6]} rotation={[-Math.PI / 2, 0, 0]}>
-        <circleGeometry args={[0.7, 40]} />
-        <meshStandardMaterial color="#ff9d3c" emissive="#ffb74d" emissiveIntensity={2.4} toneMapped={false} transparent opacity={0.9} />
-      </mesh>
+      {/* glowing forge core beneath the result — pulses like a working forge */}
+      <ForgeCore />
 
       <Sparkles count={Math.round(50 * g.sparkle)} scale={[5, 2.6, 2.6]} position={[0, 0.5, -0.2]} size={2.6} speed={0.7} color="#ffce5c" />
       <ContactShadows position={[0, -0.83, 0]} opacity={0.5} scale={12} blur={2.4} far={3} />
