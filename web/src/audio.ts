@@ -140,6 +140,20 @@ export function sfxBondUp() {
   ;[523, 659, 880].forEach((f, i) => tone(f, 0.4, i * 0.07, 'sine', 0.09))
 }
 
+// Pull charge-up: a rising tension shimmer; longer & taller the rarer the incoming haul (anticipation).
+export function sfxCharge(rank: number) {
+  const steps = 5 + rank * 2
+  for (let i = 0; i < steps; i++) {
+    tone(196 * Math.pow(1.07, i), 0.16, i * 0.07, 'sawtooth', 0.035)
+  }
+}
+
+// One tick per rarity tier "climbed" during the charge — pitch rises with the tier (the "it's going up!" beat).
+export function sfxClimbTick(level: number) {
+  tone(294 * Math.pow(1.2, level), 0.12, 0, 'triangle', 0.09)
+  if (level >= 3) tone(294 * Math.pow(1.2, level) * 2, 0.18, 0.02, 'sine', 0.05) // sparkle on top tiers
+}
+
 // A rising arpeggio that gets taller/brighter the bigger the upgrade (intensity ~1..6).
 export function sfxUpgrade(intensity: number) {
   const base = 330

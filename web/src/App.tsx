@@ -17,7 +17,7 @@ import { MILESTONE_INFO } from './content/milestones'
 import { FACET_INFO } from './content/facets'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
-import { useMute, sfxUpgrade, speak, stopVoice } from './audio'
+import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
 import { DEV_MODE } from './devmode'
 import { Floaters, useFloaters } from './juice'
 
@@ -103,12 +103,14 @@ export function App() {
         ))}
       </nav>
       <main style={S.main}>
-        {tab === 'gacha' && <GachaView />}
-        {tab === 'gallery' && <GalleryView onInspect={setInspect} />}
-        {tab === 'engine' && <EngineView />}
-        {tab === 'forge' && <ForgeView />}
-        {tab === 'shop' && <ShopView />}
-        {tab === 'ledger' && <LedgerView />}
+        <div key={tab} className="fade-in">
+          {tab === 'gacha' && <GachaView />}
+          {tab === 'gallery' && <GalleryView onInspect={setInspect} />}
+          {tab === 'engine' && <EngineView />}
+          {tab === 'forge' && <ForgeView />}
+          {tab === 'shop' && <ShopView />}
+          {tab === 'ledger' && <LedgerView />}
+        </div>
       </main>
       <RevealModal />
       <ForgeToast />
@@ -570,25 +572,94 @@ function Meter({ label, pct, color }: { label: string; pct: number; color: strin
   )
 }
 
+// The charge-up: a glowing orb whose colour CLIMBS the rarity ladder (Common→…→the real result), each tier a
+// rising tick. The longer/brighter the climb, the rarer the haul — the "is it gold?!" suspense beat.
+function ChargeOrb({ bestRank, ms, ten }: { bestRank: number; ms: number; ten: boolean }) {
+  const [lvl, setLvl] = useState(0)
+  useEffect(() => {
+    sfxClimbTick(0)
+    if (bestRank === 0) return
+    const per = ms / (bestRank + 1)
+    let i = 0
+    const id = setInterval(() => {
+      i += 1
+      setLvl(i)
+      sfxClimbTick(i)
+      if (i >= bestRank) clearInterval(id)
+    }, per)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const color = RARITY_COLOR[RARITY_ORDER[Math.min(lvl, bestRank)]]
+  return (
+    <div style={S.chargeWrap}>
+      <div
+        className="charge-orb"
+        style={{ background: `radial-gradient(circle at 40% 35%, #fff, ${color})`, boxShadow: `0 0 ${34 + lvl * 26}px ${10 + lvl * 9}px ${color}`, transition: 'box-shadow .25s ease, background .25s ease' }}
+      />
+      <div style={S.chargeHint}>{ten ? 'Drawing ten…' : 'Drawing…'} · tap to skip</div>
+    </div>
+  )
+}
+
 function RevealModal() {
   const { lastReveal, shapes, dismissReveal } = useGame()
   const tr = useT()
-  if (!lastReveal) return null
-  const best = [...lastReveal].sort((a, b) => RARITY_ORDER.indexOf(b.rarity!) - RARITY_ORDER.indexOf(a.rarity!))[0]
-  const shape = shapes[best.shape_id]
+  const [phase, setPhase] = useState<'charge' | 'show'>('charge')
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const best = lastReveal ? [...lastReveal].sort((a, b) => RARITY_ORDER.indexOf(b.rarity!) - RARITY_ORDER.indexOf(a.rarity!))[0] : null
+  const bestShape = best ? shapes[best.shape_id] : undefined
+  const bestRank = bestShape ? RARITY_ORDER.indexOf(bestShape.rarity) : 0
+  const chargeMs = 650 + bestRank * 240
+  useEffect(() => {
+    if (!lastReveal) return
+    setPhase('charge')
+    sfxCharge(bestRank)
+    timer.current = setTimeout(() => {
+      setPhase('show')
+      sfxReveal(bestRank)
+    }, chargeMs)
+    return () => {
+      if (timer.current) clearTimeout(timer.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastReveal])
+  if (!lastReveal || !best) return null
+  const skip = () => {
+    if (timer.current) clearTimeout(timer.current)
+    if (phase === 'charge') {
+      setPhase('show')
+      sfxReveal(bestRank)
+    }
+  }
+
+  if (phase === 'charge') {
+    return (
+      <div style={S.modal} onClick={skip}>
+        <ChargeOrb bestRank={bestRank} ms={chargeMs} ten={lastReveal.length > 1} />
+      </div>
+    )
+  }
+
   return (
     <div style={S.modal} onClick={dismissReveal}>
-      <div className="pop-in" style={{ ...S.revealCard, position: 'relative', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
-        {shape && <div className="flash" style={{ background: `radial-gradient(circle, ${RARITY_COLOR[shape.rarity]}, transparent 60%)` }} />}
-        {shape && RARITY_ORDER.indexOf(shape.rarity) >= 4 && <div className="flash-ring" style={{ color: RARITY_COLOR[shape.rarity] }} />}
-        <div style={S.revealStage}>{shape && <HeroView key={shape.family} family={shape.family} rarity={shape.rarity} spin={0.8} />}</div>
-        {shape && <h2 style={{ color: RARITY_COLOR[shape.rarity] }}>{shape.nick}</h2>}
-        {shape && <p style={S.revealSub}>{best.is_new ? tr('reveal.new') : `+${best.dupe_shards} ◈ ${tr('hud.shards')}`}</p>}
+      <div className={bestRank >= 3 ? 'pop-in reveal-shake' : 'pop-in'} style={{ ...S.revealCard, position: 'relative', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
+        {bestShape && <div className="flash" style={{ background: `radial-gradient(circle, ${RARITY_COLOR[bestShape.rarity]}, transparent 60%)` }} />}
+        {bestShape && bestRank >= 4 && <div className="flash-ring" style={{ color: RARITY_COLOR[bestShape.rarity] }} />}
+        <div style={S.revealStage}>{bestShape && <HeroView key={bestShape.family} family={bestShape.family} rarity={bestShape.rarity} spin={0.8} />}</div>
+        {bestShape && <h2 style={{ color: RARITY_COLOR[bestShape.rarity] }}>{bestShape.nick}</h2>}
+        {bestShape && <p style={S.revealSub}>{best.is_new ? tr('reveal.new') : `+${best.dupe_shards} ◈ ${tr('hud.shards')}`}</p>}
         {lastReveal.length > 1 && (
-          <div style={S.revealRow}>
+          <div style={S.haulGrid}>
             {lastReveal.map((o, i) => {
               const sh = shapes[o.shape_id]
-              return <span key={i} style={{ ...S.miniGem, background: sh ? RARITY_COLOR[sh.rarity] : '#333' }} title={sh?.nick} />
+              if (!sh) return null
+              return (
+                <div key={i} className="haul-in" style={{ ...S.haulTile, borderColor: RARITY_COLOR[sh.rarity], background: `${RARITY_COLOR[sh.rarity]}1c`, animationDelay: `${i * 55}ms` }} title={sh.nick}>
+                  <span style={{ fontSize: 20 }}>{glyphOf(sh.family)}</span>
+                  {o.is_new && <span style={S.haulNew}>NEW</span>}
+                </div>
+              )
             })}
           </div>
         )}
@@ -1279,7 +1350,7 @@ const S: Record<string, CSSProperties> = {
   langBtnOn: { background: '#28304a', color: '#fff', borderColor: '#5fe0c6' },
   nav: { display: 'flex', gap: 4, padding: '8px 16px', borderBottom: '1px solid #1c1e2a' },
   navBtn: { background: 'none', border: 'none', color: '#8a90a8', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 15 },
-  navBtnActive: { background: '#1c1e2a', color: '#fff' },
+  navBtnActive: { background: '#23263a', color: '#fff', boxShadow: 'inset 0 -2px 0 #5fe0c6' },
   main: { flex: 1, padding: 16, overflow: 'auto' },
   gacha: { maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 },
   stageWrap: { position: 'relative', height: 340, borderRadius: 16, overflow: 'hidden', background: '#0a0a12' },
@@ -1315,6 +1386,11 @@ const S: Record<string, CSSProperties> = {
   revealStage: { height: 280, borderRadius: 12, overflow: 'hidden', marginBottom: 10, background: '#0a0a12' },
   revealSub: { color: '#aab', margin: '4px 0 14px' },
   revealRow: { display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
+  chargeWrap: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 },
+  chargeHint: { fontSize: 12, color: '#8a90a8', letterSpacing: 0.5 },
+  haulGrid: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginBottom: 14 },
+  haulTile: { position: 'relative', width: 44, height: 44, borderRadius: 9, border: '2px solid', display: 'grid', placeItems: 'center' },
+  haulNew: { position: 'absolute', top: -6, right: -6, fontSize: 8, fontWeight: 800, color: '#fff', background: '#ff5d8f', borderRadius: 6, padding: '1px 4px', letterSpacing: 0.3 },
   miniGem: { width: 18, height: 18, borderRadius: '50%' },
   nudge: { position: 'fixed', left: '50%', bottom: 16, transform: 'translateX(-50%)', maxWidth: 560, width: 'calc(100% - 32px)', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(28,30,42,0.94)', border: '1px solid #2a2c3a', borderRadius: 10, padding: '10px 14px', boxShadow: '0 6px 24px rgba(0,0,0,0.45)', zIndex: 5 },
   nudgeText: { flex: 1, fontSize: 13, color: '#cdd2e0', lineHeight: 1.4 },

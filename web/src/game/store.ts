@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import init, { Game, shapes_json, recipes_json, upgrades_json, milestones_json, facets_json, core_version } from 'shipshape-core'
-import { sfxPull, sfxReveal, sfxForge, sfxMilestone, sfxAscend, sfxBondUp, rarityRank } from '../audio'
+import { sfxPull, sfxForge, sfxMilestone, sfxAscend, sfxBondUp } from '../audio'
 import { useFloaters } from '../juice'
 import { glyphOf } from '../content/glyphs'
 
@@ -267,8 +267,7 @@ export const useGame = create<Store>((set, get) => ({
     if (out.ok) {
       get().refresh()
       persist()
-      sfxReveal(rarityRank(out.rarity))
-      set({ lastReveal: [out] })
+      set({ lastReveal: [out] }) // the RevealModal owns the charge→reveal ceremony + its sounds
       floatShards(out.dupe_shards)
     }
   },
@@ -280,7 +279,6 @@ export const useGame = create<Store>((set, get) => ({
     if (outs.length > 0) {
       get().refresh()
       persist()
-      sfxReveal(Math.max(...outs.map((o) => rarityRank(o.rarity))))
       set({ lastReveal: outs })
       floatShards(outs.reduce((a, o) => a + o.dupe_shards, 0))
     }
