@@ -167,6 +167,8 @@ button:disabled { filter: grayscale(0.6) brightness(0.82); cursor: not-allowed; 
   --fs-h4: 15px; --fs-h3: 16px; --fs-h2: 18px; --fs-numeral: 20px; --fs-h1: 24px; --fs-display: 28px; --fs-hero: 34px;
   --fw-regular: 400; --fw-medium: 600; --fw-bold: 700; --fw-heavy: 800; --fw-black: 900;
   --lh-tight: 1; --lh-snug: 1.25; --lh-normal: 1.4; --lh-relaxed: 1.5;
+  /* display serif (self-hosted): IM Fell English for Latin, New Tegomin for CJK fallback */
+  --font-display: 'IM Fell English', 'New Tegomin', Georgia, 'Songti SC', 'Yu Mincho', serif;
   /* accent edge-light glows */
   --glow-teal: inset 0 -3px 0 -1px var(--c-accent-teal);
   --glow-teal-ring: 0 0 10px var(--c-accent-teal), inset 0 0 0 1px var(--c-accent-teal);
@@ -263,3 +265,21 @@ input:focus, textarea:focus {
   65%  { opacity: 1; }
   100% { transform: translate(var(--dx), var(--fall)) scale(0.3) rotate(calc(var(--rot) * 2.4)); opacity: 0; }
 }
+
+/* Welcome-screen juice: the title art breathes; ambient motes drift up around it. */
+@keyframes welcome-breathe { 0%,100% { transform: scale(1); filter: brightness(1) saturate(1); } 50% { transform: scale(1.025); filter: brightness(1.07) saturate(1.06); } }
+.welcome-art { animation: welcome-breathe 7s ease-in-out infinite; }
+@keyframes welcome-title-in { from { opacity: 0; letter-spacing: 4px; filter: blur(3px); } to { opacity: 1; letter-spacing: 0.5px; filter: blur(0); } }
+@keyframes mote-rise {
+  0%   { transform: translate(0,0) scale(0.5); opacity: 0; }
+  15%  { opacity: 0.95; }
+  85%  { opacity: 0.6; }
+  100% { transform: translate(var(--mx,0), -46px) scale(1.05); opacity: 0; }
+}
+.welcome-mote {
+  position: absolute; width: var(--ms,6px); height: var(--ms,6px); border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, #fffdf3, var(--mc,#ffcf6b) 48%, transparent 76%);
+  filter: drop-shadow(0 0 4px var(--mc,#ffcf6b));
+  animation: mote-rise var(--md,5s) ease-in-out var(--mdl,0s) infinite; pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) { .welcome-art, .welcome-mote { animation: none; } }

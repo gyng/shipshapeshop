@@ -1253,7 +1253,7 @@ function RevealModal() {
         {bestShape && <div className="flash" style={{ background: `radial-gradient(circle, ${RARITY_COLOR[bestShape.rarity]}, transparent 60%)` }} />}
         {bestShape && bestRank >= 4 && <div className="flash-ring" style={{ color: RARITY_COLOR[bestShape.rarity] }} />}
         <div style={S.revealStage}>{bestShape && <HeroView key={bestShape.family} family={bestShape.family} rarity={bestShape.rarity} spin={0.8} />}</div>
-        {bestShape && <h2 style={{ color: RARITY_COLOR[bestShape.rarity] }}>{bestShape.nick}</h2>}
+        {bestShape && <h2 style={{ color: RARITY_COLOR[bestShape.rarity], fontFamily: 'var(--font-display)', fontSize: 26, letterSpacing: 0.4 }}>{bestShape.nick}</h2>}
         {bestShape && <p style={S.revealSub}>{best.is_new ? tr('reveal.new') : `+${best.dupe_shards} ◈ ${tr('hud.shards')}`}</p>}
         {lastReveal.length > 1 && (
           <div style={S.haulGrid}>
@@ -1602,7 +1602,7 @@ function TourCoachmark({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) 
 }
 
 // The hand-made title art — click to rotate through the set. Persists the choice.
-function TitleArt({ style, rounded = 12 }: { style?: CSSProperties; rounded?: number }) {
+function TitleArt({ style, rounded = 12, className }: { style?: CSSProperties; rounded?: number; className?: string }) {
   const idx = useTitle((s) => s.idx)
   const next = useTitle((s) => s.next)
   const tr = useT()
@@ -1610,6 +1610,7 @@ function TitleArt({ style, rounded = 12 }: { style?: CSSProperties; rounded?: nu
     <img
       src={titleSrc(idx)}
       alt={tr('title.alt')}
+      className={className}
       onClick={(e) => {
         e.stopPropagation()
         next()
@@ -1617,6 +1618,29 @@ function TitleArt({ style, rounded = 12 }: { style?: CSSProperties; rounded?: nu
       title={tr('title.cycle')}
       style={{ width: '100%', borderRadius: rounded, cursor: 'pointer', display: 'block', aspectRatio: '4 / 3', objectFit: 'cover', ...style }}
     />
+  )
+}
+
+// A scatter of ambient motes that drift up around the welcome card.
+function WelcomeMotes() {
+  const motes = [
+    { left: '8%', top: '60%', mx: '8px', md: '5.5s', dl: '0s', mc: '#ffcf6b', ms: '7px' },
+    { left: '20%', top: '40%', mx: '-6px', md: '6.5s', dl: '1.2s', mc: '#ff9ecf', ms: '5px' },
+    { left: '46%', top: '30%', mx: '4px', md: '7s', dl: '2.4s', mc: '#fff3b0', ms: '6px' },
+    { left: '74%', top: '44%', mx: '-8px', md: '6s', dl: '0.8s', mc: '#5fe0c6', ms: '5px' },
+    { left: '88%', top: '62%', mx: '6px', md: '5.8s', dl: '2s', mc: '#ffcf6b', ms: '7px' },
+    { left: '60%', top: '70%', mx: '-4px', md: '6.8s', dl: '3.1s', mc: '#b388ff', ms: '5px' },
+  ]
+  return (
+    <>
+      {motes.map((m, i) => (
+        <span
+          key={i}
+          className="welcome-mote"
+          style={{ left: m.left, top: m.top, '--mx': m.mx, '--md': m.md, '--mdl': m.dl, '--mc': m.mc, '--ms': m.ms } as CSSProperties}
+        />
+      ))}
+    </>
   )
 }
 
@@ -1631,9 +1655,10 @@ function WelcomeModal() {
   }
   return (
     <div style={S.modal} onClick={begin}>
-      <div className="pop-in" style={S.revealCard} onClick={(e) => e.stopPropagation()}>
-        <TitleArt style={{ marginBottom: 14 }} />
-        <h2 style={{ margin: '0 0 6px' }}>{tr('welcome.title')}</h2>
+      <div className="pop-in" style={{ ...S.revealCard, position: 'relative', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
+        <WelcomeMotes />
+        <TitleArt className="welcome-art" style={{ marginBottom: 14 }} />
+        <h2 style={{ margin: '0 0 6px', fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 700, letterSpacing: 0.5, animation: 'welcome-title-in 0.8s ease-out both' }}>{tr('welcome.title')}</h2>
         <p style={S.revealSub}>{tr('welcome.body')}</p>
         <p style={S.hint}>{tr('welcome.note')}</p>
         <button style={S.pullBtn} onClick={begin}>{tr('welcome.begin')}</button>
@@ -2256,7 +2281,7 @@ const S: Record<string, CSSProperties> = {
   // ── Engine / Forge visual boards ──
   board: { display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 28 },
   boardIntro: { ...VITRINE, borderRadius: 12, padding: '12px 14px' },
-  boardTitle: { margin: '0 0 6px', fontSize: 16, color: '#e8eaf2' },
+  boardTitle: { margin: '0 0 6px', fontSize: 18, color: '#e8eaf2', fontFamily: 'var(--font-display)', letterSpacing: 0.3 },
   boardDesc: { margin: 0, fontSize: 13, lineHeight: 1.5, color: '#9aa0b4' },
   helpClose: { position: 'absolute', top: -2, right: -4, background: 'none', border: 'none', color: '#6b7088', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4 },
   shardBank: { marginTop: 8, fontSize: 13, color: '#cdd2e0', fontWeight: 600 },
