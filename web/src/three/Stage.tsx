@@ -1,6 +1,7 @@
 import { Canvas } from '@react-three/fiber'
 import { Environment, Lightformer, OrbitControls, Stars, Sparkles } from '@react-three/drei'
 import { Suspense, type ReactNode } from 'react'
+import * as THREE from 'three'
 
 /**
  * The "planetarium between dimensions" stage (procedural → offline-PWA-safe).
@@ -39,7 +40,19 @@ export function Stage({ children, controls = false }: { children: ReactNode; con
           <Lightformer form="circle" intensity={3} position={[5, -3, -4]} scale={2.4} color="#5ff0c8" />
         </Environment>
       </Suspense>
-      {controls && <OrbitControls enablePan={false} enableZoom={false} />}
+      {controls && (
+        <OrbitControls
+          makeDefault
+          enablePan={false}
+          enableZoom
+          minDistance={3}
+          maxDistance={9}
+          rotateSpeed={0.9}
+          // left OR right drag orbits; one finger orbits, two fingers pinch-zoom
+          mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
+          touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
+        />
+      )}
     </Canvas>
   )
 }

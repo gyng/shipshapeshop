@@ -3,7 +3,7 @@ import init, { Game, shapes_json, recipes_json, core_version } from 'shipshape-c
 import { sfxPull, sfxReveal, sfxForge, rarityRank } from '../audio'
 
 // ── Types mirrored from the Rust core (the WASM layer is the source of truth) ──
-export type RarityName = 'Common' | 'Rare' | 'Epic' | 'Ssr' | 'Ur'
+export type RarityName = 'Common' | 'Rare' | 'Epic' | 'Ssr' | 'Ur' | 'Relic'
 
 export interface ShapeRow {
   id: number
@@ -35,6 +35,9 @@ export interface View {
   bond_levels: number[]
   discovered: boolean[]
   platonic_set: boolean
+  relics_owned: number
+  relic_count: number
+  relic_cost: number
 }
 
 export interface Recipe {
@@ -102,6 +105,7 @@ interface Store {
   recrystallize: () => void
   inspect: (id: number) => void
   forge: (a: number, b: number) => void
+  claimRelic: () => void
   dismissReveal: () => void
   dismissForge: () => void
   dismissOffline: () => void
@@ -216,10 +220,19 @@ export const useGame = create<Store>((set, get) => ({
       set({ lastForge: r })
     }
   },
+  claimRelic: () => {
+    if (!game) return
+    const id = game.claim_relic()
+    if (id >= 0) {
+      get().refresh()
+      persist()
+      set({ lastForge: { ok: true, out_id: id, is_discovery: true } }) // reuse the reveal toast
+    }
+  },
   dismissWelcome: () => set({ firstLaunch: false }),
   dismissReveal: () => set({ lastReveal: null }),
   dismissForge: () => set({ lastForge: null }),
   dismissOffline: () => set({ offline: null }),
 }))
 
-export const RARITY_ORDER: RarityName[] = ['Common', 'Rare', 'Epic', 'Ssr', 'Ur']
+export const RARITY_ORDER: RarityName[] = ['Common', 'Rare', 'Epic', 'Ssr', 'Ur', 'Relic']

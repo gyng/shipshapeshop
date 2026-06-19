@@ -12,9 +12,10 @@ export const RARITY_COLOR: Record<RarityName, string> = {
   Epic: '#b985ff',
   Ssr: '#ffb86b',
   Ur: '#ff5d8f',
+  Relic: '#ffd76b',
 }
 
-const RARITY_RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4 }
+const RARITY_RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4 }
 
 /** The hero gem (pull reveal + inspector): real transmission glass, dispersion scaling with rarity. */
 export function HeroGem({ family, rarity, spin = 0.4 }: { family: string; rarity: RarityName; spin?: number }) {

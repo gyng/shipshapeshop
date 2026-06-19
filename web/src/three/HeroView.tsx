@@ -12,7 +12,7 @@ import type { RarityName } from '../game/store'
 export function HeroView({
   family,
   rarity,
-  controls = false,
+  controls = true,
   spin = 0.4,
 }: {
   family: string

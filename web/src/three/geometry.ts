@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { ParametricGeometry } from 'three/examples/jsm/geometries/ParametricGeometry.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { TeapotGeometry } from 'three/examples/jsm/geometries/TeapotGeometry.js'
 
 // Family → geometry. Built-ins + parametric surfaces where they're exact; distinctive stand-ins for the
 // genuinely hard ones (true TPMS marching-cubes + real 4D projection are a later M2 deepening — for now the
@@ -133,6 +134,14 @@ function build(family: string): THREE.BufferGeometry {
     case 'cell_600': return new THREE.IcosahedronGeometry(1.1, 1)
     case 'hopf': return linkedRings()
     case 'mazur': return new THREE.SphereGeometry(1, 40, 28) // the "monster" is secretly a ball
+    // ── Relics: famous CG models. The Utah Teapot is exact (three's TeapotGeometry); the scanned/modelled
+    // ones are distinctive placeholders until real .glb assets land in /public/models (see README).
+    case 'utah_teapot': return new TeapotGeometry(0.62, 12)
+    case 'stanford_bunny': return new THREE.CapsuleGeometry(0.5, 0.55, 8, 18)
+    case 'benchy': return new THREE.BoxGeometry(1.7, 0.8, 0.95)
+    case 'stanford_dragon': return new THREE.TorusKnotGeometry(0.58, 0.2, 200, 20, 3, 7)
+    case 'suzanne': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.0, 0.88, 1.12); return g }
+    case 'spot': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.35, 0.8, 0.9); return g }
     default: return new THREE.IcosahedronGeometry(1)
   }
 }

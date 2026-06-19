@@ -16,6 +16,7 @@ const RATE_CAP: f64 = 900.0; // Flux/hr cap before prestige (DESIGN §7)
 const OFFLINE_CAP_MS: f64 = 12.0 * 3_600_000.0; // generous 12h
 const START_EULER_CAP: u32 = 6;
 const START_FLUX: f64 = 350.0; // onboarding: ~3 pulls in hand immediately, no 100-minute wait
+const RELIC_COST: u64 = 500; // shards to summon a Relic (the prestigious dupe-shard sink)
 const MS_PER_HOUR: f64 = 3_600_000.0;
 const FORGE_COST: u64 = 50; // shards to forge
 const BOND_INSPECT_GAIN: u32 = 25; // affinity per inspect (the calm idler's path to bonds)
@@ -30,6 +31,7 @@ fn shard_value(r: Rarity) -> u64 {
         Rarity::Epic => 8,
         Rarity::Ssr => 20,
         Rarity::Ur => 60,
+        Rarity::Relic => 120,
     }
 }
 
@@ -101,6 +103,9 @@ pub struct GameStateView {
     pub bond_levels: Vec<u32>,
     pub discovered: Vec<bool>,
     pub platonic_set: bool,
+    pub relics_owned: u32,
+    pub relic_count: u32,
+    pub relic_cost: u64,
 }
 
 impl GameState {
@@ -312,12 +317,34 @@ impl GameState {
         }
     }
 
+    /// Core completion ignores Relics — they're a bonus tier, not required for the summit.
     pub fn core_complete(&self) -> bool {
-        self.owned.iter().all(|&c| c > 0)
+        self.owned[..content::PULL_COUNT].iter().all(|&c| c > 0)
     }
 
     pub fn distinct_owned(&self) -> u32 {
-        self.owned.iter().filter(|&&c| c > 0).count() as u32
+        self.owned[..content::PULL_COUNT].iter().filter(|&&c| c > 0).count() as u32
+    }
+
+    pub fn relics_owned(&self) -> u32 {
+        self.owned[content::PULL_COUNT..].iter().filter(|&&c| c > 0).count() as u32
+    }
+
+    /// Summon a Relic (famous CG model) — earned with banked dupe-shards, not pulled. Grants the next
+    /// un-owned Relic. Returns its id, or -1 if not enough shards / all Relics owned.
+    pub fn claim_relic(&mut self) -> i32 {
+        if self.shards < RELIC_COST {
+            return -1;
+        }
+        let next = content::rarity_range(Rarity::Relic).find(|&id| self.owned[id] == 0);
+        match next {
+            Some(id) => {
+                self.shards -= RELIC_COST;
+                self.owned[id] += 1;
+                id as i32
+            }
+            None => -1,
+        }
     }
 
     /// Recrystallize = ascend the viewport dimension (NG+). Keeps collection + shards; resets the run.
@@ -384,6 +411,9 @@ impl GameState {
             bond_levels: (0..COUNT).map(|i| self.bond_level(i)).collect(),
             discovered: self.discovered.clone(),
             platonic_set: content::PLATONIC_IDS.iter().all(|&id| self.owned[id] > 0),
+            relics_owned: self.relics_owned(),
+            relic_count: (content::COUNT - content::PULL_COUNT) as u32,
+            relic_cost: RELIC_COST,
         }
     }
 }
@@ -449,6 +479,9 @@ impl Game {
     }
     pub fn forge(&mut self, a: usize, b: usize) -> String {
         serde_json::to_string(&self.state.forge(a, b)).unwrap()
+    }
+    pub fn claim_relic(&mut self) -> i32 {
+        self.state.claim_relic()
     }
     pub fn serialize(&self) -> String {
         self.state.to_json()
@@ -615,7 +648,7 @@ mod tests {
         assert_eq!(g.ng_cycle, 1);
         assert!((g.prestige_mult - 1.6).abs() < 1e-9);
         // collection carries over; run resets
-        assert_eq!(g.distinct_owned(), COUNT as u32);
+        assert_eq!(g.distinct_owned(), content::PULL_COUNT as u32);
         assert!(g.loadout.is_empty());
     }
 
@@ -657,6 +690,23 @@ mod tests {
         assert_eq!(g.bond_level(0), 1);
         g.deploy(0);
         assert!((g.bond_mult() - 1.03).abs() < 1e-9, "deployed bond-1 → +3%");
+    }
+
+    #[test]
+    fn claim_relic_costs_shards_and_excludes_from_core() {
+        let mut g = GameState::new(1, 0.0);
+        for i in 0..content::PULL_COUNT {
+            g.owned[i] = 1; // own all pull shapes → core complete with zero relics
+        }
+        assert!(g.core_complete());
+        assert_eq!(g.relics_owned(), 0);
+        assert_eq!(g.claim_relic(), -1, "can't summon without shards");
+        g.shards = 1200;
+        let id = g.claim_relic();
+        assert!(id >= content::PULL_COUNT as i32, "granted a Relic id");
+        assert_eq!(g.shards, 700);
+        assert_eq!(g.relics_owned(), 1);
+        assert!(g.core_complete(), "Relics never affect core completion");
     }
 
     #[test]

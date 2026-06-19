@@ -18,6 +18,8 @@ pub enum Rarity {
     Epic,
     Ssr,
     Ur,
+    /// Famous CG reference models — a bonus tier, never rolled by the gacha (summoned with shards).
+    Relic,
 }
 
 /// Launch pool sizes per tier (DESIGN.md §8): 10 / 8 / 8 / 7 / 8 = 41 named shapes.
@@ -90,6 +92,7 @@ impl Collection {
             Rarity::Epic => 2,
             Rarity::Ssr => 3,
             Rarity::Ur => 4,
+            Rarity::Relic => 4, // never reached — the gacha never rolls Relics
         }
     }
     fn first_missing(&self, r: Rarity) -> Option<usize> {

@@ -162,7 +162,7 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
     <div style={S.gallery}>
       {RARITY_ORDER.map((r) => (
         <section key={r}>
-          <h3 style={{ ...S.tierHead, color: RARITY_COLOR[r] }}>{r === 'Ssr' ? 'SSR' : r === 'Ur' ? 'UR' : r}</h3>
+          <h3 style={{ ...S.tierHead, color: RARITY_COLOR[r] }}>{r === 'Ssr' ? 'SSR' : r === 'Ur' ? 'UR' : r === 'Relic' ? 'Reference Wing' : r}</h3>
           <div style={S.grid}>
             {shapes.filter((s) => s.rarity === r).map((s) => {
               const owned = view.owned[s.id] > 0
@@ -310,14 +310,23 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
 }
 
 function ForgeView() {
-  const { recipes, view, shapes, forge } = useGame()
+  const { recipes, view, shapes, forge, claimRelic } = useGame()
   const tr = useT()
   if (!view) return null
+  const canRelic = view.shards >= view.relic_cost && view.relics_owned < view.relic_count
   return (
     <div style={S.engine}>
       <div style={S.engineHead}>
         <strong>{tr('forge.title')} · ◈ {view.shards} {tr('hud.shards')}</strong>
       </div>
+      <div style={{ ...S.engineRow, borderColor: '#ffd76b', marginBottom: 4 }}>
+        <span style={{ ...S.tileDot, background: '#ffd76b' }} />
+        <span style={S.engineNick}>Reference Wing · Relics {view.relics_owned}/{view.relic_count}</span>
+        <button style={{ ...S.toggle, marginLeft: 'auto', opacity: canRelic ? 1 : 0.35 }} disabled={!canRelic} onClick={claimRelic}>
+          {view.relics_owned >= view.relic_count ? 'Complete' : `Summon · ${view.relic_cost} ◈`}
+        </button>
+      </div>
+      <p style={S.hint}>Relics are the patron saints of computer graphics — the Teapot, the Bunny, Benchy… earned with banked shards, not pulled. A bonus wing beyond the core 41.</p>
       <p style={S.hint}>Glue two shapes together (a <em>connected sum</em>) to make a third — the real topology decides the result. First-time crafts unlock a Discovery (+100 shards). Each forge costs 50 shards; dupes give shards.</p>
       <div style={S.engineList}>
         {recipes.map((r, i) => {

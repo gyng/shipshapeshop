@@ -19,7 +19,7 @@ export const RAYMARCH_SHAPES: Record<string, number> = {
   mazur: 0, // the "monster" is secretly a ball
 }
 
-const RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4 }
+const RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4 }
 
 const VERT = /* glsl */ `
   varying vec2 vUv;
@@ -38,6 +38,8 @@ const FRAG = /* glsl */ `
   uniform vec3  uColor;   // rarity tint (Beer absorption)
   uniform float uIor;
   uniform float uAberr;   // chromatic dispersion
+  uniform float uYaw;     // drag-orbit
+  uniform float uPitch;
 
   mat3 R;
 
@@ -125,7 +127,7 @@ const FRAG = /* glsl */ `
   }
 
   void main(){
-    R = rotY(uTime*0.3) * rotX(0.5);
+    R = rotY(uTime*0.12 + uYaw) * rotX(0.4 + uPitch);
     vec2 uv = (vUv*2.0-1.0);
     uv.x *= uRes.x/uRes.y;
     vec3 ro = vec3(0.0,0.0,3.2);
@@ -149,6 +151,11 @@ const FRAG = /* glsl */ `
 
 export function RaymarchGem({ family, rarity }: { family: string; rarity: RarityName }) {
   const ref = useRef<THREE.ShaderMaterial>(null)
+  const yaw = useRef(0)
+  const pitch = useRef(0)
+  const drag = useRef(false)
+  const last = useRef({ x: 0, y: 0 })
+
   const uniforms = useMemo(() => {
     const c = new THREE.Color(RARITY_COLOR[rarity])
     return {
@@ -158,19 +165,41 @@ export function RaymarchGem({ family, rarity }: { family: string; rarity: Rarity
       uColor: { value: new THREE.Vector3(c.r, c.g, c.b) },
       uIor: { value: 1.45 + RANK[rarity] * 0.05 },
       uAberr: { value: 0.02 + RANK[rarity] * 0.02 },
+      uYaw: { value: 0 },
+      uPitch: { value: 0 },
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [family, rarity])
 
   useFrame((state) => {
-    if (ref.current) {
-      ref.current.uniforms.uTime.value = state.clock.elapsedTime
-      ref.current.uniforms.uRes.value.set(state.size.width, state.size.height)
-    }
+    const m = ref.current
+    if (!m) return
+    m.uniforms.uTime.value = state.clock.elapsedTime
+    m.uniforms.uRes.value.set(state.size.width, state.size.height)
+    m.uniforms.uYaw.value = yaw.current
+    m.uniforms.uPitch.value = pitch.current
   })
 
   return (
-    <mesh frustumCulled={false}>
+    <mesh
+      frustumCulled={false}
+      onPointerDown={(e) => {
+        drag.current = true
+        last.current = { x: e.clientX, y: e.clientY }
+      }}
+      onPointerMove={(e) => {
+        if (!drag.current) return
+        yaw.current += (e.clientX - last.current.x) * 0.01
+        pitch.current = Math.max(-1.4, Math.min(1.4, pitch.current + (e.clientY - last.current.y) * 0.01))
+        last.current = { x: e.clientX, y: e.clientY }
+      }}
+      onPointerUp={() => {
+        drag.current = false
+      }}
+      onPointerOut={() => {
+        drag.current = false
+      }}
+    >
       <planeGeometry args={[2, 2]} />
       <shaderMaterial ref={ref} vertexShader={VERT} fragmentShader={FRAG} uniforms={uniforms} />
     </mesh>

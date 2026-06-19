@@ -54,4 +54,12 @@ export const CODEX: Record<string, Codex> = {
   klein_quartic: { term: 'a Klein quartic — genus 3 with the maximum possible symmetry (168)', blurb: 'Hum a note; I’ll find the other hundred-sixty-seven that agree.', bond: 'The full chord, all hundred-sixty-eight at once. It sounds like a choir because it is one.' },
   hopf: { term: 'the Hopf fibration — fill a 4-ball with circles, every pair interlinked', blurb: 'Two of you are already linked. You simply haven’t met.', bond: 'The whole Atlas was one linked structure the entire time. So were you.' },
   mazur: { term: 'a Mazur manifold — sounds like a monster; is secretly contractible (a ball)', blurb: 'BEHOLD, the manifold that should not be— …it’s fine. Please don’t run.', bond: 'I look impossible, but I shrink to a single harmless point. “Looks scary, is soft” is allowed.' },
+
+  // Relics — the patron saints of computer graphics (washed up from the rendering-folk's workshops)
+  utah_teapot: { term: 'the Utah Teapot — Martin Newell, 1975; the most-rendered object in history', blurb: 'I have no bottom. Everyone drew me anyway.', bond: 'Spout, handle, lid, body — and, famously, no base. You rendered me regardless. You always do.' },
+  stanford_bunny: { term: 'the Stanford Bunny — scanned in 1994; a benchmark ever since', blurb: 'Scanned once. Hopping through every paper since.', bond: 'They scanned me from a little clay figurine and I never left the literature. Hello again.' },
+  benchy: { term: '3DBenchy — the calibration boat every 3D printer is tested on', blurb: 'Born to be torture-tested.', bond: 'Overhangs, a chimney, a tiny window — all to make printers sweat. I was built to be hard. I don’t mind.' },
+  stanford_dragon: { term: 'the Stanford Dragon — the model you render to show off light', blurb: 'Bring your best subsurface scattering.', bond: 'Every renderer cuts its teeth on my scales. Go on — show me what your light can do.' },
+  suzanne: { term: 'Suzanne — Blender’s monkey-head test model', blurb: 'The monkey who tests everything.', bond: 'Press the button and I appear — the quick way to check a shader. Tested more than anyone alive.' },
+  spot: { term: 'Spot — Keenan Crane’s cow, mascot of geometry processing', blurb: 'I taught a generation conformal maps.', bond: 'A friendly cow, parameterised more lovingly than most. Moo — in the language of discrete differential geometry.' },
 }

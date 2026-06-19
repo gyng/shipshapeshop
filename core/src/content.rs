@@ -26,7 +26,7 @@ const E: f64 = 150.0;
 const S: f64 = 250.0;
 const U: f64 = 400.0;
 
-pub const SHAPES: [ShapeDef; 41] = [
+pub const SHAPES: [ShapeDef; 47] = [
     // ── Common (ids 0..10) — genus 0, χ=2, free ballast ──────────────────────────────
     ShapeDef { nick: "Pip",     family: "sphere",        rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
     ShapeDef { nick: "Boxy",    family: "cube",          rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
@@ -73,9 +73,19 @@ pub const SHAPES: [ShapeDef; 41] = [
     ShapeDef { nick: "Sette",    family: "klein_quartic", rarity: Rarity::Ur, genus: 3, euler_cost: 6,  base_prod: U },
     ShapeDef { nick: "Link",     family: "hopf",          rarity: Rarity::Ur, genus: 0, euler_cost: 12, base_prod: U },
     ShapeDef { nick: "Corky",    family: "mazur",         rarity: Rarity::Ur, genus: 0, euler_cost: 1,  base_prod: U },
+    // ── Relics / "Reference Wing" (ids 41..47) — famous CG models; summoned with shards, not pulled ──
+    ShapeDef { nick: "Teapot",  family: "utah_teapot",    rarity: Rarity::Relic, genus: 1, euler_cost: 3, base_prod: U },
+    ShapeDef { nick: "Bun",     family: "stanford_bunny", rarity: Rarity::Relic, genus: 0, euler_cost: 4, base_prod: U },
+    ShapeDef { nick: "Benchy",  family: "benchy",         rarity: Rarity::Relic, genus: 1, euler_cost: 4, base_prod: U },
+    ShapeDef { nick: "Drake",   family: "stanford_dragon",rarity: Rarity::Relic, genus: 0, euler_cost: 6, base_prod: U },
+    ShapeDef { nick: "Suzanne", family: "suzanne",        rarity: Rarity::Relic, genus: 0, euler_cost: 4, base_prod: U },
+    ShapeDef { nick: "Spot",    family: "spot",           rarity: Rarity::Relic, genus: 0, euler_cost: 3, base_prod: U },
 ];
 
 pub const COUNT: usize = SHAPES.len();
+/// The gacha-pullable shapes (ids 0..PULL_COUNT). Relics (41..) are summoned, not pulled, and don't count
+/// toward core completion.
+pub const PULL_COUNT: usize = 41;
 
 /// Contiguous id range for a rarity tier (table is ordered by tier).
 pub fn rarity_range(r: Rarity) -> std::ops::Range<usize> {
@@ -85,6 +95,7 @@ pub fn rarity_range(r: Rarity) -> std::ops::Range<usize> {
         Rarity::Epic => 18..26,
         Rarity::Ssr => 26..33,
         Rarity::Ur => 33..41,
+        Rarity::Relic => 41..47,
     }
 }
 
