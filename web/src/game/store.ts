@@ -75,6 +75,10 @@ export interface View {
   mult_facet: number
   mult_ballast: number
   mult_crossdim: number
+  mult_signature: number
+  mult_shape_effects: number
+  upgrade_costs: [number, number][]
+  facet_perk_costs: number[]
 }
 
 export interface BannerDef {

@@ -161,6 +161,9 @@ pub struct GameStateView {
     pub mult_ballast: f64,
     pub mult_crossdim: f64,
     pub mult_signature: f64,
+    pub mult_shape_effects: f64, // aggregate of the deployed shapes' own effects (handle-lane★ · overdrive · knots · signature)
+    pub upgrade_costs: Vec<(f64, u64)>, // NEXT-level (flux, shard) cost per upgrade — UI displays, never recomputes
+    pub facet_perk_costs: Vec<u64>, // NEXT-level Facet cost per perk
 }
 
 impl GameState {
@@ -845,6 +848,12 @@ impl GameState {
             mult_ballast: self.ballast_mult(),
             mult_crossdim: self.crossdim_mult(),
             mult_signature: self.signature_global_mult(),
+            mult_shape_effects: {
+                let base: f64 = self.loadout.iter().map(|&id| SHAPES[id].base_prod * (1.0 + 0.25 * SHAPES[id].genus as f64)).sum();
+                if base > 1e-9 { self.deployed_production() / base } else { 1.0 }
+            },
+            upgrade_costs: (0..content::UPGRADE_COUNT).map(|i| content::upgrade_cost(i, self.upgrade_level(i))).collect(),
+            facet_perk_costs: (0..content::FACET_PERK_COUNT).map(|i| content::facet_perk_cost(i, self.facet_level(i))).collect(),
         }
     }
 }

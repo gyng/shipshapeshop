@@ -122,7 +122,7 @@ export function App() {
       <Hud />
       <nav style={S.nav}>
         {TABS.map((t, i) => (
-          <button key={t} onClick={() => setTab(t)} title={`Shortcut: ${i + 1}`} style={{ ...S.navBtn, ...(tab === t ? S.navBtnActive : {}) }}>
+          <button key={t} onClick={() => setTab(t)} title={`Shortcut: ${i + 1}`} aria-current={tab === t ? 'page' : undefined} style={{ ...S.navBtn, ...(tab === t ? S.navBtnActive : {}) }}>
             <TabIcon tab={t} />
             <span>{t === 'gacha' ? tr('nav.pull') : t === 'room' ? 'Room' : t === 'chatlas' ? 'Chatlas' : t === 'shop' ? 'Shop' : t === 'ledger' ? 'Ledger' : tr(`nav.${t}`)}</span>
           </button>
@@ -599,7 +599,7 @@ function FacetsPanel() {
         {facetDefs.map((f, i) => {
           const lvl = view.facet_perks[i] ?? 0
           const maxed = lvl >= f.max_level
-          const cost = Math.floor(f.cost * Math.pow(1.6, lvl))
+          const cost = view.facet_perk_costs[i] ?? 0 // cost is Rust truth, not recomputed
           const can = !maxed && view.facets >= cost
           const info = FACET_INFO[f.key] ?? { name: f.key, desc: '', icon: '🌌' }
           return (
@@ -650,9 +650,7 @@ function UpgradesPanel() {
         {upgradeDefs.map((u, i) => {
           const lvl = view.upgrades[i] ?? 0
           const maxed = lvl >= u.max_level
-          const mult = Math.pow(1.8, lvl)
-          const flux = Math.floor(u.flux_cost * mult)
-          const shards = Math.floor(u.shard_cost * mult)
+          const [flux, shards] = view.upgrade_costs[i] ?? [0, 0] // costs are Rust truth, not recomputed
           const can = !maxed && view.flux >= flux && view.shards >= shards
           const info = UPGRADE_INFO[u.key] ?? { name: u.key, desc: '', icon: '⚙' }
           return (
@@ -692,6 +690,8 @@ function ProductionBreakdown() {
   const view = useGame((s) => s.view)
   if (!view) return null
   const rows: { label: string; mult: number; note?: string }[] = [
+    { label: '✦ Shape effects', mult: view.mult_shape_effects, note: 'handle-lanes ★ · overdrive · knot entangle' },
+    { label: '◆ Signature shapes', mult: view.mult_signature, note: 'Sphere anchor / Hopf link' },
     { label: '♥ Kin synergy', mult: view.mult_synergy, note: view.active_synergies > 0 ? `${view.active_synergies} adjacent pair${view.active_synergies === 1 ? '' : 's'}` : undefined },
     { label: '🌀 Genus resonance', mult: view.mult_genus_res },
     { label: '⚓ Euler ballast', mult: view.mult_ballast },
@@ -779,7 +779,7 @@ function EngineView() {
       <UpgradesPanel />
 
       <h4 style={S.boardSub}>On the floor — {deployed.length}</h4>
-      <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>💡 Arrangement matters now: place kin pairs <b>side by side</b> for synergy, and slot <b>knots between</b> producers to entangle them. ★ duplicates strengthen each shape’s effect.</p>
+      <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>💡 Arrangement matters: place kin pairs <b>side by side</b> for synergy, and slot <b>knots between</b> producers (each lifts its neighbours ~+20%). ★ duplicates strengthen every effect. <b>Auto-arrange</b> now solves this for you.</p>
       <div style={S.chipGrid}>
         {deployed.length === 0 && <p style={S.emptyHint}>Nothing deployed yet — tap a shape below (or hit Auto-arrange) to start earning Flux.</p>}
         {deployed.map((s) => (
@@ -1390,7 +1390,7 @@ function LedgerView() {
 
       {(() => {
         const done = view.milestones_done
-        const total = milestoneDefs.reduce((a, m, i) => a + (done[i] ? m.bonus : 0), 0)
+        const total = view.mult_milestone - 1 // truth from the core, not recomputed
         const got = done.filter(Boolean).length
         return (
           <>
@@ -1638,8 +1638,8 @@ const S: Record<string, CSSProperties> = {
   langSwitch: { display: 'flex', gap: 4 },
   langBtn: { background: 'none', border: '1px solid #2a2c3a', color: '#8a90a8', borderRadius: 6, padding: '2px 7px', fontSize: 11, cursor: 'pointer' },
   langBtnOn: { background: '#28304a', color: '#fff', borderColor: '#5fe0c6' },
-  nav: { display: 'flex', gap: 4, padding: '8px 16px', borderBottom: '1px solid #1c1e2a' },
-  navBtn: { background: 'none', border: 'none', color: '#8a90a8', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 6 },
+  nav: { display: 'flex', gap: 4, padding: '8px 16px', borderBottom: '1px solid #1c1e2a', overflowX: 'auto' },
+  navBtn: { background: 'none', border: 'none', color: '#8a90a8', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' },
   navBtnActive: { background: '#23263a', color: '#fff', boxShadow: 'inset 0 -2px 0 #5fe0c6' },
   main: { flex: 1, padding: 16, overflow: 'auto' },
   gacha: { maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 },
