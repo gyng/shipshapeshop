@@ -789,11 +789,19 @@ function WorkshopView() {
 }
 
 function EngineView() {
-  const { shapes, view, deploy, undeploy, autoArrange, recrystallize } = useGame()
+  const { shapes, view, deploy, undeploy, autoArrange, recrystallize, tapShape } = useGame()
   const { bubble, setBubble, talk } = useChatter()
   const [q, setQ] = useState('')
   if (!view) return null
-  const onTalk = (sid: number) => talk(shapes[sid], view.bond_levels[sid] ?? 0)
+  // Tapping a PLACED gem on the floor polishes it: a little Flux (clicker bootstrap) + a line of dialogue.
+  const onTap = (sid: number, x: number, y: number) => {
+    const r = tapShape(sid)
+    if (r > 0) {
+      sfxClimbTick(0)
+      useFloaters.getState().spawn(`+${Math.round(r)} ✦`, { color: '#ffd76b', x, y: y - 12 })
+    }
+    talk(shapes[sid], view.bond_levels[sid] ?? 0)
+  }
   const owned = shapes.filter((s) => view.owned[s.id] > 0)
   const deployed = owned.filter((s) => view.loadout.includes(s.id))
   const ql = q.trim().toLowerCase()
@@ -813,7 +821,7 @@ function EngineView() {
           shapes={shapes}
           loadout={view.loadout}
           openSlots={view.euler_used < view.euler_cap ? (view.loadout.length === 0 ? 3 : 2) : 0}
-          onTalk={onTalk}
+          onTap={onTap}
         />
         {view.loadout.length === 0 && <div style={S.floorTag}>🏭 Empty floor — tap a shape below (or Auto-arrange) to fill a slot ⭕</div>}
         {view.loadout.length > 0 && !bubble && <div style={S.floorTag}>💬 tap a deployed shape to chat</div>}
@@ -1194,40 +1202,6 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
   )
 }
 
-// Bootstrap clicker: tap an owned shape to shed a little Flux. Trivial late-game, but it gets the first
-// pulls moving (and gives the starter shape something to do before you can deploy).
-function PolishBench() {
-  const shapes = useGame((s) => s.shapes)
-  const view = useGame((s) => s.view)
-  const tapShape = useGame((s) => s.tapShape)
-  if (!view) return null
-  const owned = shapes.filter((s) => view.owned[s.id] > 0)
-  if (!owned.length) return null
-  const onTap = (id: number, x: number, y: number) => {
-    const r = tapShape(id)
-    if (r > 0) {
-      sfxClimbTick(0)
-      useFloaters.getState().spawn(`+${Math.round(r)} ✦`, { color: '#ffd76b', x, y: y - 12 })
-    }
-  }
-  return (
-    <>
-      <h4 style={S.boardSub}>Polish bench</h4>
-      <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>
-        Tap a shape to buff it — it sheds a little <b style={S.fluxIcon}>✦ Flux</b>. Tiny once your factory hums, but it bootstraps your first pulls.
-      </p>
-      <div style={S.benchGrid}>
-        {owned.map((s) => (
-          <button key={s.id} className="chip" style={S.benchPill} onClick={(e) => onTap(s.id, e.clientX, e.clientY)} title={`Polish ${s.nick}`}>
-            <span style={{ ...S.tileDot, background: RARITY_COLOR[s.rarity] }} />
-            <span style={S.chipNick}>{glyphOf(s.family)} {s.nick}</span>
-          </button>
-        ))}
-      </div>
-    </>
-  )
-}
-
 function ForgeView() {
   const { recipes, view, shapes, forge, claimRelic } = useGame()
   if (!view) return null
@@ -1253,8 +1227,6 @@ function ForgeView() {
       <div style={S.floorWrap}>
         {feat && <ForgeAltar a={shapes[feat.a]} b={shapes[feat.b]} out={shapes[feat.out]} discovered={view.discovered[featIdx]} />}
       </div>
-
-      <PolishBench />
 
       <div style={S.relicPanel}>
         <div style={{ flex: 1 }}>
@@ -1918,8 +1890,6 @@ const S: Record<string, CSSProperties> = {
   chatMsg: { display: 'flex', flexDirection: 'column', gap: 1, background: '#14151d', borderRadius: 10, padding: '8px 12px' },
   chatHandle: { fontSize: 11, fontWeight: 800 },
   chatText: { fontSize: 13.5, color: '#cdd2e0', lineHeight: 1.45 },
-  benchGrid: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
-  benchPill: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#14151d', border: '1px solid #23252f', borderRadius: 999, padding: '6px 12px', cursor: 'pointer', color: '#cdd2e0', fontSize: 13 },
   multGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 6, marginBottom: 10 },
   multRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#14151d', border: '1px solid #23252f', borderRadius: 8, padding: '6px 10px' },
   engine: { maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 },

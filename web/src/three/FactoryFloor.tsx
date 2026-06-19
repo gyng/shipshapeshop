@@ -12,7 +12,7 @@ const RANK: Record<keyof typeof RARITY_COLOR, number> = { Common: 0, Rare: 1, Ep
 
 // A deployed gem on the floor: a jewel on a glowing ring, lit by its own coloured light, with rising Flux.
 // The ring + emissive "breathe" at a rarity-scaled rate (rarer = livelier), offset per-gem so they don't sync.
-function FloorGem({ family, rarity, pos, id, onTalk }: { family: string; rarity: keyof typeof RARITY_COLOR; pos: [number, number, number]; id: number; onTalk?: (id: number) => void }) {
+function FloorGem({ family, rarity, pos, id, onTap }: { family: string; rarity: keyof typeof RARITY_COLOR; pos: [number, number, number]; id: number; onTap?: (id: number, x: number, y: number) => void }) {
   const ref = useRef<THREE.Mesh>(null)
   const ringRef = useRef<THREE.MeshBasicMaterial>(null)
   const gemRef = useRef<THREE.MeshPhysicalMaterial>(null)
@@ -42,9 +42,9 @@ function FloorGem({ family, rarity, pos, id, onTalk }: { family: string; rarity:
           castShadow
           onClick={(e) => {
             e.stopPropagation()
-            onTalk?.(id)
+            onTap?.(id, e.nativeEvent.clientX, e.nativeEvent.clientY)
           }}
-          onPointerOver={() => onTalk && (document.body.style.cursor = 'pointer')}
+          onPointerOver={() => onTap && (document.body.style.cursor = 'pointer')}
           onPointerOut={() => (document.body.style.cursor = 'auto')}
         >
           <meshPhysicalMaterial
@@ -80,7 +80,7 @@ function GhostSlot({ pos }: { pos: [number, number, number] }) {
   )
 }
 
-export function FactoryFloor({ shapes, loadout, openSlots = 0, onTalk }: { shapes: ShapeRow[]; loadout: number[]; openSlots?: number; onTalk?: (id: number) => void }) {
+export function FactoryFloor({ shapes, loadout, openSlots = 0, onTap }: { shapes: ShapeRow[]; loadout: number[]; openSlots?: number; onTap?: (id: number, x: number, y: number) => void }) {
   const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
   const [backdrop, key, cool, warm] = scene.env
   const g = useGfxPreset()
@@ -128,7 +128,7 @@ export function FactoryFloor({ shapes, loadout, openSlots = 0, onTalk }: { shape
       {loadout.map((id, i) => {
         const s = shapes[id]
         if (!s) return null
-        return <FloorGem key={id} id={id} family={s.family} rarity={s.rarity} pos={posOf(i)} onTalk={onTalk} />
+        return <FloorGem key={id} id={id} family={s.family} rarity={s.rarity} pos={posOf(i)} onTap={onTap} />
       })}
       {Array.from({ length: openSlots }).map((_, j) => <GhostSlot key={`g${j}`} pos={posOf(loadout.length + j)} />)}
 
