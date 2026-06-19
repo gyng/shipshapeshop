@@ -885,10 +885,61 @@ function WorkshopView() {
   )
 }
 
+// The spatial puzzle board: a W×H grid. Tap a stored shape to pick it up, tap a cell to place; tap a placed
+// shape to pick it up, tap its own cell to remove. Adjacency (kin synergy, knot entanglement) is 2D.
+function BoardGrid({ sel, setSel }: { sel: number | null; setSel: (id: number | null) => void }) {
+  const shapes = useGame((s) => s.shapes)
+  const view = useGame((s) => s.view)
+  const placeAt = useGame((s) => s.placeAt)
+  const undeploy = useGame((s) => s.undeploy)
+  if (!view) return null
+  const W = view.board_w
+  const H = view.board_h
+  const cellShape: (number | null)[] = Array(W * H).fill(null)
+  view.loadout.forEach((id, i) => {
+    const c = view.board_cells[i]
+    if (c != null && c < W * H) cellShape[c] = id
+  })
+  const onCell = (cell: number) => {
+    const occ = cellShape[cell]
+    if (sel != null) {
+      if (occ === sel) {
+        undeploy(sel)
+        setSel(null)
+      } else {
+        placeAt(sel, cell)
+        setSel(null)
+      }
+    } else if (occ != null) {
+      setSel(occ)
+    }
+  }
+  return (
+    <div style={{ ...S.boardGrid, gridTemplateColumns: `repeat(${W}, 1fr)` }}>
+      {Array.from({ length: W * H }, (_, cell) => {
+        const id = cellShape[cell]
+        const s = id != null ? shapes[id] : null
+        const selected = sel != null && id === sel
+        return (
+          <button
+            key={cell}
+            onClick={() => onCell(cell)}
+            title={s ? s.nick : 'empty cell'}
+            style={{ ...S.boardCell, borderColor: s ? RARITY_COLOR[s.rarity] : '#23252f', background: selected ? '#33384e' : s ? '#171922' : '#0c0d15', boxShadow: selected ? '0 0 10px #5fe0c6' : 'none' }}
+          >
+            {s ? <span style={{ fontSize: 'clamp(14px, 5vw, 22px)' }}>{glyphOf(s.family)}</span> : sel != null ? <span style={{ color: '#5fe0c6', opacity: 0.5 }}>+</span> : ''}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function EngineView() {
-  const { shapes, view, deploy, undeploy, autoArrange, recrystallize, tapShape } = useGame()
+  const { shapes, view, autoArrange, recrystallize, tapShape } = useGame()
   const { bubble, setBubble, talk } = useChatter()
   const [q, setQ] = useState('')
+  const [sel, setSel] = useState<number | null>(null) // shape selected to place/move on the board
   if (!view) return null
   // Tapping a PLACED gem on the floor polishes it: a little Flux (clicker bootstrap) + a line of dialogue.
   const onTap = (sid: number, x: number, y: number) => {
@@ -900,7 +951,6 @@ function EngineView() {
     talk(shapes[sid], view.bond_levels[sid] ?? 0)
   }
   const owned = shapes.filter((s) => view.owned[s.id] > 0)
-  const deployed = owned.filter((s) => view.loadout.includes(s.id))
   const ql = q.trim().toLowerCase()
   const bench = owned.filter((s) => !view.loadout.includes(s.id) && (!ql || s.nick.toLowerCase().includes(ql) || s.family.includes(ql)))
   const pct = view.euler_cap ? view.euler_used / view.euler_cap : 0
@@ -917,6 +967,9 @@ function EngineView() {
         <FactoryFloor
           shapes={shapes}
           loadout={view.loadout}
+          boardCells={view.board_cells}
+          boardW={view.board_w}
+          boardH={view.board_h}
           openSlots={view.euler_used < view.euler_cap ? (view.loadout.length === 0 ? 3 : 2) : 0}
           onTap={onTap}
         />
@@ -947,19 +1000,12 @@ function EngineView() {
 
       <ProductionBreakdown />
 
-      <h4 style={S.boardSub}>On the floor — {deployed.length}</h4>
-      <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>💡 Arrangement matters: place kin pairs <b>side by side</b> for synergy, and slot <b>knots between</b> producers (each lifts its neighbours ~+20%). ★ duplicates strengthen every effect. <b>Auto-arrange</b> now solves this for you.</p>
-      <div style={S.chipGrid}>
-        {deployed.length === 0 && <p style={S.emptyHint}>Nothing deployed yet — tap a shape below (or hit Auto-arrange) to start earning Flux.</p>}
-        {deployed.map((s) => (
-          <button key={s.id} className="chip chip-on" style={{ ...S.deployChip, borderColor: RARITY_COLOR[s.rarity] }} onClick={() => undeploy(s.id)}>
-            <span style={{ ...S.tileDot, background: RARITY_COLOR[s.rarity] }} />
-            <span style={S.chipNick}>{glyphOf(s.family)} {s.nick}</span>
-            <span style={{ ...S.chipProd, color: '#ffcf6b' }}>+{fmt(s.prod)} ✦/hr</span>
-            <span style={S.chipMeta}>tap to remove ✕</span>
-          </button>
-        ))}
-      </div>
+      <h4 style={S.boardSub}>The floor — a {view.board_w}×{view.board_h} grid · {view.loadout.length} placed</h4>
+      <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>
+        💡 It’s a spatial puzzle: pick a shape from storage, then tap a cell to place it. <b>Kin pairs that touch</b> earn synergy; a <b>knot lifts all 4 orthogonal neighbours</b>; ★ dupes strengthen every effect. Tap a placed shape to pick it up (tap its own cell again to remove). <b>Auto-arrange</b> solves it for you.
+        {sel != null && <b style={{ color: '#5fe0c6' }}> · placing {shapes[sel]?.nick} — tap a cell (or its cell to cancel/remove)</b>}
+      </p>
+      <BoardGrid sel={sel} setSel={setSel} />
 
       <div style={S.listHead}>
         <h4 style={{ ...S.boardSub, margin: 0 }}>In storage — {bench.length}</h4>
@@ -969,12 +1015,19 @@ function EngineView() {
         {bench.length === 0 && <p style={S.emptyHint}>{ql ? 'No stored shapes match your filter.' : 'Everything you own is deployed. Pull more shapes to expand the floor!'}</p>}
         {bench.map((s) => {
           const fits = view.euler_used + s.euler_cost <= view.euler_cap
+          const picked = sel === s.id
           return (
-            <button key={s.id} className="chip" style={{ ...S.benchChip, opacity: fits ? 1 : 0.45 }} disabled={!fits} onClick={() => deploy(s.id)}>
+            <button
+              key={s.id}
+              className="chip"
+              style={{ ...S.benchChip, opacity: fits ? 1 : 0.45, borderColor: picked ? '#5fe0c6' : '#23252f', boxShadow: picked ? '0 0 10px #5fe0c655' : 'none' }}
+              disabled={!fits}
+              onClick={() => setSel(picked ? null : s.id)}
+            >
               <span style={{ ...S.tileDot, background: RARITY_COLOR[s.rarity] }} />
               <span style={S.chipNick}>{glyphOf(s.family)} {s.nick}</span>
               <span style={S.chipProd}>+{fmt(s.prod)} ✦/hr</span>
-              <span style={S.chipMeta}>{s.euler_cost === 0 ? 'free to deploy' : fits ? `space: ${s.euler_cost}` : `needs ${s.euler_cost} space`}</span>
+              <span style={S.chipMeta}>{picked ? '✋ tap a cell to place' : s.euler_cost === 0 ? 'free · tap to pick up' : fits ? `space ${s.euler_cost} · tap to pick up` : `needs ${s.euler_cost} space`}</span>
             </button>
           )
         })}
@@ -2069,6 +2122,8 @@ const S: Record<string, CSSProperties> = {
   floorEmpty: { display: 'grid', placeItems: 'center', height: '100%', padding: 24, textAlign: 'center', color: '#6b7088', fontSize: 14, lineHeight: 1.5 },
   boardSub: { margin: '6px 2px 0', fontSize: 12, color: '#8a90a8', textTransform: 'uppercase', letterSpacing: 0.6 },
   chipGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(146px, 1fr))', gap: 8 },
+  boardGrid: { display: 'grid', gap: 5, maxWidth: 360, margin: '0 auto 4px' },
+  boardCell: { aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid', borderRadius: 8, cursor: 'pointer', color: '#e8eaf2', padding: 0, transition: 'background .12s, box-shadow .12s' },
   deployChip: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, background: '#1a1c26', border: '2px solid', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', color: '#e8eaf2' },
   benchChip: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, background: '#101119', border: '1px solid #23252f', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', color: '#cdd2e0' },
   chipNick: { fontSize: 14, fontWeight: 700 },

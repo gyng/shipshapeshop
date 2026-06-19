@@ -80,21 +80,22 @@ function GhostSlot({ pos }: { pos: [number, number, number] }) {
   )
 }
 
-export function FactoryFloor({ shapes, loadout, openSlots = 0, onTap }: { shapes: ShapeRow[]; loadout: number[]; openSlots?: number; onTap?: (id: number, x: number, y: number) => void }) {
+export function FactoryFloor({ shapes, loadout, boardCells = [], boardW = 5, boardH = 5, openSlots = 0, onTap }: { shapes: ShapeRow[]; loadout: number[]; boardCells?: number[]; boardW?: number; boardH?: number; openSlots?: number; onTap?: (id: number, x: number, y: number) => void }) {
   const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
   const [backdrop, key, cool, warm] = scene.env
   const g = useGfxPreset()
-  const total = Math.max(1, loadout.length + openSlots)
-  const cols = Math.max(1, Math.ceil(Math.sqrt(total)))
-  const rows = Math.max(1, Math.ceil(total / cols))
-  const spacing = 1.2
-  const posOf = (i: number): [number, number, number] => {
-    const c = i % cols
-    const r = Math.floor(i / cols)
-    return [(c - (cols - 1) / 2) * spacing, 0, (r - (rows - 1) / 2) * spacing]
+  const spacing = 0.98
+  // position a gem by its grid CELL so the 3D floor mirrors the 2D puzzle board
+  const cellPos = (cell: number): [number, number, number] => {
+    const c = cell % boardW
+    const r = Math.floor(cell / boardW)
+    return [(c - (boardW - 1) / 2) * spacing, 0, (r - (boardH - 1) / 2) * spacing]
   }
+  const used = new Set(boardCells)
+  const free: number[] = []
+  for (let cell = 0; cell < boardW * boardH && free.length < openSlots; cell++) if (!used.has(cell)) free.push(cell)
   return (
-    <Canvas dpr={g.dpr} shadows={g.shadows} gl={{ powerPreference: 'high-performance' }} camera={{ position: [0, 2.9, 5.6], fov: 42 }}>
+    <Canvas dpr={g.dpr} shadows={g.shadows} gl={{ powerPreference: 'high-performance' }} camera={{ position: [0, 3.6, 6.2], fov: 42 }}>
       <color attach="background" args={['#0a0b14']} />
       <fog attach="fog" args={['#0a0b14', 9, 30]} />
       <ambientLight intensity={0.6} />
@@ -128,9 +129,9 @@ export function FactoryFloor({ shapes, loadout, openSlots = 0, onTap }: { shapes
       {loadout.map((id, i) => {
         const s = shapes[id]
         if (!s) return null
-        return <FloorGem key={id} id={id} family={s.family} rarity={s.rarity} pos={posOf(i)} onTap={onTap} />
+        return <FloorGem key={id} id={id} family={s.family} rarity={s.rarity} pos={cellPos(boardCells[i] ?? i)} onTap={onTap} />
       })}
-      {Array.from({ length: openSlots }).map((_, j) => <GhostSlot key={`g${j}`} pos={posOf(loadout.length + j)} />)}
+      {free.map((cell, j) => <GhostSlot key={`g${j}`} pos={cellPos(cell)} />)}
 
       <ContactShadows position={[0, -0.41, 0]} opacity={0.55} scale={16} blur={2.6} far={4} />
       <Sparkles count={Math.round(60 * g.sparkle)} scale={[12, 5, 12]} position={[0, 1.8, 0]} size={1.6} speed={0.3} color="#ffcf6b" />

@@ -35,6 +35,9 @@ export interface View {
   owned: number[]
   distinct_owned: number
   loadout: number[]
+  board_cells: number[]
+  board_w: number
+  board_h: number
   euler_used: number
   euler_cap: number
   viewport_dim: number
@@ -182,6 +185,7 @@ interface Store {
   inspect: (id: number) => void
   pat: (id: number) => void
   tapShape: (id: number) => number
+  placeAt: (id: number, cell: number) => void
   forge: (a: number, b: number) => void
   claimRelic: () => void
   devOpen: boolean
@@ -385,6 +389,12 @@ export const useGame = create<Store>((set, get) => ({
       persist()
     }
     return r
+  },
+  placeAt: (id, cell) => {
+    if (game?.place_at(id, cell)) {
+      get().refresh()
+      persist()
+    }
   },
   forge: (a, b) => {
     if (!game) return

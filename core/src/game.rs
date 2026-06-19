@@ -17,6 +17,9 @@ const OFFLINE_CAP_MS: f64 = 24.0 * 3_600_000.0; // generous full-day cap — res
 const START_EULER_CAP: u32 = 6;
 const START_FLUX: f64 = 350.0; // onboarding: ~3 pulls in hand immediately, no 100-minute wait
 const STARTER_SHAPE: usize = 0; // Pip the sphere — the friendliest common + the Euler-ballast anchor
+const BOARD_W: usize = 5; // the Engine floor is a 5×5 grid; placement is a spatial puzzle (2D adjacency)
+const BOARD_H: usize = 5;
+const BOARD_N: usize = BOARD_W * BOARD_H;
 const RELIC_COST: u64 = 500; // shards to summon a Relic (the prestigious dupe-shard sink)
 const BANNER_RATEUP: f64 = 0.5; // on a themed banner, chance the within-tier pick is steered to a featured shape
 const RELIC_DROP_STD: f64 = 0.003; // rare "lucky find": chance any pull turns up a missing Relic (Standard banner)
@@ -52,6 +55,8 @@ pub struct GameState {
     pub pity: PityState,
     pub owned: Vec<u32>,    // count per shape id (len = COUNT); 0 = not owned
     pub loadout: Vec<usize>, // deployed shape ids
+    #[serde(default)]
+    pub board_cells: Vec<u8>, // parallel to loadout: the grid cell (0..BOARD_N) each deployed shape sits in
     pub euler_cap: u32,
     pub viewport_dim: u32,  // prestige axis (starts at 3 = our native 3D vantage)
     pub ng_cycle: u32,
@@ -119,6 +124,9 @@ pub struct GameStateView {
     pub owned: Vec<u32>,
     pub distinct_owned: u32,
     pub loadout: Vec<usize>,
+    pub board_cells: Vec<u8>, // grid cell per loadout entry (parallel)
+    pub board_w: u32,
+    pub board_h: u32,
     pub euler_used: u32,
     pub euler_cap: u32,
     pub viewport_dim: u32,
@@ -180,6 +188,7 @@ impl GameState {
             shards: 0,
             pity: PityState::default(),
             owned,
+            board_cells: Vec::new(),
             loadout: Vec::new(),
             euler_cap: START_EULER_CAP,
             viewport_dim: 3,
@@ -222,17 +231,22 @@ impl GameState {
                 p
             })
             .collect();
+        let grid = self.occupant_grid();
         for (i, &id) in self.loadout.iter().enumerate() {
             if content::is_knot(SHAPES[id].family) {
-                let amt = 0.20 * (1.0 + 0.15 * self.star_level(id) as f64);
-                if i > 0 {
-                    prod[i - 1] *= 1.0 + amt;
-                }
-                if i + 1 < n {
-                    prod[i + 1] *= 1.0 + amt;
+                let amt = 0.15 * (1.0 + 0.15 * self.star_level(id) as f64);
+                let cell = self.board_cells.get(i).copied().unwrap_or(i as u8);
+                for nc in Self::cell_neighbors(cell) {
+                    if nc >= 0 {
+                        let ni = grid[nc as usize];
+                        if ni >= 0 {
+                            prod[ni as usize] *= 1.0 + amt; // entangles each orthogonal neighbour on the board
+                        }
+                    }
                 }
             }
         }
+        let _ = n;
         prod.iter().sum()
     }
 
@@ -292,12 +306,31 @@ impl GameState {
 
     /// Kin synergy: each kin pair with BOTH partners deployed adds a production multiplier (the shipping payoff).
     pub fn synergy_count(&self) -> u32 {
-        // ADJACENT kin pairs in the loadout (order matters — the packing-puzzle combo, not "both deployed").
+        // ORTHOGONALLY-ADJACENT kin pairs on the 2D board (the spatial-puzzle combo). Each touching pair is
+        // counted once by only looking right + down from every occupied cell.
+        let g = self.occupant_grid();
         let mut n = 0u32;
-        for w in self.loadout.windows(2) {
-            let (a, b) = (w[0], w[1]);
-            if content::SYNERGY_PAIRS.iter().any(|&(x, y)| (x == a && y == b) || (x == b && y == a)) {
-                n += 1;
+        for cell in 0..BOARD_N {
+            let oi = g[cell];
+            if oi < 0 {
+                continue;
+            }
+            let a = self.loadout[oi as usize];
+            let (r, col) = (cell / BOARD_W, cell % BOARD_W);
+            let mut neigh = [-1i32; 2];
+            if col + 1 < BOARD_W {
+                neigh[0] = g[cell + 1];
+            }
+            if r + 1 < BOARD_H {
+                neigh[1] = g[cell + BOARD_W];
+            }
+            for &ni in &neigh {
+                if ni >= 0 {
+                    let b = self.loadout[ni as usize];
+                    if content::SYNERGY_PAIRS.iter().any(|&(x, y)| (x == a && y == b) || (x == b && y == a)) {
+                        n += 1;
+                    }
+                }
             }
         }
         n
@@ -622,6 +655,30 @@ impl GameState {
         self.loadout.iter().map(|&id| SHAPES[id].euler_cost).sum()
     }
 
+    fn first_free_cell(&self) -> Option<u8> {
+        (0..BOARD_N as u8).find(|c| !self.board_cells.contains(c))
+    }
+    /// grid cell index -> position in `loadout` (or -1). The authoritative 2D placement.
+    fn occupant_grid(&self) -> [i32; BOARD_N] {
+        let mut g = [-1i32; BOARD_N];
+        for (i, &c) in self.board_cells.iter().enumerate() {
+            if (c as usize) < BOARD_N {
+                g[c as usize] = i as i32;
+            }
+        }
+        g
+    }
+    /// the (up to 4) orthogonal neighbour cells of a cell, -1 where off the board.
+    fn cell_neighbors(cell: u8) -> [i32; 4] {
+        let c = cell as usize;
+        let (r, col) = (c / BOARD_W, c % BOARD_W);
+        [
+            if col > 0 { (c - 1) as i32 } else { -1 },
+            if col + 1 < BOARD_W { (c + 1) as i32 } else { -1 },
+            if r > 0 { (c - BOARD_W) as i32 } else { -1 },
+            if r + 1 < BOARD_H { (c + BOARD_W) as i32 } else { -1 },
+        ]
+    }
     pub fn deploy(&mut self, id: usize) -> bool {
         if id >= COUNT || self.owned[id] == 0 || self.loadout.contains(&id) {
             return false;
@@ -629,14 +686,44 @@ impl GameState {
         if self.euler_used() + SHAPES[id].euler_cost > self.effective_euler_cap() {
             return false;
         }
+        let Some(cell) = self.first_free_cell() else { return false };
         self.loadout.push(id);
+        self.board_cells.push(cell);
+        true
+    }
+    /// Manual puzzle move: put `id` at `cell` (auto-deploying it if needed). If the cell is taken, the two
+    /// shapes swap cells. Returns false if the move is impossible.
+    pub fn place_at(&mut self, id: usize, cell: u8) -> bool {
+        if (cell as usize) >= BOARD_N {
+            return false;
+        }
+        let idx = match self.loadout.iter().position(|&x| x == id) {
+            Some(i) => i,
+            None => {
+                if !self.deploy(id) {
+                    return false;
+                }
+                self.loadout.len() - 1
+            }
+        };
+        let cur = self.board_cells[idx];
+        if let Some(j) = self.board_cells.iter().position(|&c| c == cell) {
+            self.board_cells[j] = cur; // swap with the occupant
+        }
+        self.board_cells[idx] = cell;
         true
     }
 
     pub fn undeploy(&mut self, id: usize) -> bool {
-        let before = self.loadout.len();
-        self.loadout.retain(|&x| x != id);
-        self.loadout.len() != before
+        if let Some(i) = self.loadout.iter().position(|&x| x == id) {
+            self.loadout.remove(i);
+            if i < self.board_cells.len() {
+                self.board_cells.remove(i);
+            }
+            true
+        } else {
+            false
+        }
     }
 
     /// Greedy "good-enough" loadout so idlers never face the puzzle: free ballast first, then best
@@ -651,39 +738,55 @@ impl GameState {
             };
             eff(b).partial_cmp(&eff(a)).unwrap_or(std::cmp::Ordering::Equal)
         });
+        self.board_cells.clear();
         let mut used = 0u32;
         for id in ids {
             let c = SHAPES[id].euler_cost;
             if used + c <= self.effective_euler_cap() {
-                self.loadout.push(id);
-                used += c;
+                if let Some(cell) = self.first_free_cell() {
+                    self.loadout.push(id);
+                    self.board_cells.push(cell);
+                    used += c;
+                }
             }
         }
-        self.optimize_order();
+        self.optimize_placement();
     }
 
-    /// Reorder the chosen loadout to maximise the ACTUAL rate — solving the adjacency puzzle (kin pairs
-    /// side-by-side, knots between producers). Deterministic 2-opt: keep any pair-swap that raises the rate.
-    fn optimize_order(&mut self) {
+    /// Reposition shapes on the 2D board to maximise the ACTUAL rate — solving the spatial puzzle (kin pairs
+    /// touching, knots central so they entangle 4 neighbours). Deterministic hill-climb: move/swap each shape
+    /// to every cell and keep any change that raises the rate.
+    fn optimize_placement(&mut self) {
         let n = self.loadout.len();
-        if n < 3 {
+        if n < 2 {
             return;
         }
         let mut best = self.rate_per_hr();
         let mut improved = true;
         let mut guard = 0;
-        while improved && guard < 12 {
+        while improved && guard < 8 {
             improved = false;
             guard += 1;
             for i in 0..n {
-                for j in (i + 1)..n {
-                    self.loadout.swap(i, j);
+                for target in 0..BOARD_N as u8 {
+                    let cur = self.board_cells[i];
+                    if cur == target {
+                        continue;
+                    }
+                    let occ = self.board_cells.iter().position(|&c| c == target);
+                    self.board_cells[i] = target;
+                    if let Some(j) = occ {
+                        self.board_cells[j] = cur;
+                    }
                     let r = self.rate_per_hr();
                     if r > best + 1e-9 {
                         best = r;
                         improved = true;
                     } else {
-                        self.loadout.swap(i, j); // revert
+                        self.board_cells[i] = cur; // revert
+                        if let Some(j) = occ {
+                            self.board_cells[j] = target;
+                        }
                     }
                 }
             }
@@ -809,7 +912,24 @@ impl GameState {
         if state.facet_perks.len() != content::FACET_PERK_COUNT {
             state.facet_perks.resize(content::FACET_PERK_COUNT, 0);
         }
-        state.loadout.retain(|&id| id < COUNT && state.owned[id] > 0);
+        // 2D board: older saves have no board_cells — seed them row-packed (0,1,2…). Then prune the loadout +
+        // its cells together for any invalid/unowned ids so the two arrays stay parallel.
+        if state.board_cells.len() != state.loadout.len() {
+            state.board_cells = (0..state.loadout.len().min(BOARD_N) as u8).collect();
+        }
+        let mut keep_load = Vec::new();
+        let mut keep_cells = Vec::new();
+        for (i, &id) in state.loadout.iter().enumerate() {
+            if id < COUNT && state.owned[id] > 0 {
+                let cell = state.board_cells.get(i).copied().unwrap_or(i as u8);
+                if (cell as usize) < BOARD_N && !keep_cells.contains(&cell) {
+                    keep_load.push(id);
+                    keep_cells.push(cell);
+                }
+            }
+        }
+        state.loadout = keep_load;
+        state.board_cells = keep_cells;
         state.schema_version = SCHEMA_VERSION;
         Ok(state)
     }
@@ -822,6 +942,9 @@ impl GameState {
             owned: self.owned.clone(),
             distinct_owned: self.distinct_owned(),
             loadout: self.loadout.clone(),
+            board_cells: self.board_cells.clone(),
+            board_w: BOARD_W as u32,
+            board_h: BOARD_H as u32,
             euler_used: self.euler_used(),
             euler_cap: self.effective_euler_cap(),
             viewport_dim: self.viewport_dim,
@@ -920,6 +1043,9 @@ impl Game {
 
     pub fn deploy(&mut self, id: usize) -> bool {
         self.state.deploy(id)
+    }
+    pub fn place_at(&mut self, id: usize, cell: u8) -> bool {
+        self.state.place_at(id, cell)
     }
     pub fn undeploy(&mut self, id: usize) -> bool {
         self.state.undeploy(id)
@@ -1377,11 +1503,30 @@ mod tests {
         g.owned[a] = 1;
         g.owned[b] = 1;
         g.loadout = vec![a, b];
+        g.board_cells = vec![0, 1]; // cells 0 and 1 are orthogonally adjacent
         assert_eq!(g.synergy_count(), 1, "adjacent kin pair counts");
         let filler = (0..COUNT).find(|&i| i != a && i != b).unwrap();
         g.owned[filler] = 1;
         g.loadout = vec![a, filler, b];
+        g.board_cells = vec![0, 7, 13]; // a and b placed far apart (not orthogonally adjacent)
         assert_eq!(g.synergy_count(), 0, "non-adjacent kin pair gives no synergy");
+    }
+
+    #[test]
+    fn board_place_swap_and_undeploy_stay_parallel() {
+        let mut g = GameState::new(1, 0.0);
+        g.owned[1] = 1;
+        g.owned[3] = 1;
+        assert!(g.deploy(1)); // cell 0
+        assert!(g.deploy(3)); // cell 1
+        assert_eq!(g.board_cells, vec![0, 1]);
+        assert!(g.place_at(1, 1)); // move shape 1 → cell 1, swapping shape 3 to cell 0
+        let i1 = g.loadout.iter().position(|&x| x == 1).unwrap();
+        let i3 = g.loadout.iter().position(|&x| x == 3).unwrap();
+        assert_eq!(g.board_cells[i1], 1);
+        assert_eq!(g.board_cells[i3], 0);
+        assert!(g.undeploy(1));
+        assert_eq!(g.loadout.len(), g.board_cells.len()); // arrays stay parallel
     }
 
     #[test]
@@ -1402,6 +1547,7 @@ mod tests {
         let id = 10; // torus (genus 1) — handle-lane scales with stars
         g.owned[id] = 1;
         g.loadout = vec![id];
+        g.board_cells = vec![0];
         let base = g.rate_per_hr();
         g.owned[id] = 100; // many dupes → ★5
         assert!(g.star_level(id) > 0);
