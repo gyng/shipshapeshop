@@ -116,9 +116,9 @@ const STR: Dict = {
   },
   'tour.s2.title': { en: 'Deploy for Flux', ja: '配置で生産', zh: '部署产出' },
   'tour.s2.body': {
-    en: 'This is your factory floor. Deploy shapes here to produce Flux automatically — even while the game is closed.',
-    ja: 'ここが工場フロア。形を配置するとフラックスを自動生産——ゲームを閉じていても貯まる。',
-    zh: '这是你的工厂车间。部署形状即可自动产出流量——即使关闭游戏也在累积。',
+    en: 'You start with Pip the sphere. Deploy it here on the factory floor to produce Flux automatically — even while the game is closed. Then head to Pull for more shapes.',
+    ja: 'まずは球の「ピップ」を所持。工場フロアに配置するとフラックスを自動生産——閉じていても貯まる。次は✦でもっと形を引こう。',
+    zh: '你以球体「皮普」开局。把它部署到工厂车间即可自动产出流量——关闭游戏也在累积。然后去抽取更多形状。',
   },
   'tour.s3.title': { en: 'Workshop & beyond', ja: '工房とその先', zh: '工房与进阶' },
   'tour.s3.body': {

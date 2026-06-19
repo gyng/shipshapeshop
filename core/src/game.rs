@@ -16,6 +16,7 @@ const RATE_CAP: f64 = 900.0; // Flux/hr cap before prestige (DESIGN §7)
 const OFFLINE_CAP_MS: f64 = 24.0 * 3_600_000.0; // generous full-day cap — respects absence (only ever helps idle players, never speeds active play)
 const START_EULER_CAP: u32 = 6;
 const START_FLUX: f64 = 350.0; // onboarding: ~3 pulls in hand immediately, no 100-minute wait
+const STARTER_SHAPE: usize = 0; // Pip the sphere — the friendliest common + the Euler-ballast anchor
 const RELIC_COST: u64 = 500; // shards to summon a Relic (the prestigious dupe-shard sink)
 const BANNER_RATEUP: f64 = 0.5; // on a themed banner, chance the within-tier pick is steered to a featured shape
 const RELIC_DROP_STD: f64 = 0.003; // rare "lucky find": chance any pull turns up a missing Relic (Standard banner)
@@ -168,6 +169,8 @@ pub struct GameStateView {
 
 impl GameState {
     pub fn new(master_seed: u64, now_ms: f64) -> Self {
+        let mut owned = vec![0; COUNT];
+        owned[STARTER_SHAPE] = 1; // begin owning one common shape, so there's something to deploy/forge from turn one
         GameState {
             schema_version: SCHEMA_VERSION,
             master_seed,
@@ -176,7 +179,7 @@ impl GameState {
             flux: START_FLUX,
             shards: 0,
             pity: PityState::default(),
-            owned: vec![0; COUNT],
+            owned,
             loadout: Vec::new(),
             euler_cap: START_EULER_CAP,
             viewport_dim: 3,
@@ -446,6 +449,19 @@ impl GameState {
             let gain = (BOND_INSPECT_GAIN as f64 * self.affinity_mult()) as u32;
             self.bonds[id] = (self.bonds[id] + gain).min(cap);
         }
+    }
+
+    /// A bootstrap "polish" tap in the Forge: grants a little Flux scaled to the shape (trivial once idle
+    /// income dwarfs it, but it gets the first pulls moving — clicker-style early progression). Returns the
+    /// reward so the UI can float a "+N". NOT part of the idle/offline path, so it can't affect the balance sim.
+    pub fn tap_shape(&mut self, id: usize) -> f64 {
+        if id >= COUNT || self.owned[id] == 0 {
+            return 0.0;
+        }
+        let reward = 2.0 + SHAPES[id].base_prod * 0.02;
+        self.flux += reward;
+        self.lifetime_flux += reward;
+        reward
     }
 
     /// A "pat" — a very minor affinity bump (rate-limited by the UI).
@@ -920,6 +936,9 @@ impl Game {
     pub fn pat(&mut self, id: usize) {
         self.state.pat(id)
     }
+    pub fn tap_shape(&mut self, id: usize) -> f64 {
+        self.state.tap_shape(id)
+    }
     pub fn forge(&mut self, a: usize, b: usize) -> String {
         serde_json::to_string(&self.state.forge(a, b)).unwrap()
     }
@@ -1107,14 +1126,27 @@ mod tests {
     }
 
     #[test]
+    fn starter_shape_and_tap_bootstrap() {
+        let mut g = GameState::new(1, 0.0);
+        assert_eq!(g.owned[STARTER_SHAPE], 1); // begins owning one common
+        assert_eq!(g.distinct_owned(), 1);
+        let f0 = g.flux;
+        let r = g.tap_shape(STARTER_SHAPE);
+        assert!(r > 0.0 && (g.flux - f0 - r).abs() < 1e-9); // grants the returned Flux
+        assert_eq!(g.tap_shape(COUNT + 5), 0.0); // out of range → nothing
+        assert_eq!(g.tap_shape(40), 0.0); // unowned shape → nothing
+    }
+
+    #[test]
     fn pull_costs_flux_and_grants_a_shape() {
         let mut g = GameState::new(42, 0.0);
         g.flux = 250.0;
+        let before: u32 = g.owned.iter().sum();
         let out = g.pull(0.0);
         assert!(out.ok);
         assert!(out.shape_id >= 0);
         assert!((g.flux - 150.0).abs() < 1e-6); // 250 − 100
-        assert_eq!(g.distinct_owned(), 1);
+        assert_eq!(g.owned.iter().sum::<u32>(), before + 1); // pull granted exactly one copy
         // can't pull when broke
         g.flux = 50.0;
         assert!(!g.pull(0.0).ok);

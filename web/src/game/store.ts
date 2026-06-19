@@ -174,6 +174,7 @@ interface Store {
   recrystallize: () => void
   inspect: (id: number) => void
   pat: (id: number) => void
+  tapShape: (id: number) => number
   forge: (a: number, b: number) => void
   claimRelic: () => void
   devOpen: boolean
@@ -364,6 +365,15 @@ export const useGame = create<Store>((set, get) => ({
         persist()
       }
     }
+  },
+  tapShape: (id) => {
+    if (!game) return 0
+    const r = game.tap_shape(id)
+    if (r > 0) {
+      get().refresh()
+      persist()
+    }
+    return r
   },
   forge: (a, b) => {
     if (!game) return

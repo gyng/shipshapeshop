@@ -1194,6 +1194,40 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
   )
 }
 
+// Bootstrap clicker: tap an owned shape to shed a little Flux. Trivial late-game, but it gets the first
+// pulls moving (and gives the starter shape something to do before you can deploy).
+function PolishBench() {
+  const shapes = useGame((s) => s.shapes)
+  const view = useGame((s) => s.view)
+  const tapShape = useGame((s) => s.tapShape)
+  if (!view) return null
+  const owned = shapes.filter((s) => view.owned[s.id] > 0)
+  if (!owned.length) return null
+  const onTap = (id: number, x: number, y: number) => {
+    const r = tapShape(id)
+    if (r > 0) {
+      sfxClimbTick(0)
+      useFloaters.getState().spawn(`+${Math.round(r)} ✦`, { color: '#ffd76b', x, y: y - 12 })
+    }
+  }
+  return (
+    <>
+      <h4 style={S.boardSub}>Polish bench</h4>
+      <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>
+        Tap a shape to buff it — it sheds a little <b style={S.fluxIcon}>✦ Flux</b>. Tiny once your factory hums, but it bootstraps your first pulls.
+      </p>
+      <div style={S.benchGrid}>
+        {owned.map((s) => (
+          <button key={s.id} className="chip" style={S.benchPill} onClick={(e) => onTap(s.id, e.clientX, e.clientY)} title={`Polish ${s.nick}`}>
+            <span style={{ ...S.tileDot, background: RARITY_COLOR[s.rarity] }} />
+            <span style={S.chipNick}>{glyphOf(s.family)} {s.nick}</span>
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
 function ForgeView() {
   const { recipes, view, shapes, forge, claimRelic } = useGame()
   if (!view) return null
@@ -1219,6 +1253,8 @@ function ForgeView() {
       <div style={S.floorWrap}>
         {feat && <ForgeAltar a={shapes[feat.a]} b={shapes[feat.b]} out={shapes[feat.out]} discovered={view.discovered[featIdx]} />}
       </div>
+
+      <PolishBench />
 
       <div style={S.relicPanel}>
         <div style={{ flex: 1 }}>
@@ -1279,10 +1315,10 @@ function ForgeToast() {
 // A light, skippable, replayable first-run tour. A bottom card walks the player through the systems, switching
 // tabs as it goes; it never blocks play (the backdrop is click-through).
 const TOUR_STEPS: { tab: Tab; icon: string; key: string }[] = [
-  { tab: 'gacha', icon: '✦', key: 'tour.s0' },
+  { tab: 'engine', icon: '🏭', key: 'tour.s2' }, // deploy your starter shape first
+  { tab: 'gacha', icon: '✦', key: 'tour.s0' }, // then pull for more
   { tab: 'gallery', icon: '🗂️', key: 'tour.s1' },
-  { tab: 'engine', icon: '🏭', key: 'tour.s2' },
-  { tab: 'engine', icon: '🔧', key: 'tour.s3' },
+  { tab: 'workshop', icon: '🔧', key: 'tour.s3' }, // upgrades now live in their own tab
   { tab: 'forge', icon: '🔨', key: 'tour.s4' },
   { tab: 'gacha', icon: '🎯', key: 'tour.s5' },
 ]
@@ -1882,6 +1918,8 @@ const S: Record<string, CSSProperties> = {
   chatMsg: { display: 'flex', flexDirection: 'column', gap: 1, background: '#14151d', borderRadius: 10, padding: '8px 12px' },
   chatHandle: { fontSize: 11, fontWeight: 800 },
   chatText: { fontSize: 13.5, color: '#cdd2e0', lineHeight: 1.45 },
+  benchGrid: { display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 },
+  benchPill: { display: 'inline-flex', alignItems: 'center', gap: 6, background: '#14151d', border: '1px solid #23252f', borderRadius: 999, padding: '6px 12px', cursor: 'pointer', color: '#cdd2e0', fontSize: 13 },
   multGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 6, marginBottom: 10 },
   multRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#14151d', border: '1px solid #23252f', borderRadius: 8, padding: '6px 10px' },
   engine: { maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 },
