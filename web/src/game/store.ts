@@ -106,6 +106,12 @@ interface Store {
   inspect: (id: number) => void
   forge: (a: number, b: number) => void
   claimRelic: () => void
+  devOpen: boolean
+  toggleDev: () => void
+  devAddFlux: () => void
+  devAddShards: () => void
+  devUnlockAll: () => void
+  resetSave: () => void
   dismissReveal: () => void
   dismissForge: () => void
   dismissOffline: () => void
@@ -121,6 +127,7 @@ export const useGame = create<Store>((set, get) => ({
   lastReveal: null,
   lastForge: null,
   offline: null,
+  devOpen: false,
 
   boot: async () => {
     await init()
@@ -228,6 +235,26 @@ export const useGame = create<Store>((set, get) => ({
       persist()
       set({ lastForge: { ok: true, out_id: id, is_discovery: true } }) // reuse the reveal toast
     }
+  },
+  toggleDev: () => set((s) => ({ devOpen: !s.devOpen })),
+  devAddFlux: () => {
+    game?.dev_add_flux(10000)
+    get().refresh()
+    persist()
+  },
+  devAddShards: () => {
+    game?.dev_add_shards(2000)
+    get().refresh()
+    persist()
+  },
+  devUnlockAll: () => {
+    game?.dev_unlock_all()
+    get().refresh()
+    persist()
+  },
+  resetSave: () => {
+    localStorage.removeItem(SAVE_KEY)
+    location.reload()
   },
   dismissWelcome: () => set({ firstLaunch: false }),
   dismissReveal: () => set({ lastReveal: null }),

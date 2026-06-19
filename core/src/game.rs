@@ -361,6 +361,21 @@ impl GameState {
         true
     }
 
+    // ── dev/debug helpers ──
+    pub fn dev_add_flux(&mut self, amount: f64) {
+        self.flux += amount.max(0.0);
+    }
+    pub fn dev_add_shards(&mut self, amount: u64) {
+        self.shards += amount;
+    }
+    pub fn dev_unlock_all(&mut self) {
+        for c in self.owned.iter_mut() {
+            if *c == 0 {
+                *c = 1;
+            }
+        }
+    }
+
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("GameState serializes")
     }
@@ -482,6 +497,15 @@ impl Game {
     }
     pub fn claim_relic(&mut self) -> i32 {
         self.state.claim_relic()
+    }
+    pub fn dev_add_flux(&mut self, amount: f64) {
+        self.state.dev_add_flux(amount)
+    }
+    pub fn dev_add_shards(&mut self, amount: f64) {
+        self.state.dev_add_shards(amount as u64)
+    }
+    pub fn dev_unlock_all(&mut self) {
+        self.state.dev_unlock_all()
     }
     pub fn serialize(&self) -> String {
         self.state.to_json()

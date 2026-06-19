@@ -6,6 +6,7 @@ import { CODEX } from './content/codex'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
 import { useMute } from './audio'
+import { DEV_MODE } from './devmode'
 
 function fmt(n: number): string {
   if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
@@ -71,6 +72,24 @@ export function App() {
       <WelcomeModal />
       {inspect !== null && <Inspector id={inspect} onClose={() => setInspect(null)} />}
       <Nudge />
+      <DevBar />
+    </div>
+  )
+}
+
+// Dev toolbar — compiled out at release via DEV_MODE (see devmode.ts).
+function DevBar() {
+  const { devOpen, toggleDev, devAddFlux, devAddShards, devUnlockAll, recrystallize, resetSave } = useGame()
+  if (!DEV_MODE || !devOpen) return null
+  return (
+    <div style={S.devBar}>
+      <span style={S.devTitle}>🛠 dev</span>
+      <button style={S.devBtn} onClick={devAddFlux}>+10k ✦</button>
+      <button style={S.devBtn} onClick={devAddShards}>+2k ◈</button>
+      <button style={S.devBtn} onClick={devUnlockAll}>Unlock all</button>
+      <button style={S.devBtn} onClick={recrystallize}>Recrystallize ↑</button>
+      <button style={S.devBtn} onClick={resetSave}>Reset save</button>
+      <button style={S.devBtn} onClick={toggleDev}>close ✕</button>
     </div>
   )
 }
@@ -105,6 +124,7 @@ function Hud() {
   const setLang = useLangStore((s) => s.setLang)
   const muted = useMute((s) => s.muted)
   const toggleMute = useMute((s) => s.toggle)
+  const toggleDev = useGame((s) => s.toggleDev)
   if (!view) return null
   return (
     <header style={S.hud}>
@@ -118,6 +138,7 @@ function Hud() {
         <span>{tr('hud.collection')} {view.distinct_owned}/41</span>
         <span>{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
         <button onClick={toggleMute} style={S.langBtn} aria-label="toggle sound">{muted ? '🔇' : '🔊'}</button>
+        {DEV_MODE && <button onClick={toggleDev} style={S.langBtn} aria-label="dev tools">🛠</button>}
         <span style={S.langSwitch}>
           {LANGS.map((l) => (
             <button key={l.id} onClick={() => setLang(l.id)} style={{ ...S.langBtn, ...(lang === l.id ? S.langBtnOn : {}) }}>
@@ -471,4 +492,7 @@ const S: Record<string, CSSProperties> = {
   nudge: { position: 'fixed', left: '50%', bottom: 16, transform: 'translateX(-50%)', maxWidth: 560, width: 'calc(100% - 32px)', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(28,30,42,0.94)', border: '1px solid #2a2c3a', borderRadius: 10, padding: '10px 14px', boxShadow: '0 6px 24px rgba(0,0,0,0.45)', zIndex: 5 },
   nudgeText: { flex: 1, fontSize: 13, color: '#cdd2e0', lineHeight: 1.4 },
   nudgeClose: { background: 'none', border: 'none', color: '#8a90a8', cursor: 'pointer', fontSize: 14, padding: 4 },
+  devBar: { position: 'fixed', top: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, alignItems: 'center', background: 'rgba(40,20,50,0.96)', border: '1px solid #6b3a7a', borderRadius: 10, padding: '6px 10px', zIndex: 20, flexWrap: 'wrap', maxWidth: '94%' },
+  devTitle: { color: '#ff9ecf', fontSize: 12, fontWeight: 700, marginRight: 4 },
+  devBtn: { background: '#3a2348', border: '1px solid #6b3a7a', color: '#fff', borderRadius: 6, padding: '4px 8px', fontSize: 12, cursor: 'pointer' },
 }
