@@ -26,7 +26,7 @@ import { curatorRank, RANK_COLOR } from './curatorRank'
 import { useInspector } from './inspector'
 import { useHistory } from './history'
 import { useHelp } from './help'
-import { Numeral } from './ui'
+import { Numeral, Tooltip, COLOR } from './ui'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
@@ -226,6 +226,65 @@ function Nudge() {
   )
 }
 
+// Rich tooltip for the HUD Flux: a live history sparkline + rate + the active production-multiplier breakdown
+// (Paradox-style — the useful detail, on hover/tap).
+function FluxTooltipContent() {
+  const view = useGame((s) => s.view)
+  const fluxHistory = useGame((s) => s.fluxHistory)
+  const tr = useT()
+  if (!view) return null
+  const data = fluxHistory.slice(-60)
+  let spark: ReactNode = null
+  if (data.length >= 2) {
+    const w = 200
+    const h = 34
+    const min = Math.min(...data)
+    const max = Math.max(...data)
+    const range = max - min || 1
+    const pts = data.map((v, i) => [(i / (data.length - 1)) * w, h - ((v - min) / range) * (h - 6) - 3])
+    const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ')
+    spark = (
+      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 34, display: 'block', margin: '6px 0' }} preserveAspectRatio="none">
+        <path d={`${line} L ${w} ${h} L 0 ${h} Z`} fill="rgba(255,207,107,0.18)" />
+        <path d={line} fill="none" stroke={COLOR.gold} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+      </svg>
+    )
+  }
+  const mults: [string, number][] = [
+    [tr('production.shapeEffects.label'), view.mult_shape_effects],
+    [tr('production.synergy.label'), view.mult_synergy],
+    [tr('production.genusRes.label'), view.mult_genus_res],
+    [tr('production.ballast.label'), view.mult_ballast],
+    [tr('production.crossdim.label'), view.mult_crossdim],
+    [tr('production.bond.label'), view.mult_bond],
+    [tr('production.set.label'), view.mult_set],
+    [tr('production.milestone.label'), view.mult_milestone],
+    [tr('production.facet.label'), view.mult_facet],
+    [tr('production.prestige.label'), view.mult_prestige],
+    [tr('production.signature.label'), view.mult_signature],
+  ]
+  const active = mults.filter(([, m]) => m > 1.0001)
+  return (
+    <div style={{ minWidth: 210 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: COLOR.gold, fontWeight: 700 }}>
+        <span>✦ {tr('hud.flux')}</span>
+        <span>+{fmt(view.rate_per_hr)}{tr('hud.perHour')}</span>
+      </div>
+      {spark}
+      {active.length > 0 && (
+        <div style={{ borderTop: '1px solid #2c2f3c', marginTop: 2, paddingTop: 4 }}>
+          {active.map(([label, m]) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, fontSize: 12 }}>
+              <span style={{ color: '#9aa0b4' }}>{label}</span>
+              <span style={{ color: '#5fe0c6', fontWeight: 700 }}>×{m.toFixed(2)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // A dismissible help/intro blurb. Tap × to hide it (persisted); Settings ▸ Gameplay reopens all of them.
 function HelpNote({ id, children, style }: { id: string; children: ReactNode; style?: CSSProperties }) {
   const dismissed = useHelp((s) => s.dismissed.includes(id))
@@ -296,15 +355,23 @@ function Hud() {
   if (!view) return null
   return (
     <header style={S.hud}>
-      <div title={tr('hud.fluxTip')}>
-        <span style={S.fluxLabel}><span style={S.fluxIcon}>✦</span> {tr('hud.flux')}</span>
-        <span ref={fluxRef} key={popN} className="value-pop" style={S.fluxValue}>{fmt(flux)}</span>
-        <span style={S.rate} title={tr('hud.rateTip')}>+<Numeral value={view.rate_per_hr} format={fmt} />{tr('hud.perHour')}</span>
-      </div>
+      <Tooltip content={<FluxTooltipContent />}>
+        <div style={{ cursor: 'help' }}>
+          <span style={S.fluxLabel}><span style={S.fluxIcon}>✦</span> {tr('hud.flux')}</span>
+          <span ref={fluxRef} key={popN} className="value-pop" style={S.fluxValue}>{fmt(flux)}</span>
+          <span style={S.rate}>+<Numeral value={view.rate_per_hr} format={fmt} />{tr('hud.perHour')}</span>
+        </div>
+      </Tooltip>
       <div style={S.hudStats}>
-        <span title={tr('hud.shardsTip')}><span ref={shardRef} key={shardPop} className="value-pop" style={{ display: 'inline-block' }}><span style={S.shardIcon}>◈</span> <Numeral value={view.shards} format={fmt} /></span> {tr('hud.shards')}</span>
-        <span title={tr('hud.collectionTip')}>{tr('hud.collection')} {view.distinct_owned}/41</span>
-        <span title={tr('hud.dimTip')}>{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
+        <Tooltip content={<span style={{ fontSize: 12.5 }}>{tr('hud.shardsTip')}</span>}>
+          <span style={{ cursor: 'help' }}><span ref={shardRef} key={shardPop} className="value-pop" style={{ display: 'inline-block' }}><span style={S.shardIcon}>◈</span> <Numeral value={view.shards} format={fmt} /></span> {tr('hud.shards')}</span>
+        </Tooltip>
+        <Tooltip content={<span style={{ fontSize: 12.5 }}>{tr('hud.collectionTip')}</span>}>
+          <span style={{ cursor: 'help' }}>{tr('hud.collection')} {view.distinct_owned}/41</span>
+        </Tooltip>
+        <Tooltip content={<span style={{ fontSize: 12.5 }}>{tr('hud.dimTip')}</span>}>
+          <span style={{ cursor: 'help' }}>{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
+        </Tooltip>
         {view.facets > 0 && <span title={tr('hud.facetsTip')}>🌌 {view.facets}</span>}
         <button onClick={toggleMute} style={S.langBtn} aria-label={tr('hud.muteAria')} title={tr('common.toggleSound')}>{muted ? '🔇' : '🔊'}</button>
         <button onClick={() => useDialogLog.getState().setOpen(true)} style={S.langBtn} aria-label={tr('hud.dialogLogAria')} title={tr('hud.dialogLogTip')}>📜</button>
