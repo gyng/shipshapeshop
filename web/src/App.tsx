@@ -215,14 +215,32 @@ function GachaView() {
 
 function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
   const { shapes, view } = useGame()
+  const [q, setQ] = useState('')
+  const [hidden, setHidden] = useState<Set<string>>(new Set())
   if (!view) return null
+  const ql = q.trim().toLowerCase()
+  const toggle = (r: string) => setHidden((h) => { const n = new Set(h); n.has(r) ? n.delete(r) : n.add(r); return n })
   return (
     <div style={S.gallery}>
-      {RARITY_ORDER.map((r) => (
+      <div style={S.galleryControls}>
+        <input style={S.search} placeholder="🔎 search owned shapes…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <div style={S.filterChips}>
+          {RARITY_ORDER.map((r) => (
+            <button key={r} onClick={() => toggle(r)} title={`toggle ${r}`}
+              style={{ ...S.filterChip, borderColor: RARITY_COLOR[r], opacity: hidden.has(r) ? 0.35 : 1, color: hidden.has(r) ? '#6b7088' : RARITY_COLOR[r] }}>
+              {hidden.has(r) ? '○' : '●'} {r === 'Ssr' ? 'SSR' : r === 'Ur' ? 'UR' : r === 'Relic' ? 'Relics' : r}
+            </button>
+          ))}
+        </div>
+      </div>
+      {RARITY_ORDER.filter((r) => !hidden.has(r)).map((r) => {
+        const tiles = shapes.filter((s) => s.rarity === r && (!ql || (view.owned[s.id] > 0 && s.nick.toLowerCase().includes(ql))))
+        if (ql && tiles.length === 0) return null
+        return (
         <section key={r}>
           <h3 style={{ ...S.tierHead, color: RARITY_COLOR[r] }}>{r === 'Ssr' ? 'SSR' : r === 'Ur' ? 'UR' : r === 'Relic' ? 'Reference Wing' : r}</h3>
           <div style={S.grid}>
-            {shapes.filter((s) => s.rarity === r).map((s) => {
+            {tiles.map((s) => {
               const owned = view.owned[s.id] > 0
               return (
                 <button key={s.id} onClick={() => onInspect(s.id)}
@@ -235,7 +253,8 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
             })}
           </div>
         </section>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -252,10 +271,12 @@ function GemChip({ shape, show }: { shape: ShapeRow | undefined; show: boolean }
 
 function EngineView() {
   const { shapes, view, deploy, undeploy, autoArrange, recrystallize } = useGame()
+  const [q, setQ] = useState('')
   if (!view) return null
   const owned = shapes.filter((s) => view.owned[s.id] > 0)
   const deployed = owned.filter((s) => view.loadout.includes(s.id))
-  const bench = owned.filter((s) => !view.loadout.includes(s.id))
+  const ql = q.trim().toLowerCase()
+  const bench = owned.filter((s) => !view.loadout.includes(s.id) && (!ql || s.nick.toLowerCase().includes(ql) || s.family.includes(ql)))
   const pct = view.euler_cap ? view.euler_used / view.euler_cap : 0
   return (
     <div style={S.board}>
@@ -267,11 +288,12 @@ function EngineView() {
         </p>
       </div>
       <div style={S.floorWrap}>
-        {view.loadout.length > 0 ? (
-          <FactoryFloor shapes={shapes} loadout={view.loadout} />
-        ) : (
-          <div style={S.floorEmpty}>🏭 Your factory floor is empty — deploy shapes below to see them spinning here, producing Flux.</div>
-        )}
+        <FactoryFloor
+          shapes={shapes}
+          loadout={view.loadout}
+          openSlots={view.euler_used < view.euler_cap ? (view.loadout.length === 0 ? 3 : 2) : 0}
+        />
+        {view.loadout.length === 0 && <div style={S.floorTag}>🏭 Empty floor — tap a shape below (or Auto-arrange) to fill a slot ⭕</div>}
       </div>
       <div style={S.boardStats}>
         <div style={S.bigStat}>
@@ -307,9 +329,12 @@ function EngineView() {
         ))}
       </div>
 
-      <h4 style={S.boardSub}>In storage — {bench.length}</h4>
+      <div style={S.listHead}>
+        <h4 style={{ ...S.boardSub, margin: 0 }}>In storage — {bench.length}</h4>
+        <input style={S.search} placeholder="🔎 filter…" value={q} onChange={(e) => setQ(e.target.value)} />
+      </div>
       <div style={S.chipGrid}>
-        {bench.length === 0 && <p style={S.emptyHint}>Everything you own is deployed. Pull more shapes to expand the floor!</p>}
+        {bench.length === 0 && <p style={S.emptyHint}>{ql ? 'No stored shapes match your filter.' : 'Everything you own is deployed. Pull more shapes to expand the floor!'}</p>}
         {bench.map((s) => {
           const fits = view.euler_used + s.euler_cost <= view.euler_cap
           return (
@@ -908,7 +933,8 @@ const S: Record<string, CSSProperties> = {
   budgetBox: { flex: 1, minWidth: 160 },
   budgetTop: { display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#9aa0b4', marginBottom: 4 },
   boardBtns: { display: 'flex', gap: 8 },
-  floorWrap: { height: 300, borderRadius: 14, overflow: 'hidden', border: '1px solid #23252f', background: '#0a0b12' },
+  floorWrap: { position: 'relative', height: 300, borderRadius: 14, overflow: 'hidden', border: '1px solid #23252f', background: '#0a0b12' },
+  floorTag: { position: 'absolute', left: 0, right: 0, bottom: 10, textAlign: 'center', color: '#9aa0b4', fontSize: 13, pointerEvents: 'none', textShadow: '0 1px 6px #000' },
   floorEmpty: { display: 'grid', placeItems: 'center', height: '100%', padding: 24, textAlign: 'center', color: '#6b7088', fontSize: 14, lineHeight: 1.5 },
   boardSub: { margin: '6px 2px 0', fontSize: 12, color: '#8a90a8', textTransform: 'uppercase', letterSpacing: 0.6 },
   chipGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(146px, 1fr))', gap: 8 },
@@ -962,4 +988,11 @@ const S: Record<string, CSSProperties> = {
   shipText: { color: '#e8eaf2', fontSize: 15, lineHeight: 1.5, margin: '6px 0 0', fontStyle: 'italic' },
   shipDots: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 },
   shipDot: { width: 7, height: 7, borderRadius: '50%', background: '#ff9ecf' },
+
+  // ── list search / filters ──
+  listHead: { display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', flexWrap: 'wrap' },
+  search: { background: '#0c0d15', border: '1px solid #2a2c3a', borderRadius: 8, color: '#e8eaf2', padding: '6px 10px', fontSize: 13, width: 170 },
+  galleryControls: { display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 8 },
+  filterChips: { display: 'flex', gap: 6, flexWrap: 'wrap' },
+  filterChip: { background: '#101119', border: '1px solid', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' },
 }

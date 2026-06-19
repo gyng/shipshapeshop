@@ -41,13 +41,32 @@ function FloorGem({ family, rarity, pos }: { family: string; rarity: keyof typeo
   )
 }
 
-export function FactoryFloor({ shapes, loadout }: { shapes: ShapeRow[]; loadout: number[] }) {
+// An empty "drop here" slot — a pulsing ring marking room to deploy another shape.
+function GhostSlot({ pos }: { pos: [number, number, number] }) {
+  const ref = useRef<THREE.Mesh>(null)
+  useFrame((state) => {
+    if (ref.current) ref.current.scale.setScalar(1 + Math.sin(state.clock.elapsedTime * 2) * 0.07)
+  })
+  return (
+    <mesh ref={ref} position={[pos[0], -0.4, pos[2]]} rotation={[-Math.PI / 2, 0, 0]}>
+      <ringGeometry args={[0.24, 0.34, 36]} />
+      <meshBasicMaterial color="#6a7099" transparent opacity={0.4} side={THREE.DoubleSide} />
+    </mesh>
+  )
+}
+
+export function FactoryFloor({ shapes, loadout, openSlots = 0 }: { shapes: ShapeRow[]; loadout: number[]; openSlots?: number }) {
   const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
   const [backdrop, key, cool, warm] = scene.env
-  const n = loadout.length
-  const cols = Math.max(1, Math.ceil(Math.sqrt(n)))
-  const rows = Math.max(1, Math.ceil(n / cols))
+  const total = Math.max(1, loadout.length + openSlots)
+  const cols = Math.max(1, Math.ceil(Math.sqrt(total)))
+  const rows = Math.max(1, Math.ceil(total / cols))
   const spacing = 1.2
+  const posOf = (i: number): [number, number, number] => {
+    const c = i % cols
+    const r = Math.floor(i / cols)
+    return [(c - (cols - 1) / 2) * spacing, 0, (r - (rows - 1) / 2) * spacing]
+  }
   return (
     <Canvas dpr={[1, 1.8]} shadows camera={{ position: [0, 2.9, 5.6], fov: 42 }}>
       <color attach="background" args={['#0a0b14']} />
@@ -83,12 +102,9 @@ export function FactoryFloor({ shapes, loadout }: { shapes: ShapeRow[]; loadout:
       {loadout.map((id, i) => {
         const s = shapes[id]
         if (!s) return null
-        const c = i % cols
-        const r = Math.floor(i / cols)
-        const x = (c - (cols - 1) / 2) * spacing
-        const z = (r - (rows - 1) / 2) * spacing
-        return <FloorGem key={id} family={s.family} rarity={s.rarity} pos={[x, 0, z]} />
+        return <FloorGem key={id} family={s.family} rarity={s.rarity} pos={posOf(i)} />
       })}
+      {Array.from({ length: openSlots }).map((_, j) => <GhostSlot key={`g${j}`} pos={posOf(loadout.length + j)} />)}
 
       <ContactShadows position={[0, -0.41, 0]} opacity={0.55} scale={16} blur={2.6} far={4} />
       <Sparkles count={60} scale={[12, 5, 12]} position={[0, 1.8, 0]} size={1.6} speed={0.3} color="#ffcf6b" />
