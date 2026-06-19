@@ -56,6 +56,7 @@ export interface View {
   pulls_by_rarity: number[]
   created_ms: number
   last_seen_ms: number
+  active_synergies: number
 }
 
 export interface Recipe {

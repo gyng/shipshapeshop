@@ -136,6 +136,18 @@ pub fn find_recipe(a: usize, b: usize) -> Option<usize> {
 /// The 5 Platonic solids (a family set, M7): completing it grants a permanent global bonus.
 pub const PLATONIC_IDS: [usize; 5] = [1, 2, 3, 4, 5]; // cube, tetra, octa, dodeca, icosa
 
+/// Kin pairs (duals & soulmates) — deploying BOTH grants a production synergy (the "shipping" payoff).
+pub const SYNERGY_PAIRS: [(usize, usize); 8] = [
+    (1, 3),   // cube ⇄ octahedron (dual)
+    (4, 5),   // dodecahedron ⇄ icosahedron (dual)
+    (14, 15), // catenoid ⇄ helicoid (soulmate)
+    (16, 29), // trefoil ⇄ Seifert (soulmate)
+    (10, 12), // torus → genus-2 (parent/child)
+    (11, 18), // Möbius → Klein (parent/child)
+    (33, 34), // tesseract ⇄ 16-cell (dual)
+    (36, 37), // 120-cell ⇄ 600-cell (dual)
+];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,6 +220,13 @@ mod tests {
             let s = &SHAPES[id];
             let expected = s.base_prod * (1.0 + 0.25 * s.genus as f64);
             assert!((effective_prod(id) - expected).abs() < 1e-9, "effective_prod mismatch for {}", s.nick);
+        }
+    }
+
+    #[test]
+    fn synergy_pairs_are_valid_distinct_ids() {
+        for (a, b) in SYNERGY_PAIRS {
+            assert!(a < COUNT && b < COUNT && a != b, "bad synergy pair ({a},{b})");
         }
     }
 

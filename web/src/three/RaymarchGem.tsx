@@ -40,6 +40,7 @@ const FRAG = /* glsl */ `
   uniform float uAberr;   // chromatic dispersion
   uniform float uYaw;     // drag-orbit
   uniform float uPitch;
+  uniform float uZoom;    // wheel/pinch zoom (camera distance)
 
   mat3 R;
 
@@ -131,7 +132,7 @@ const FRAG = /* glsl */ `
     R = rotY(uTime*0.12 + uYaw) * rotX(0.4 + uPitch);
     vec2 uv = (vUv*2.0-1.0);
     uv.x *= uRes.x/uRes.y;
-    vec3 ro = vec3(0.0,0.0,3.2);
+    vec3 ro = vec3(0.0,0.0,3.2*uZoom);
     vec3 rd = normalize(vec3(uv,-2.2));
     float t = trace(ro,rd);
     vec3 col;
@@ -156,6 +157,7 @@ export function RaymarchGem({ family, rarity }: { family: string; rarity: Rarity
   const pitch = useRef(0)
   const drag = useRef(false)
   const last = useRef({ x: 0, y: 0 })
+  const zoom = useRef(1)
 
   const uniforms = useMemo(() => {
     const c = new THREE.Color(RARITY_COLOR[rarity])
@@ -168,6 +170,7 @@ export function RaymarchGem({ family, rarity }: { family: string; rarity: Rarity
       uAberr: { value: 0.02 + RANK[rarity] * 0.02 },
       uYaw: { value: 0 },
       uPitch: { value: 0 },
+      uZoom: { value: 1 },
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [family, rarity])
@@ -179,6 +182,7 @@ export function RaymarchGem({ family, rarity }: { family: string; rarity: Rarity
     m.uniforms.uRes.value.set(state.size.width, state.size.height)
     m.uniforms.uYaw.value = yaw.current
     m.uniforms.uPitch.value = pitch.current
+    m.uniforms.uZoom.value = zoom.current
   })
 
   return (
@@ -199,6 +203,9 @@ export function RaymarchGem({ family, rarity }: { family: string; rarity: Rarity
       }}
       onPointerOut={() => {
         drag.current = false
+      }}
+      onWheel={(e) => {
+        zoom.current = Math.max(0.45, Math.min(2.6, zoom.current + e.deltaY * 0.0012))
       }}
     >
       <planeGeometry args={[2, 2]} />

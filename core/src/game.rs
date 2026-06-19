@@ -22,6 +22,7 @@ const FORGE_COST: u64 = 50; // shards to forge
 const BOND_INSPECT_GAIN: u32 = 25; // affinity per inspect (the calm idler's path to bonds)
 const BOND_THRESHOLDS: [u32; 6] = [0, 100, 300, 700, 1500, 3000]; // levels 0..5
 const PLATONIC_SET_MULT: f64 = 0.15; // +15% global for completing the Platonic set
+const SYNERGY_BONUS: f64 = 0.08; // +8% per deployed kin pair (duals/soulmates)
 const AFFINITY_PER_HR_DEPLOYED: f64 = 30.0; // passive bond gain while deployed
 
 fn shard_value(r: Rarity) -> u64 {
@@ -128,6 +129,7 @@ pub struct GameStateView {
     pub pulls_by_rarity: Vec<u64>,
     pub created_ms: f64,
     pub last_seen_ms: f64,
+    pub active_synergies: u32,
 }
 
 impl GameState {
@@ -159,13 +161,28 @@ impl GameState {
 
     pub fn rate_per_hr(&self) -> f64 {
         let sum: f64 = self.loadout.iter().map(|&id| content::effective_prod(id)).sum();
-        (BASE_IDLE + sum).min(RATE_CAP) * self.prestige_mult * self.set_bonus_mult() * self.bond_mult()
+        (BASE_IDLE + sum).min(RATE_CAP)
+            * self.prestige_mult
+            * self.set_bonus_mult()
+            * self.bond_mult()
+            * self.synergy_mult()
     }
 
     /// Family set bonus (M7): completing the 5 Platonic solids grants a permanent global multiplier.
     pub fn set_bonus_mult(&self) -> f64 {
         let platonic = content::PLATONIC_IDS.iter().all(|&id| self.owned[id] > 0);
         1.0 + if platonic { PLATONIC_SET_MULT } else { 0.0 }
+    }
+
+    /// Kin synergy: each kin pair with BOTH partners deployed adds a production multiplier (the shipping payoff).
+    pub fn synergy_count(&self) -> u32 {
+        content::SYNERGY_PAIRS
+            .iter()
+            .filter(|(a, b)| self.loadout.contains(a) && self.loadout.contains(b))
+            .count() as u32
+    }
+    pub fn synergy_mult(&self) -> f64 {
+        1.0 + SYNERGY_BONUS * self.synergy_count() as f64
     }
 
     pub fn bond_level(&self, id: usize) -> u32 {
@@ -508,6 +525,7 @@ impl GameState {
             pulls_by_rarity: self.pulls_by_rarity.clone(),
             created_ms: self.created_ms,
             last_seen_ms: self.last_seen_ms,
+            active_synergies: self.synergy_count(),
         }
     }
 }

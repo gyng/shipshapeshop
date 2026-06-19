@@ -7,6 +7,7 @@ import { RARITY_COLOR } from './three/Gem'
 import { CODEX } from './content/codex'
 import { SCENES, sceneById } from './content/cosmetics'
 import { KINSHIP } from './content/kinship'
+import { SHIP_SCENES, useShips, hasShip } from './content/ships'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
 import { useMute } from './audio'
@@ -80,6 +81,8 @@ export function App() {
       <WelcomeModal />
       {inspect !== null && <Inspector id={inspect} onClose={() => setInspect(null)} />}
       <SettingsModal />
+      <ShipCutscene />
+      <ShipWatcher />
       <Nudge />
       <DevBar />
       <Floaters />
@@ -275,6 +278,12 @@ function EngineView() {
           <span style={{ ...S.bigStatNum, color: '#ffcf6b' }}>+{fmt(view.rate_per_hr)}</span>
           <span style={S.bigStatLbl}>✦ Flux / hour</span>
         </div>
+        {view.active_synergies > 0 && (
+          <div style={S.bigStat}>
+            <span style={{ ...S.bigStatNum, color: '#ff9ecf', fontSize: 20 }}>×{(1 + 0.08 * view.active_synergies).toFixed(2)}</span>
+            <span style={S.bigStatLbl}>♥ kin synergy · {view.active_synergies} pair{view.active_synergies > 1 ? 's' : ''}</span>
+          </div>
+        )}
         <div style={S.budgetBox}>
           <div style={S.budgetTop}><span>Floor space used</span><span>{view.euler_used} / {view.euler_cap}</span></div>
           <div style={S.meterTrack}><div style={{ ...S.meterFill, width: `${Math.min(100, pct * 100)}%`, background: pct > 0.85 ? '#ff5d8f' : '#5fe0c6' }} /></div>
@@ -408,9 +417,15 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
           <>
             <div style={S.revealStage}><HeroView key={s.family} family={s.family} rarity={s.rarity} controls /></div>
             <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{s.nick}</h2>
-            <p style={S.revealSub}>{rarityLabel(s.rarity)} · {s.family.replace(/_/g, ' ')} · ♥ Bond {bond}</p>
+            <p style={S.revealSub}>{rarityLabel(s.rarity)} · {s.family.replace(/_/g, ' ')}</p>
+            <p style={S.bondRow}>
+              <span style={{ color: '#ff5d8f', letterSpacing: 2 }}>{'♥'.repeat(bond)}</span>
+              <span style={{ color: '#3b2b38', letterSpacing: 2 }}>{'♡'.repeat(Math.max(0, 5 - bond))}</span>
+              <span style={S.bondHint}>Bond {bond}/5 · inspect &amp; keep deployed to raise</span>
+            </p>
             {codex && <p style={{ ...S.hint, fontStyle: 'italic', color: '#cdd2e0' }}>“{codex.blurb}”</p>}
             {codex && bond >= 1 && <p style={{ ...S.hint, color: RARITY_COLOR[s.rarity] }}>{codex.bond}</p>}
+            {codex && bond < 1 && <p style={{ ...S.hint, opacity: 0.7 }}>🔒 Reach Bond 1 (inspect a few times) to hear them speak.</p>}
             <p style={S.hint}>
               {s.genus > 0 ? `${s.genus} hole${s.genus > 1 ? 's' : ''} → ${s.genus} production lane${s.genus > 1 ? 's' : ''}. ` : 'No holes — free to deploy. '}
               Euler cost {s.euler_cost}.{codex ? ` …it is ${codex.term}.` : ''}
@@ -422,12 +437,18 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
                   const partner = shapes.find((sh) => sh.family === k.with)
                   const self = k.with === s.family
                   const united = self || (!!partner && view.owned[partner.id] > 0)
+                  const canWatch = united && hasShip(s.family, k.with)
                   return (
-                    <div key={i} style={S.kinRow}>
+                    <div
+                      key={i}
+                      style={{ ...S.kinRow, cursor: canWatch ? 'pointer' : 'default' }}
+                      onClick={canWatch ? () => useShips.getState().open(s.family, k.with) : undefined}
+                    >
                       <span style={{ color: united ? '#ff9ecf' : '#4a4d5f', width: 12, flexShrink: 0 }}>{united ? '♥' : '○'}</span>
                       <span style={S.kinType}>{k.type}</span>
                       <span style={{ color: united ? '#e8eaf2' : '#8a90a8', fontWeight: 700, flexShrink: 0 }}>{partner ? partner.nick : '???'}</span>
                       <span style={S.kinNote}>— {k.note}</span>
+                      {canWatch && <span style={S.watchPill}>▶ Watch scene</span>}
                     </div>
                   )
                 })}
@@ -747,6 +768,74 @@ function SettingsModal() {
   )
 }
 
+// A two-character "ship" dialogue that plays when a kin pair first unites (and is re-watchable).
+function ShipCutscene() {
+  const activeKey = useShips((s) => s.active)
+  const close = useShips((s) => s.close)
+  const shapes = useGame((s) => s.shapes)
+  const [i, setI] = useState(0)
+  useEffect(() => {
+    setI(0)
+  }, [activeKey])
+  if (!activeKey) return null
+  const ship = SHIP_SCENES[activeKey]
+  const a = shapes.find((s) => s.family === ship.a)
+  const b = shapes.find((s) => s.family === ship.b)
+  const line = ship.lines[i]
+  const last = i >= ship.lines.length - 1
+  const speakerA = line.who === 'a'
+  const advance = () => (last ? close() : setI(i + 1))
+  const aCol = a ? RARITY_COLOR[a.rarity] : '#888'
+  const bCol = b ? RARITY_COLOR[b.rarity] : '#888'
+  return (
+    <div style={S.modal} onClick={advance}>
+      <div className="pop-in" style={S.shipCard} onClick={(e) => e.stopPropagation()}>
+        <div style={S.shipHead}>♥ {a?.nick} &amp; {b?.nick}</div>
+        <div style={S.shipGems}>
+          <div style={{ ...S.shipGem, opacity: speakerA ? 1 : 0.4, transform: speakerA ? 'scale(1.12)' : 'scale(0.9)' }}>
+            <span style={{ ...S.shipGemDot, background: aCol, boxShadow: speakerA ? `0 0 22px ${aCol}` : 'none' }} />
+            <span>{a?.nick}</span>
+          </div>
+          <span style={S.shipHeart}>♥</span>
+          <div style={{ ...S.shipGem, opacity: speakerA ? 0.4 : 1, transform: speakerA ? 'scale(0.9)' : 'scale(1.12)' }}>
+            <span style={{ ...S.shipGemDot, background: bCol, boxShadow: speakerA ? 'none' : `0 0 22px ${bCol}` }} />
+            <span>{b?.nick}</span>
+          </div>
+        </div>
+        <div style={S.shipLineBox}>
+          <strong style={{ color: speakerA ? aCol : bCol }}>{speakerA ? a?.nick : b?.nick}</strong>
+          <p style={S.shipText}>“{line.text}”</p>
+        </div>
+        <button style={S.pullBtn} onClick={advance}>{last ? 'Close ♥' : 'Next ▸'}</button>
+        <div style={S.shipDots}>{ship.lines.map((_, j) => <span key={j} style={{ ...S.shipDot, opacity: j === i ? 1 : 0.3 }} />)}</div>
+      </div>
+    </div>
+  )
+}
+
+// Auto-plays a ship cutscene the first time a kin pair becomes united (both owned).
+function ShipWatcher() {
+  const owned = useGame((s) => s.view?.owned)
+  const shapes = useGame((s) => s.shapes)
+  const open = useShips((s) => s.open)
+  const seen = useShips((s) => s.seen)
+  const active = useShips((s) => s.active)
+  useEffect(() => {
+    if (!owned || shapes.length === 0 || active) return
+    for (const k of Object.keys(SHIP_SCENES)) {
+      if (seen.includes(k)) continue
+      const ship = SHIP_SCENES[k]
+      const a = shapes.find((s) => s.family === ship.a)
+      const b = shapes.find((s) => s.family === ship.b)
+      if (a && b && owned[a.id] > 0 && owned[b.id] > 0) {
+        open(ship.a, ship.b)
+        break
+      }
+    }
+  }, [owned, shapes, seen, active, open])
+  return null
+}
+
 const S: Record<string, CSSProperties> = {
   loading: { color: '#9aa6c2', background: '#0d0d16', height: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'system-ui', fontSize: 18 },
   app: { background: '#0d0d16', color: '#e8e8f0', minHeight: '100vh', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' },
@@ -858,4 +947,19 @@ const S: Record<string, CSSProperties> = {
   kinRow: { display: 'flex', gap: 6, alignItems: 'baseline', fontSize: 12, lineHeight: 1.5 },
   kinType: { color: '#8a90a8', fontSize: 10, textTransform: 'uppercase', width: 56, flexShrink: 0 },
   kinNote: { color: '#9aa0b4', overflow: 'hidden', textOverflow: 'ellipsis' },
+  bondRow: { display: 'flex', alignItems: 'center', gap: 8, fontSize: 18, margin: '0 0 6px' },
+  bondHint: { color: '#8a90a8', fontSize: 12 },
+  watchPill: { marginLeft: 'auto', flexShrink: 0, background: '#3a2440', color: '#ff9ecf', border: '1px solid #6b3a7a', borderRadius: 999, padding: '2px 8px', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' },
+
+  // ── Ship cutscene ──
+  shipCard: { width: 'min(480px, 94vw)', background: '#101119', border: '1px solid #3a2c44', borderRadius: 16, padding: 20, textAlign: 'center' },
+  shipHead: { color: '#ff9ecf', fontWeight: 800, fontSize: 15, marginBottom: 14, letterSpacing: 0.3 },
+  shipGems: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, marginBottom: 14 },
+  shipGem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, transition: 'all 0.25s ease', color: '#cdd2e0', fontSize: 13, fontWeight: 700 },
+  shipGemDot: { width: 52, height: 52, borderRadius: '50%', transition: 'all 0.25s ease' },
+  shipHeart: { color: '#ff5d8f', fontSize: 22 },
+  shipLineBox: { minHeight: 78, background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: '12px 14px', marginBottom: 14, textAlign: 'left' },
+  shipText: { color: '#e8eaf2', fontSize: 15, lineHeight: 1.5, margin: '6px 0 0', fontStyle: 'italic' },
+  shipDots: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 },
+  shipDot: { width: 7, height: 7, borderRadius: '50%', background: '#ff9ecf' },
 }
