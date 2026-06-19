@@ -11,6 +11,7 @@ import { KINSHIP } from './content/kinship'
 import { SHIP_SCENES, useShips, hasShip } from './content/ships'
 import { glyphOf } from './content/glyphs'
 import { fontOf } from './content/fonts'
+import { useGfx, type Quality } from './gfx'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
 import { useMute } from './audio'
@@ -836,6 +837,8 @@ function SettingsModal() {
   const setSettingsOpen = useGame((s) => s.setSettingsOpen)
   const muted = useMute((s) => s.muted)
   const toggleMute = useMute((s) => s.toggle)
+  const quality = useGfx((s) => s.quality)
+  const setQuality = useGfx((s) => s.setQuality)
   const [tab, setTab] = useState<'graphics' | 'gameplay' | 'keybinds' | 'attribution'>('graphics')
   if (!settingsOpen) return null
   const tabs: typeof tab[] = ['graphics', 'gameplay', 'keybinds', 'attribution']
@@ -857,7 +860,16 @@ function SettingsModal() {
           {tab === 'graphics' && (
             <>
               <SettingRow label="Sound effects"><button style={{ ...S.toggle, ...(muted ? {} : S.toggleOn) }} onClick={toggleMute}>{muted ? 'Off' : 'On'}</button></SettingRow>
-              <p style={S.hint}>3D quality auto-scales to your device (capped pixel ratio). Backgrounds &amp; environments are buyable in the 🛍 Shop.</p>
+              <SettingRow label="Graphics quality">
+                <span style={{ display: 'flex', gap: 6 }}>
+                  {(['low', 'medium', 'high'] as Quality[]).map((q) => (
+                    <button key={q} onClick={() => setQuality(q)} style={{ ...S.toggle, ...(quality === q ? S.toggleOn : {}) }}>
+                      {q[0].toUpperCase() + q.slice(1)}
+                    </button>
+                  ))}
+                </span>
+              </SettingRow>
+              <p style={S.hint}>Quality scales resolution, glass detail, raymarch steps, shadows &amp; particle density — drop it for higher FPS on weaker devices. Backgrounds &amp; scenes are buyable in the 🛍 Shop.</p>
             </>
           )}
           {tab === 'gameplay' && (
@@ -1087,7 +1099,7 @@ const S: Record<string, CSSProperties> = {
   kbd: { fontSize: 10, background: 'rgba(0,0,0,0.32)', border: '1px solid rgba(255,255,255,0.28)', borderRadius: 4, padding: '0 5px', marginLeft: 5, fontFamily: 'ui-monospace, monospace' },
   shipModel: { position: 'relative', width: 132, height: 132, borderRadius: 12, overflow: 'hidden', transition: 'all 0.25s ease' },
   shipModelName: { position: 'absolute', left: 0, right: 0, bottom: 4, textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#fff', textShadow: '0 1px 4px #000', pointerEvents: 'none' },
-  shipStage: { position: 'relative', height: 210, borderRadius: 12, overflow: 'hidden', border: '1px solid #2a2c3a', marginBottom: 14 },
+  shipStage: { position: 'relative', height: 250, borderRadius: 12, overflow: 'hidden', border: '1px solid #2a2c3a', marginBottom: 14 },
   shipNames: { position: 'absolute', left: 0, right: 0, bottom: 8, display: 'flex', justifyContent: 'center', gap: 14, fontSize: 13, textShadow: '0 1px 6px #000', pointerEvents: 'none' },
   kbRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid #1c1e2a' },
   kbDesc: { color: '#9aa0b4', fontSize: 12.5 },

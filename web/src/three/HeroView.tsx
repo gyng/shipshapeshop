@@ -5,6 +5,7 @@ import { HeroGem } from './Gem'
 import { RaymarchGem, RAYMARCH_SHAPES } from './RaymarchGem'
 import { ModelGem, MODEL_FILES } from './ModelGem'
 import { useGame, type RarityName } from '../game/store'
+import { useGfxPreset } from '../gfx'
 
 /**
  * The focused/hero gem. With the default scene, SDF shapes are **raymarched** (true refraction). When a Shop
@@ -23,9 +24,10 @@ export function HeroView({
   spin?: number
 }) {
   const sceneId = useGame((s) => s.view?.scene ?? 0)
+  const g = useGfxPreset()
   if (sceneId === 0 && family in RAYMARCH_SHAPES) {
     return (
-      <Canvas dpr={[1, 1.6]} gl={{ antialias: true }}>
+      <Canvas dpr={g.dpr} gl={{ antialias: true, powerPreference: 'high-performance' }}>
         <RaymarchGem key={family + rarity} family={family} rarity={rarity} />
       </Canvas>
     )

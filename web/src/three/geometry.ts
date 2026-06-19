@@ -8,6 +8,13 @@ import { TeapotGeometry } from 'three/examples/jsm/geometries/TeapotGeometry.js'
 // 4D polytopes render as their 3D "shadow" polyhedron, which is honest and reads well). Everything is
 // normalised to ~unit radius and centred, and cached by family.
 
+// Open / non-orientable / single-sided surfaces — these MUST render double-sided or backface culling
+// leaves them looking holey/wrong (closed solids stay front-side for cheaper fill).
+export const OPEN_FAMILIES = new Set<string>([
+  'mobius', 'klein_bottle', 'rp2', 'boys_surface', 'cross_cap',
+  'catenoid', 'helicoid', 'hyperboloid', 'monkey_saddle', 'costa', 'seifert', 'disk',
+])
+
 type ParamFn = (u: number, v: number, target: THREE.Vector3) => void
 
 function parametric(fn: ParamFn, su = 80, sv = 40): THREE.BufferGeometry {

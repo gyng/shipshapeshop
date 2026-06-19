@@ -2,7 +2,8 @@ import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { MeshTransmissionMaterial } from '@react-three/drei'
 import * as THREE from 'three'
-import { getGeometry } from './geometry'
+import { getGeometry, OPEN_FAMILIES } from './geometry'
+import { useGfxPreset } from '../gfx'
 import type { RarityName } from '../game/store'
 
 // Per-rarity look — the material ladder escalates with rarity (matte → glass → dispersive gem).
@@ -21,6 +22,7 @@ const RARITY_RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, S
 export function HeroGem({ family, rarity, spin = 0.4, geom }: { family: string; rarity: RarityName; spin?: number; geom?: THREE.BufferGeometry }) {
   const ref = useRef<THREE.Mesh>(null)
   const rank = RARITY_RANK[rarity]
+  const g = useGfxPreset()
   useFrame((_, dt) => {
     if (ref.current) {
       ref.current.rotation.y += dt * spin
@@ -43,8 +45,9 @@ export function HeroGem({ family, rarity, spin = 0.4, geom }: { family: string; 
         clearcoatRoughness={0.12}
         attenuationColor={RARITY_COLOR[rarity]}
         attenuationDistance={rank >= 3 ? 2.5 : 6}
-        samples={6}
-        resolution={512}
+        samples={g.transSamples}
+        resolution={g.transRes}
+        side={OPEN_FAMILIES.has(family) ? THREE.DoubleSide : THREE.FrontSide}
       />
     </mesh>
   )

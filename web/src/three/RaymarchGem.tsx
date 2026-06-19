@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { RARITY_COLOR } from './Gem'
+import { useGfxPreset } from '../gfx'
 import type { RarityName } from '../game/store'
 
 // Families with an exact signed-distance field — the hero gem raymarches these for TRUE per-pixel
@@ -29,7 +30,7 @@ const VERT = /* glsl */ `
   }
 `
 
-const FRAG = /* glsl */ `
+const makeFrag = (STEPS: number, INNER: number) => /* glsl */ `
   precision highp float;
   varying vec2 vUv;
   uniform float uTime;
@@ -95,7 +96,7 @@ const FRAG = /* glsl */ `
 
   float trace(vec3 ro, vec3 rd){
     float t=0.0;
-    for(int i=0;i<96;i++){
+    for(int i=0;i<${STEPS};i++){
       float d=map(ro+rd*t);
       if(d<0.0007) return t;
       t += d*0.7;                  // <1 for the approximate TPMS fields
@@ -109,7 +110,7 @@ const FRAG = /* glsl */ `
     vec3 ri = refract(rd, n, 1.0/uIor);
     vec3 ip = p + ri*0.02;
     float dist=0.0;
-    for(int i=0;i<40;i++){
+    for(int i=0;i<${INNER};i++){
       float d = -map(ip);
       if(d<0.0008) break;
       ip += ri*d*0.7; dist += d*0.7;
@@ -158,6 +159,8 @@ export function RaymarchGem({ family, rarity }: { family: string; rarity: Rarity
   const drag = useRef(false)
   const last = useRef({ x: 0, y: 0 })
   const zoom = useRef(1)
+  const g = useGfxPreset()
+  const frag = useMemo(() => makeFrag(g.raySteps, g.rayInner), [g.raySteps, g.rayInner])
 
   const uniforms = useMemo(() => {
     const c = new THREE.Color(RARITY_COLOR[rarity])
@@ -209,7 +212,7 @@ export function RaymarchGem({ family, rarity }: { family: string; rarity: Rarity
       }}
     >
       <planeGeometry args={[2, 2]} />
-      <shaderMaterial ref={ref} vertexShader={VERT} fragmentShader={FRAG} uniforms={uniforms} />
+      <shaderMaterial key={g.raySteps} ref={ref} vertexShader={VERT} fragmentShader={frag} uniforms={uniforms} />
     </mesh>
   )
 }

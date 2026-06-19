@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { useGame, type RarityName } from '../game/store'
 import { sceneById } from '../content/cosmetics'
 import { RARITY_COLOR } from './Gem'
+import { useGfxPreset } from '../gfx'
 
 const RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4 }
 
@@ -43,8 +44,9 @@ export function Stage({ children, controls = false, rarity = 'Common' }: { child
   const cornell = scene.special === 'cornell'
   const rank = RANK[rarity]
   const [backdrop, key, cool, warm] = scene.env
+  const g = useGfxPreset()
   return (
-    <Canvas camera={{ position: [0, 0, 5], fov: 42 }} dpr={[1, 2]} gl={{ antialias: true }}>
+    <Canvas camera={{ position: [0, 0, 5], fov: 42 }} dpr={g.dpr} gl={{ antialias: true, powerPreference: 'high-performance' }}>
       <color attach="background" args={[cornell ? '#0a0a0a' : '#0b0a16']} />
       <ambientLight intensity={0.45} />
       <directionalLight position={[4, 6, 5]} intensity={1.1} />
@@ -55,10 +57,10 @@ export function Stage({ children, controls = false, rarity = 'Common' }: { child
         </Suspense>
       ) : (
         <>
-          <Stars radius={60} depth={50} count={1800} factor={4} saturation={0.7} fade speed={0.3} />
+          <Stars radius={60} depth={50} count={g.stars} factor={4} saturation={0.7} fade speed={0.3} />
           {/* rarer shapes get markedly more (and bigger) sparkles, plus a rarity-coloured halo of motes */}
-          <Sparkles count={36 + rank * 28} scale={[8, 6, 6]} size={2.2 + rank * 0.5} speed={0.18} opacity={0.7} color={scene.stars} />
-          {rank >= 2 && <Sparkles count={20 + rank * 22} scale={[4.5, 4.5, 4.5]} size={3.4} speed={0.5} opacity={0.9} color={RARITY_COLOR[rarity]} />}
+          <Sparkles count={Math.round((36 + rank * 28) * g.sparkle)} scale={[8, 6, 6]} size={2.2 + rank * 0.5} speed={0.18} opacity={0.7} color={scene.stars} />
+          {rank >= 2 && <Sparkles count={Math.round((20 + rank * 22) * g.sparkle)} scale={[4.5, 4.5, 4.5]} size={3.4} speed={0.5} opacity={0.9} color={RARITY_COLOR[rarity]} />}
           <Suspense fallback={null}>
             {children}
             <Environment resolution={256} background backgroundBlurriness={0.75} backgroundIntensity={0.5} environmentIntensity={1.15}>

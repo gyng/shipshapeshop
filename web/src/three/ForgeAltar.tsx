@@ -2,10 +2,11 @@ import { useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Environment, Lightformer, Sparkles, Float, ContactShadows, Grid } from '@react-three/drei'
 import * as THREE from 'three'
-import { getGeometry } from './geometry'
+import { getGeometry, OPEN_FAMILIES } from './geometry'
 import { RARITY_COLOR } from './Gem'
 import { useGame, type ShapeRow } from '../game/store'
 import { sceneById } from '../content/cosmetics'
+import { useGfxPreset } from '../gfx'
 
 // A lit pedestal: dark metal plinth + glowing rim + a coloured point light that illuminates the gem above it.
 function Pedestal({ pos, color, intensity = 3 }: { pos: [number, number, number]; color: string; intensity?: number }) {
@@ -44,6 +45,7 @@ function AltarGem({ shape, pos, scale, show }: { shape?: ShapeRow; pos: [number,
           emissive={col}
           emissiveIntensity={known ? 0.55 : 0.3}
           envMapIntensity={1.6}
+          side={known && OPEN_FAMILIES.has(shape!.family) ? THREE.DoubleSide : THREE.FrontSide}
         />
       </mesh>
     </Float>
@@ -54,11 +56,12 @@ function AltarGem({ shape, pos, scale, show }: { shape?: ShapeRow; pos: [number,
 export function ForgeAltar({ a, b, out, discovered }: { a?: ShapeRow; b?: ShapeRow; out?: ShapeRow; discovered: boolean }) {
   const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
   const [backdrop, key, cool, warm] = scene.env
+  const g = useGfxPreset()
   const aCol = a ? RARITY_COLOR[a.rarity] : '#5fe0c6'
   const bCol = b ? RARITY_COLOR[b.rarity] : '#b985ff'
   const outCol = discovered && out ? RARITY_COLOR[out.rarity] : '#a98bff'
   return (
-    <Canvas dpr={[1, 1.8]} shadows camera={{ position: [0, 1.5, 5], fov: 42 }}>
+    <Canvas dpr={g.dpr} shadows={g.shadows} gl={{ powerPreference: 'high-performance' }} camera={{ position: [0, 1.5, 5], fov: 42 }}>
       <color attach="background" args={['#0b0c16']} />
       <fog attach="fog" args={['#0b0c16', 8, 28]} />
       <ambientLight intensity={0.7} />
@@ -103,7 +106,7 @@ export function ForgeAltar({ a, b, out, discovered }: { a?: ShapeRow; b?: ShapeR
         <meshStandardMaterial color="#ff9d3c" emissive="#ffb74d" emissiveIntensity={2.4} toneMapped={false} transparent opacity={0.9} />
       </mesh>
 
-      <Sparkles count={50} scale={[5, 2.6, 2.6]} position={[0, 0.5, -0.2]} size={2.6} speed={0.7} color="#ffce5c" />
+      <Sparkles count={Math.round(50 * g.sparkle)} scale={[5, 2.6, 2.6]} position={[0, 0.5, -0.2]} size={2.6} speed={0.7} color="#ffce5c" />
       <ContactShadows position={[0, -0.83, 0]} opacity={0.5} scale={12} blur={2.4} far={3} />
     </Canvas>
   )

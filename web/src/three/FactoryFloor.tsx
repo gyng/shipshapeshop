@@ -2,10 +2,11 @@ import { useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Environment, Lightformer, Sparkles, Float, ContactShadows, OrbitControls, Grid } from '@react-three/drei'
 import * as THREE from 'three'
-import { getGeometry } from './geometry'
+import { getGeometry, OPEN_FAMILIES } from './geometry'
 import { RARITY_COLOR } from './Gem'
 import { useGame, type ShapeRow } from '../game/store'
 import { sceneById } from '../content/cosmetics'
+import { useGfxPreset } from '../gfx'
 
 // A deployed gem on the floor: a jewel on a glowing ring, lit by its own coloured light, with rising Flux.
 function FloorGem({ family, rarity, pos }: { family: string; rarity: keyof typeof RARITY_COLOR; pos: [number, number, number] }) {
@@ -33,6 +34,7 @@ function FloorGem({ family, rarity, pos }: { family: string; rarity: keyof typeo
             emissive={col}
             emissiveIntensity={0.5}
             envMapIntensity={1.6}
+            side={OPEN_FAMILIES.has(family) ? THREE.DoubleSide : THREE.FrontSide}
           />
         </mesh>
       </Float>
@@ -58,6 +60,7 @@ function GhostSlot({ pos }: { pos: [number, number, number] }) {
 export function FactoryFloor({ shapes, loadout, openSlots = 0 }: { shapes: ShapeRow[]; loadout: number[]; openSlots?: number }) {
   const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
   const [backdrop, key, cool, warm] = scene.env
+  const g = useGfxPreset()
   const total = Math.max(1, loadout.length + openSlots)
   const cols = Math.max(1, Math.ceil(Math.sqrt(total)))
   const rows = Math.max(1, Math.ceil(total / cols))
@@ -68,7 +71,7 @@ export function FactoryFloor({ shapes, loadout, openSlots = 0 }: { shapes: Shape
     return [(c - (cols - 1) / 2) * spacing, 0, (r - (rows - 1) / 2) * spacing]
   }
   return (
-    <Canvas dpr={[1, 1.8]} shadows camera={{ position: [0, 2.9, 5.6], fov: 42 }}>
+    <Canvas dpr={g.dpr} shadows={g.shadows} gl={{ powerPreference: 'high-performance' }} camera={{ position: [0, 2.9, 5.6], fov: 42 }}>
       <color attach="background" args={['#0a0b14']} />
       <fog attach="fog" args={['#0a0b14', 9, 30]} />
       <ambientLight intensity={0.6} />
@@ -107,7 +110,7 @@ export function FactoryFloor({ shapes, loadout, openSlots = 0 }: { shapes: Shape
       {Array.from({ length: openSlots }).map((_, j) => <GhostSlot key={`g${j}`} pos={posOf(loadout.length + j)} />)}
 
       <ContactShadows position={[0, -0.41, 0]} opacity={0.55} scale={16} blur={2.6} far={4} />
-      <Sparkles count={60} scale={[12, 5, 12]} position={[0, 1.8, 0]} size={1.6} speed={0.3} color="#ffcf6b" />
+      <Sparkles count={Math.round(60 * g.sparkle)} scale={[12, 5, 12]} position={[0, 1.8, 0]} size={1.6} speed={0.3} color="#ffcf6b" />
       <OrbitControls
         makeDefault
         enablePan={false}
