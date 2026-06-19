@@ -3,6 +3,7 @@ import init, { Game, shapes_json, recipes_json, upgrades_json, milestones_json, 
 import { sfxPull, sfxForge, sfxMilestone, sfxAscend, sfxBondUp } from '../audio'
 import { useFloaters } from '../juice'
 import { glyphOf } from '../content/glyphs'
+import { useHistory } from '../history'
 
 const screenCx = () => (typeof window !== 'undefined' ? window.innerWidth / 2 : 500)
 
@@ -149,6 +150,12 @@ function persist() {
   if (game) localStorage.setItem(SAVE_KEY, game.serialize())
 }
 
+// Record a pull into the (display-only) gacha history log.
+function recPull(shapes: ShapeRow[], out: PullOutcome) {
+  const sh = shapes[out.shape_id]
+  if (sh && out.rarity) useHistory.getState().recordPull({ id: out.shape_id, nick: sh.nick, rarity: out.rarity, isNew: out.is_new })
+}
+
 interface Store {
   ready: boolean
   firstLaunch: boolean
@@ -266,6 +273,7 @@ export const useGame = create<Store>((set, get) => ({
             get().refresh()
             persist()
             floatShards(out.dupe_shards)
+            recPull(get().shapes, out)
             if (out.is_new) useFloaters.getState().spawn('NEW ★', { color: '#ff5d8f', big: true })
           }
         }
@@ -300,6 +308,7 @@ export const useGame = create<Store>((set, get) => ({
       persist()
       set({ lastReveal: [out] }) // the RevealModal owns the charge→reveal ceremony + its sounds
       floatShards(out.dupe_shards)
+      recPull(get().shapes, out)
     }
   },
 
@@ -312,6 +321,7 @@ export const useGame = create<Store>((set, get) => ({
       persist()
       set({ lastReveal: outs })
       floatShards(outs.reduce((a, o) => a + o.dupe_shards, 0))
+      outs.forEach((o) => recPull(get().shapes, o))
     }
   },
 
@@ -338,6 +348,7 @@ export const useGame = create<Store>((set, get) => ({
       persist()
       // Ascension is the second-biggest moment in the game — celebrate it loudly.
       sfxAscend()
+      useHistory.getState().recordEvent({ icon: '🌌', text: `Recrystallized into dimension v${get().view?.viewport_dim ?? ''} (New Game+${get().view?.ng_cycle ?? ''})`, color: '#b388ff' })
       const cx = screenCx()
       const ng = get().view?.ng_cycle ?? 1
       useFloaters.getState().spawn(`NEW GAME+${ng} 🌌`, { color: '#b388ff', big: true, x: cx, y: 170 })
@@ -383,6 +394,10 @@ export const useGame = create<Store>((set, get) => ({
       persist()
       sfxForge()
       set({ lastForge: r })
+      {
+        const fout = get().shapes[r.out_id]
+        if (fout) useHistory.getState().recordEvent({ icon: '🔨', text: `Forged ${fout.nick}${r.is_discovery ? ' — new recipe discovered!' : ''}`, color: r.is_discovery ? '#5fe0c6' : undefined })
+      }
       if (r.is_discovery) {
         useFloaters.getState().spawn('Discovery! +100 ◈', { color: SHARD_C, big: true, y: 120 })
         // a shower of the newly-discovered shape's glyph — parity with the pull reveal
@@ -405,6 +420,8 @@ export const useGame = create<Store>((set, get) => ({
       persist()
       set({ lastForge: { ok: true, out_id: id, is_discovery: true } }) // reuse the reveal toast
       useFloaters.getState().spawn('RELIC ★', { color: RELIC_C, big: true, y: 120 })
+      const rsh = get().shapes[id]
+      useHistory.getState().recordEvent({ icon: '★', text: `Summoned the relic ${rsh?.nick ?? ''}`.trim(), color: RELIC_C })
     }
   },
   toggleDev: () => set((s) => ({ devOpen: !s.devOpen })),

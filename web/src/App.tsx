@@ -24,6 +24,7 @@ import { useDialogLog } from './dialogLog'
 import { useTitle, titleSrc, TITLE_COUNT } from './titleArt'
 import { curatorRank, RANK_COLOR } from './curatorRank'
 import { useInspector } from './inspector'
+import { useHistory } from './history'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
@@ -418,6 +419,7 @@ function GachaView() {
   useIdleChatter(() => {
     if (shape && view && owned && !isBannerPreview) talk(shape, bond)
   })
+  const [sub, setSub] = useState<'goals' | 'history'>('goals')
   if (!view) return null
   return (
     <div className="gacha-split">
@@ -471,9 +473,53 @@ function GachaView() {
             🤖 Auto-pull · {autoPull ? 'ON' : 'OFF'}
           </button>
         )}
-        <Objectives />
+        <div style={S.subTabs}>
+          <button style={{ ...S.subTab, ...(sub === 'goals' ? S.subTabOn : {}) }} onClick={() => setSub('goals')}>🎯 Goals</button>
+          <button style={{ ...S.subTab, ...(sub === 'history' ? S.subTabOn : {}) }} onClick={() => setSub('history')}>🕘 Pull history</button>
+        </div>
+        {sub === 'goals' ? <Objectives /> : <PullHistory />}
       </div>
     </div>
+  )
+}
+
+// The gacha pull history — a persisted log of what you've pulled (newest first), rarity-coloured.
+function PullHistory() {
+  const pulls = useHistory((s) => s.pulls)
+  if (!pulls.length) return <p style={S.hint}>No pulls yet — your gacha history will appear here.</p>
+  return (
+    <div style={S.histList}>
+      {pulls.map((p, i) => (
+        <div key={i} style={S.histRow}>
+          <span style={{ ...S.tileDot, background: RARITY_COLOR[p.rarity] }} />
+          <span style={{ flex: 1, color: '#cdd2e0' }}>{p.nick}</span>
+          <span style={{ color: RARITY_COLOR[p.rarity], fontWeight: 700, fontSize: 12 }}>{p.rarity}</span>
+          {p.isNew && <span style={{ color: '#ff5d8f', fontSize: 11, fontWeight: 800 }}>NEW</span>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// Session events feed (forges, relics, prestige…), shown at the foot of the Ledger.
+function EventLog() {
+  const events = useHistory((s) => s.events)
+  return (
+    <>
+      <h4 style={S.boardSub}>Recent events</h4>
+      {events.length === 0 ? (
+        <p style={S.hint}>Forge a shape, summon a relic, or recrystallize and it’ll show up here this session.</p>
+      ) : (
+        <div style={S.histList}>
+          {events.map((e, i) => (
+            <div key={i} style={S.histRow}>
+              <span>{e.icon}</span>
+              <span style={{ flex: 1, color: e.color ?? '#cdd2e0' }}>{e.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   )
 }
 
@@ -1566,6 +1612,7 @@ function LedgerView() {
           </>
         )
       })()}
+      <EventLog />
     </div>
   )
 }
@@ -1950,6 +1997,11 @@ const S: Record<string, CSSProperties> = {
   chatMsg: { display: 'flex', flexDirection: 'column', gap: 1, background: '#14151d', borderRadius: 10, padding: '8px 12px' },
   chatHandle: { fontSize: 11, fontWeight: 800 },
   chatText: { fontSize: 13.5, color: '#cdd2e0', lineHeight: 1.45 },
+  subTabs: { display: 'flex', gap: 6, marginTop: 4 },
+  subTab: { flex: 1, background: '#14151d', border: '1px solid #23252f', color: '#8a90a8', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 13, fontWeight: 700 },
+  subTabOn: { background: '#23263a', color: '#fff', borderColor: '#5fe0c6' },
+  histList: { display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 340, overflowY: 'auto', marginTop: 4 },
+  histRow: { display: 'flex', alignItems: 'center', gap: 8, background: '#14151d', border: '1px solid #23252f', borderRadius: 8, padding: '7px 10px', fontSize: 13.5 },
   rankBadge: { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#14151d', border: '1px solid #23252f', borderRadius: 12, padding: '6px 12px 6px 8px' },
   rankLetter: { fontSize: 19, fontWeight: 900, border: '2px solid', borderRadius: 9, minWidth: 34, height: 34, padding: '0 4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   multGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 6, marginBottom: 10 },

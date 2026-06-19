@@ -5,13 +5,8 @@ import { create } from 'zustand'
 export const TITLE_COUNT = 12
 const KEY = 'shapegacha.title'
 
+// The title is RANDOM on every launch (a fresh piece each session); click-to-rotate then steps from there.
 function load(): number {
-  try {
-    const v = Number(localStorage.getItem(KEY))
-    if (Number.isInteger(v) && v >= 0 && v < TITLE_COUNT) return v
-  } catch {
-    /* no-op */
-  }
   return Math.floor(Math.random() * TITLE_COUNT)
 }
 
