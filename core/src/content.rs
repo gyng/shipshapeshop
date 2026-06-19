@@ -135,3 +135,88 @@ pub fn find_recipe(a: usize, b: usize) -> Option<usize> {
 
 /// The 5 Platonic solids (a family set, M7): completing it grants a permanent global bonus.
 pub const PLATONIC_IDS: [usize; 5] = [1, 2, 3, 4, 5]; // cube, tetra, octa, dodeca, icosa
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::HashSet;
+
+    const TIERS: [Rarity; 6] = [
+        Rarity::Common,
+        Rarity::Rare,
+        Rarity::Epic,
+        Rarity::Ssr,
+        Rarity::Ur,
+        Rarity::Relic,
+    ];
+
+    #[test]
+    fn nicks_are_distinct_case_insensitive() {
+        let mut seen = HashSet::new();
+        for s in SHAPES.iter() {
+            assert!(seen.insert(s.nick.to_lowercase()), "duplicate nick: {}", s.nick);
+        }
+    }
+
+    #[test]
+    fn families_are_distinct() {
+        let mut seen = HashSet::new();
+        for s in SHAPES.iter() {
+            assert!(seen.insert(s.family), "duplicate family: {}", s.family);
+        }
+    }
+
+    #[test]
+    fn rarity_ranges_partition_every_shape() {
+        let mut next = 0usize;
+        for t in TIERS {
+            let r = rarity_range(t);
+            assert_eq!(r.start, next, "gap/overlap before {:?}", t);
+            for id in r.clone() {
+                assert_eq!(SHAPES[id].rarity, t, "shape {} ({}) wrong tier for {:?}", id, SHAPES[id].nick, t);
+            }
+            next = r.end;
+        }
+        assert_eq!(next, COUNT, "rarity ranges must cover all {} shapes", COUNT);
+    }
+
+    #[test]
+    fn pull_count_is_consistent() {
+        assert_eq!(PULL_COUNT, rarity_range(Rarity::Ur).end);
+        assert_eq!(rarity_range(Rarity::Relic).start, PULL_COUNT);
+        assert!(PULL_COUNT < COUNT, "there should be at least one relic");
+    }
+
+    #[test]
+    fn recipes_reference_valid_distinct_ids() {
+        for r in RECIPES.iter() {
+            assert!(r.a < COUNT && r.b < COUNT && r.out < COUNT, "recipe id out of range");
+            assert!(r.out >= PULL_COUNT || SHAPES[r.out].rarity != Rarity::Common, "forge output too cheap");
+        }
+    }
+
+    #[test]
+    fn every_shape_produces_flux() {
+        for s in SHAPES.iter() {
+            assert!(s.base_prod > 0.0, "{} has non-positive base_prod", s.nick);
+        }
+    }
+
+    #[test]
+    fn effective_prod_scales_with_genus() {
+        for id in 0..COUNT {
+            let s = &SHAPES[id];
+            let expected = s.base_prod * (1.0 + 0.25 * s.genus as f64);
+            assert!((effective_prod(id) - expected).abs() < 1e-9, "effective_prod mismatch for {}", s.nick);
+        }
+    }
+
+    #[test]
+    fn platonic_ids_are_valid_and_common() {
+        assert_eq!(PLATONIC_IDS.len(), 5);
+        for &id in PLATONIC_IDS.iter() {
+            assert!(id < COUNT);
+            assert_eq!(SHAPES[id].rarity, Rarity::Common, "platonic set should be Common-tier");
+        }
+    }
+}
