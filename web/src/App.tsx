@@ -16,7 +16,7 @@ import { UPGRADE_INFO } from './content/upgrades'
 import { MILESTONE_INFO } from './content/milestones'
 import { FACET_INFO } from './content/facets'
 import { useT, useLangStore, LANGS } from './i18n'
-import { useHints } from './onboarding'
+import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, speak, stopVoice } from './audio'
 import { DEV_MODE } from './devmode'
 import { Floaters, useFloaters } from './juice'
@@ -123,6 +123,7 @@ export function App() {
       <Floaters />
       <IdleFlux />
       <MilestoneToast />
+      <TourCoachmark tab={tab} setTab={setTab} />
     </div>
   )
 }
@@ -841,17 +842,66 @@ function ForgeToast() {
   )
 }
 
+// A light, skippable, replayable first-run tour. A bottom card walks the player through the systems, switching
+// tabs as it goes; it never blocks play (the backdrop is click-through).
+const TOUR_STEPS: { tab: Tab; icon: string; title: string; body: string }[] = [
+  { tab: 'gacha', icon: '✦', title: 'Pull shapes', body: 'Tap Pull to summon a shape with Flux. Odds are shown and pity is visible — keep pulling and a rare one is guaranteed. No tricks.' },
+  { tab: 'gallery', icon: '🗂️', title: 'Your collection', body: 'Every shape you own lives here. Tap one to inspect it, raise its Bond, and hear it speak — each has a personality.' },
+  { tab: 'engine', icon: '🏭', title: 'Deploy for Flux', body: 'This is your factory floor. Deploy shapes here to produce Flux automatically — even while the game is closed.' },
+  { tab: 'engine', icon: '🔧', title: 'Workshop & beyond', body: 'Spend banked Flux on permanent upgrades that change how you play. Complete the core, then Recrystallize to ascend and earn Facets — a deeper prestige tree.' },
+  { tab: 'forge', icon: '🔨', title: 'Forge new shapes', body: 'Glue two shapes together to discover a third — a Möbius strip plus a Möbius strip makes a Klein bottle!' },
+  { tab: 'gacha', icon: '🎯', title: 'Your goals — enjoy', body: 'The Next Goals panel tracks what to chase. Play it calm and cozy or optimise the numbers — entirely your call. Have fun!' },
+]
+
+function TourCoachmark({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
+  const running = useTour((s) => s.running)
+  const step = useTour((s) => s.step)
+  const next = useTour((s) => s.next)
+  const finish = useTour((s) => s.finish)
+  const cur = TOUR_STEPS[step]
+  useEffect(() => {
+    if (running && cur && tab !== cur.tab) setTab(cur.tab)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running, step])
+  if (!running || !cur) return null
+  const last = step >= TOUR_STEPS.length - 1
+  return (
+    <div style={S.tourWrap}>
+      <div className="pop-in" style={S.tourCard}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 22 }}>{cur.icon}</span>
+          <strong style={{ color: '#e8eaf2' }}>{cur.title}</strong>
+          <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a90a8' }}>{step + 1}/{TOUR_STEPS.length}</span>
+        </div>
+        <p style={{ ...S.boardDesc, margin: '8px 0 12px' }}>{cur.body}</p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button style={S.pullBtn} onClick={() => (last ? finish() : next())}>{last ? "Let’s go ✦" : 'Next ▸'}</button>
+          {!last && <button style={S.smallBtn} onClick={finish}>Skip</button>}
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+            {TOUR_STEPS.map((_, j) => <span key={j} style={{ ...S.shipDot, opacity: j === step ? 1 : 0.3 }} />)}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function WelcomeModal() {
   const { firstLaunch, dismissWelcome } = useGame()
+  const startTour = useTour((s) => s.start)
   const tr = useT()
   if (!firstLaunch) return null
+  const begin = () => {
+    dismissWelcome()
+    startTour()
+  }
   return (
-    <div style={S.modal} onClick={dismissWelcome}>
+    <div style={S.modal} onClick={begin}>
       <div className="pop-in" style={S.revealCard} onClick={(e) => e.stopPropagation()}>
         <h2>{tr('welcome.title')}</h2>
         <p style={S.revealSub}>{tr('welcome.body')}</p>
         <p style={S.hint}>{tr('welcome.note')}</p>
-        <button style={S.pullBtn} onClick={dismissWelcome}>{tr('welcome.begin')}</button>
+        <button style={S.pullBtn} onClick={begin}>{tr('welcome.begin')}</button>
       </div>
     </div>
   )
@@ -1071,11 +1121,22 @@ function SettingsModal() {
             </>
           )}
           {tab === 'gameplay' && (
-            <p style={S.boardDesc}>
-              The loop: <b>pull</b> shapes → <b>deploy</b> them in the Engine to make Flux → <b>forge</b> rarer shapes →
-              <b> recrystallize</b> to ascend a dimension (New Game+). Edutainment (the real maths) lives in each owned
-              shape’s Codex — discovery-first, and it never gates the fun.
-            </p>
+            <>
+              <p style={S.boardDesc}>
+                The loop: <b>pull</b> shapes → <b>deploy</b> them in the Engine to make Flux → <b>forge</b> rarer shapes →
+                <b> recrystallize</b> to ascend a dimension (New Game+). Edutainment (the real maths) lives in each owned
+                shape’s Codex — discovery-first, and it never gates the fun.
+              </p>
+              <button
+                style={{ ...S.smallBtn, marginTop: 10 }}
+                onClick={() => {
+                  useGame.getState().setSettingsOpen(false)
+                  useTour.getState().restart()
+                }}
+              >
+                ▶ Replay tutorial
+              </button>
+            </>
           )}
           {tab === 'keybinds' && (
             <div style={{ fontSize: 13, color: '#cdd2e0' }}>
@@ -1343,6 +1404,8 @@ const S: Record<string, CSSProperties> = {
   objLabel: { fontSize: 12, color: '#cdd2e0', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   objNum: { fontSize: 11, color: '#5fe0c6', fontWeight: 700, flexShrink: 0 },
   mileToast: { position: 'fixed', top: 58, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(30,24,12,0.96)', border: '1px solid #6b5a2a', borderRadius: 12, padding: '10px 16px', zIndex: 60, minWidth: 290, maxWidth: '92vw', boxShadow: '0 6px 24px rgba(0,0,0,0.55)', cursor: 'pointer' },
+  tourWrap: { position: 'fixed', left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', padding: '0 12px 18px', zIndex: 70, pointerEvents: 'none' },
+  tourCard: { pointerEvents: 'auto', width: 'min(460px, 94vw)', background: 'rgba(18,19,26,0.97)', border: '1px solid #3a3d4f', borderRadius: 14, padding: '14px 16px', boxShadow: '0 8px 30px rgba(0,0,0,0.6)' },
   patSurface: { position: 'absolute', inset: 0, cursor: 'grab', touchAction: 'none', zIndex: 3, overflow: 'hidden' },
   patGlow: { position: 'absolute', width: 130, height: 130, transform: 'translate(-50%, -50%)', borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,222,150,0.55), rgba(255,180,220,0.18) 45%, transparent 72%)', pointerEvents: 'none' },
   patBtn: { position: 'absolute', top: 8, right: 8, zIndex: 4, background: 'rgba(40,24,44,0.85)', border: '1px solid #6b3a7a', color: '#ff9ecf', borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' },
