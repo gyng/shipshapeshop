@@ -1318,11 +1318,15 @@ function ShipCutscene() {
 function ShipWatcher() {
   const owned = useGame((s) => s.view?.owned)
   const shapes = useGame((s) => s.shapes)
+  // Don't pop a cutscene over a reveal/forge/offline modal or onboarding — queue it. When the blocker clears,
+  // `busy` flips and this effect re-runs, opening the next unseen pair. (open() marks it seen, so no repeats.)
+  const busy = useGame((s) => !!(s.lastReveal || s.lastForge || s.offline || s.settingsOpen || s.firstLaunch))
+  const tourRunning = useTour((s) => s.running)
   const open = useShips((s) => s.open)
   const seen = useShips((s) => s.seen)
   const active = useShips((s) => s.active)
   useEffect(() => {
-    if (!owned || shapes.length === 0 || active) return
+    if (!owned || shapes.length === 0 || active || busy || tourRunning) return
     for (const k of Object.keys(SHIP_SCENES)) {
       if (seen.includes(k)) continue
       const ship = SHIP_SCENES[k]
@@ -1333,7 +1337,7 @@ function ShipWatcher() {
         break
       }
     }
-  }, [owned, shapes, seen, active, open])
+  }, [owned, shapes, seen, active, open, busy, tourRunning])
   return null
 }
 
