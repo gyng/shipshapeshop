@@ -25,6 +25,7 @@ import { useTitle, titleSrc, TITLE_COUNT } from './titleArt'
 import { curatorRank, RANK_COLOR } from './curatorRank'
 import { useInspector } from './inspector'
 import { useHistory } from './history'
+import { Numeral } from './ui'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
@@ -233,16 +234,42 @@ function Hud() {
   const toggleMute = useMute((s) => s.toggle)
   const toggleDev = useGame((s) => s.toggleDev)
   const openSettings = useGame((s) => s.setSettingsOpen)
+  // Juice: flash the Flux numeral when a discrete reward lands (jump bigger than a couple seconds of idle drip).
+  const fluxTruth = view?.flux ?? 0
+  const rate = view?.rate_per_hr ?? 0
+  const prevFlux = useRef(fluxTruth)
+  const fluxRef = useRef<HTMLSpanElement>(null)
+  const [popN, setPopN] = useState(0)
+  useEffect(() => {
+    const gain = fluxTruth - prevFlux.current
+    prevFlux.current = fluxTruth
+    if (gain <= Math.max(3, (rate / 3600) * 2.5)) return // ignore the steady idle drip
+    setPopN((n) => n + 1)
+    // particle burst scaled to the magnitude of the gain, from the counter
+    const el = fluxRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const cx = r.left + r.width / 2
+    const cy = r.top + r.height / 2
+    const mag = Math.log10(Math.max(10, gain)) // ~1 (tens) … ~7 (millions)
+    const count = Math.min(30, Math.round(2 + mag * 4))
+    const big = gain > 5000
+    for (let i = 0; i < count; i++) {
+      const a = (Math.PI * 2 * i) / count + Math.random()
+      const d = 14 + Math.random() * (16 + mag * 12)
+      useFloaters.getState().spawn('✦', { color: i % 3 === 0 ? '#ffe1a3' : '#ffcf6b', big, x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d * 0.65 })
+    }
+  }, [fluxTruth, rate])
   if (!view) return null
   return (
     <header style={S.hud}>
       <div title={tr('hud.fluxTip')}>
         <span style={S.fluxLabel}><span style={S.fluxIcon}>✦</span> {tr('hud.flux')}</span>
-        <span style={S.fluxValue}>{fmt(flux)}</span>
-        <span style={S.rate} title={tr('hud.rateTip')}>+{fmt(view.rate_per_hr)}{tr('hud.perHour')}</span>
+        <span ref={fluxRef} key={popN} className="value-pop" style={S.fluxValue}>{fmt(flux)}</span>
+        <span style={S.rate} title={tr('hud.rateTip')}>+<Numeral value={view.rate_per_hr} format={fmt} />{tr('hud.perHour')}</span>
       </div>
       <div style={S.hudStats}>
-        <span title={tr('hud.shardsTip')}><span style={S.shardIcon}>◈</span> {view.shards} {tr('hud.shards')}</span>
+        <span title={tr('hud.shardsTip')}><span style={S.shardIcon}>◈</span> <Numeral value={view.shards} format={fmt} /> {tr('hud.shards')}</span>
         <span title={tr('hud.collectionTip')}>{tr('hud.collection')} {view.distinct_owned}/41</span>
         <span title={tr('hud.dimTip')}>{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
         {view.facets > 0 && <span title={tr('hud.facetsTip')}>🌌 {view.facets}</span>}

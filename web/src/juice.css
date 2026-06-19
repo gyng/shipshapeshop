@@ -240,3 +240,7 @@ input:focus, textarea:focus {
 
 /* Tooltip (ui/atoms/Tooltip) entrance */
 @keyframes tip-in { from { opacity: 0; transform: translate(-50%, var(--tip-shift, 0)) scale(0.96); } to { opacity: 1; } }
+
+/* Key-numeral reward pop (HUD Flux) — replays via React key change on a discrete gain */
+@keyframes value-pop { 0% { transform: scale(1); } 28% { transform: scale(1.16); filter: brightness(1.6); } 100% { transform: scale(1); filter: brightness(1); } }
+.value-pop { display: inline-block; animation: value-pop .45s ease-out; }
