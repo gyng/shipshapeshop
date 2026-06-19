@@ -796,10 +796,29 @@ function UpgradesPanel() {
       <div style={S.recipeGrid}>
         {upgradeDefs.map((u, i) => {
           const lvl = view.upgrades[i] ?? 0
+          const unlocked = view.upgrade_unlocked[i] ?? true
+          const info = UPGRADE_INFO[u.key] ?? { name: u.key, desc: '', icon: '⚙' }
+          // Tech tree: secret nodes stay hidden until unlocked; the rest tease as a locked card.
+          if (!unlocked && u.secret) return null
+          if (!unlocked) {
+            const req = u.requires
+            const reqInfo = req ? UPGRADE_INFO[upgradeDefs[req[0]]?.key] ?? { name: upgradeDefs[req[0]]?.key } : undefined
+            return (
+              <div key={u.key} className="chip" style={{ ...S.recipeCard, borderColor: '#23252f', opacity: 0.6 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                  <span style={{ fontSize: 18, filter: 'grayscale(1)' }}>🔒</span>
+                  <strong style={{ color: '#8a90a8' }}>{info.name}</strong>
+                </div>
+                <p style={{ ...S.boardDesc, margin: 0, fontSize: 12 }}>{info.desc}</p>
+                <div style={{ ...S.chipMeta, color: '#ff9d6b', marginTop: 4 }}>
+                  🔒 Requires {reqInfo?.name}{req && req[1] > 1 ? ` Lv ${req[1]}` : ''}
+                </div>
+              </div>
+            )
+          }
           const maxed = lvl >= u.max_level
           const [flux, shards] = view.upgrade_costs[i] ?? [0, 0] // costs are Rust truth, not recomputed
           const can = !maxed && view.flux >= flux && view.shards >= shards
-          const info = UPGRADE_INFO[u.key] ?? { name: u.key, desc: '', icon: '⚙' }
           return (
             <div key={u.key} className={popped === u.key ? 'chip upgrade-pop' : 'chip'} style={{ ...S.recipeCard, borderColor: lvl > 0 ? '#5fe0c6' : '#23252f' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>

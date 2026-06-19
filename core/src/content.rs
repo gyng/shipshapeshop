@@ -221,19 +221,22 @@ pub struct UpgradeDef {
     pub flux_cost: f64,
     pub shard_cost: u64,
     pub max_level: u32,
+    pub requires: Option<(usize, u32)>, // tech-tree prereq: (upgrade index, min level); None = a root node
+    pub secret: bool, // when locked: secret nodes are HIDDEN until unlocked; non-secret ones show disabled
 }
 
-// Order is load-bearing — game.rs reads effects by index. Keep in sync.
+// Order is load-bearing — game.rs reads effects by index. Keep in sync. A small tech tree: two roots
+// (expand_floor, patience) branch into the rest; `twin_bond` + `auto_pull` are secret (revealed on unlock).
 pub const UPGRADES: [UpgradeDef; 9] = [
-    UpgradeDef { key: "expand_floor", flux_cost: 700.0, shard_cost: 0, max_level: 6 }, // 0: +2 Euler cap / level
-    UpgradeDef { key: "genus_resonance", flux_cost: 4500.0, shard_cost: 15, max_level: 1 }, // 1: +6% per distinct genus on the floor
-    UpgradeDef { key: "twin_bond", flux_cost: 6000.0, shard_cost: 25, max_level: 1 }, // 2: kin synergy doubled
-    UpgradeDef { key: "patience", flux_cost: 2500.0, shard_cost: 0, max_level: 3 }, // 3: +12h offline cap / level
-    UpgradeDef { key: "shard_dividend", flux_cost: 3500.0, shard_cost: 0, max_level: 1 }, // 4: dupe shards ×1.5
-    UpgradeDef { key: "forge_mastery", flux_cost: 3000.0, shard_cost: 30, max_level: 1 }, // 5: forge costs 25 (was 50)
-    UpgradeDef { key: "affinity_bloom", flux_cost: 5000.0, shard_cost: 0, max_level: 1 }, // 6: all bond gains ×1.5
-    UpgradeDef { key: "overflow_cap", flux_cost: 8000.0, shard_cost: 0, max_level: 4 }, // 7: production cap +300/hr / level
-    UpgradeDef { key: "auto_pull", flux_cost: 9000.0, shard_cost: 0, max_level: 1 }, // 8: unlocks the auto-pull toggle (UI)
+    UpgradeDef { key: "expand_floor", flux_cost: 700.0, shard_cost: 0, max_level: 6, requires: None, secret: false }, // 0: +2 Euler cap / level (root)
+    UpgradeDef { key: "genus_resonance", flux_cost: 4500.0, shard_cost: 15, max_level: 1, requires: Some((0, 2)), secret: false }, // 1: +6% per distinct genus
+    UpgradeDef { key: "twin_bond", flux_cost: 6000.0, shard_cost: 25, max_level: 1, requires: Some((1, 1)), secret: true }, // 2: kin synergy doubled (secret)
+    UpgradeDef { key: "patience", flux_cost: 2500.0, shard_cost: 0, max_level: 3, requires: None, secret: false }, // 3: +12h offline cap / level (root)
+    UpgradeDef { key: "shard_dividend", flux_cost: 3500.0, shard_cost: 0, max_level: 1, requires: Some((3, 1)), secret: false }, // 4: dupe shards ×1.5
+    UpgradeDef { key: "forge_mastery", flux_cost: 3000.0, shard_cost: 30, max_level: 1, requires: Some((0, 1)), secret: false }, // 5: forge costs 25
+    UpgradeDef { key: "affinity_bloom", flux_cost: 5000.0, shard_cost: 0, max_level: 1, requires: Some((4, 1)), secret: false }, // 6: bond gains ×1.5
+    UpgradeDef { key: "overflow_cap", flux_cost: 8000.0, shard_cost: 0, max_level: 4, requires: Some((0, 4)), secret: false }, // 7: cap +300/hr / level
+    UpgradeDef { key: "auto_pull", flux_cost: 9000.0, shard_cost: 0, max_level: 1, requires: Some((7, 1)), secret: true }, // 8: auto-pull toggle (secret)
 ];
 pub const UPGRADE_COUNT: usize = UPGRADES.len();
 

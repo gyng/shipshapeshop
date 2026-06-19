@@ -172,6 +172,7 @@ pub struct GameStateView {
     pub mult_signature: f64,
     pub mult_shape_effects: f64, // aggregate of the deployed shapes' own effects (handle-lane★ · overdrive · knots · signature)
     pub upgrade_costs: Vec<(f64, u64)>, // NEXT-level (flux, shard) cost per upgrade — UI displays, never recomputes
+    pub upgrade_unlocked: Vec<bool>, // tech-tree gate per upgrade (prereq satisfied)
     pub facet_perk_costs: Vec<u64>, // NEXT-level Facet cost per perk
 }
 
@@ -367,8 +368,15 @@ impl GameState {
         genera.dedup();
         1.0 + 0.06 * genera.len() as f64
     }
+    /// Tech-tree gate: an upgrade is unlocked when its prereq (if any) is at the required level.
+    pub fn upgrade_unlocked(&self, id: usize) -> bool {
+        match content::UPGRADES.get(id).and_then(|u| u.requires) {
+            Some((req, lvl)) => self.upgrade_level(req) >= lvl,
+            None => true,
+        }
+    }
     pub fn buy_upgrade(&mut self, id: usize) -> bool {
-        if id >= content::UPGRADE_COUNT {
+        if id >= content::UPGRADE_COUNT || !self.upgrade_unlocked(id) {
             return false;
         }
         let level = self.upgrade_level(id);
@@ -992,6 +1000,7 @@ impl GameState {
                 if base > 1e-9 { self.deployed_production() / base } else { 1.0 }
             },
             upgrade_costs: (0..content::UPGRADE_COUNT).map(|i| content::upgrade_cost(i, self.upgrade_level(i))).collect(),
+            upgrade_unlocked: (0..content::UPGRADE_COUNT).map(|i| self.upgrade_unlocked(i)).collect(),
             facet_perk_costs: (0..content::FACET_PERK_COUNT).map(|i| content::facet_perk_cost(i, self.facet_level(i))).collect(),
         }
     }
@@ -1169,6 +1178,8 @@ pub fn upgrades_json() -> String {
         flux_cost: f64,
         shard_cost: u64,
         max_level: u32,
+        requires: Option<(usize, u32)>,
+        secret: bool,
     }
     let rows: Vec<UpgradeRow> = content::UPGRADES
         .iter()
@@ -1177,6 +1188,8 @@ pub fn upgrades_json() -> String {
             flux_cost: u.flux_cost,
             shard_cost: u.shard_cost,
             max_level: u.max_level,
+            requires: u.requires,
+            secret: u.secret,
         })
         .collect();
     serde_json::to_string(&rows).unwrap()

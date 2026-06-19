@@ -82,6 +82,7 @@ export interface View {
   mult_signature: number
   mult_shape_effects: number
   upgrade_costs: [number, number][]
+  upgrade_unlocked: boolean[]
   facet_perk_costs: number[]
 }
 
@@ -96,6 +97,8 @@ export interface UpgradeDef {
   flux_cost: number
   shard_cost: number
   max_level: number
+  requires: [number, number] | null
+  secret: boolean
 }
 
 export interface MilestoneDef {
