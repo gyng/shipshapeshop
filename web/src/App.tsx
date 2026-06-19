@@ -5,6 +5,7 @@ import { RARITY_COLOR } from './three/Gem'
 import { CODEX } from './content/codex'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
+import { useMute } from './audio'
 
 function fmt(n: number): string {
   if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
@@ -102,6 +103,8 @@ function Hud() {
   const tr = useT()
   const lang = useLangStore((s) => s.lang)
   const setLang = useLangStore((s) => s.setLang)
+  const muted = useMute((s) => s.muted)
+  const toggleMute = useMute((s) => s.toggle)
   if (!view) return null
   return (
     <header style={S.hud}>
@@ -114,6 +117,7 @@ function Hud() {
         <span>◈ {view.shards} {tr('hud.shards')}</span>
         <span>{tr('hud.collection')} {view.distinct_owned}/41</span>
         <span>{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
+        <button onClick={toggleMute} style={S.langBtn} aria-label="toggle sound">{muted ? '🔇' : '🔊'}</button>
         <span style={S.langSwitch}>
           {LANGS.map((l) => (
             <button key={l.id} onClick={() => setLang(l.id)} style={{ ...S.langBtn, ...(lang === l.id ? S.langBtnOn : {}) }}>
@@ -278,6 +282,24 @@ function OfflineModal() {
   )
 }
 
+const rarityLabel = (r: string) => (r === 'Ssr' ? 'SSR' : r === 'Ur' ? 'UR' : r)
+
+// A deliberately VAGUE teaser for undiscovered shapes — no model, no name, no spoiler. Pulling is the joy.
+function vagueHint(rarity: string, genus: number): string {
+  const tier =
+    rarity === 'Ur' ? 'A legend of the deep Manifold.'
+    : rarity === 'Relic' ? 'Not of the Manifold at all — an artifact of the rendering-folk.'
+    : rarity === 'Ssr' ? 'One of the rarer forms, they say.'
+    : rarity === 'Epic' ? 'An uncommon find.'
+    : 'A common enough shape, once it surfaces.'
+  const holes =
+    genus === 0 ? 'Word is it has no way through — sealed, or solid.'
+    : genus === 1 ? 'A single hole, the Ledger notes — one way to thread it.'
+    : genus <= 3 ? 'A handful of holes, if the rumours hold.'
+    : 'Riddled with holes — more ways through than anyone has bothered to count.'
+  return `${tier} ${holes}`
+}
+
 function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
   const { shapes, view, inspect } = useGame()
   const tr = useT()
@@ -294,15 +316,30 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
   return (
     <div style={S.modal} onClick={onClose}>
       <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
-        <div style={S.revealStage}><HeroView key={s.family} family={s.family} rarity={s.rarity} controls /></div>
-        <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{owned ? s.nick : '??? (undiscovered)'}</h2>
-        <p style={S.revealSub}>{s.rarity === 'Ssr' ? 'SSR' : s.rarity} · {s.family.replace(/_/g, ' ')}{owned ? ` · ♥ Bond ${bond}` : ''}</p>
-        {owned && codex && <p style={{ ...S.hint, fontStyle: 'italic', color: '#cdd2e0' }}>“{codex.blurb}”</p>}
-        {owned && codex && bond >= 1 && <p style={{ ...S.hint, color: RARITY_COLOR[s.rarity] }}>{codex.bond}</p>}
-        <p style={S.hint}>
-          {s.genus > 0 ? `${s.genus} hole${s.genus > 1 ? 's' : ''} → ${s.genus} production lane${s.genus > 1 ? 's' : ''}. ` : 'No holes — free to deploy. '}
-          Euler cost {s.euler_cost}.{owned && codex ? ` …it is ${codex.term}.` : ''}
-        </p>
+        {owned ? (
+          <>
+            <div style={S.revealStage}><HeroView key={s.family} family={s.family} rarity={s.rarity} controls /></div>
+            <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{s.nick}</h2>
+            <p style={S.revealSub}>{rarityLabel(s.rarity)} · {s.family.replace(/_/g, ' ')} · ♥ Bond {bond}</p>
+            {codex && <p style={{ ...S.hint, fontStyle: 'italic', color: '#cdd2e0' }}>“{codex.blurb}”</p>}
+            {codex && bond >= 1 && <p style={{ ...S.hint, color: RARITY_COLOR[s.rarity] }}>{codex.bond}</p>}
+            <p style={S.hint}>
+              {s.genus > 0 ? `${s.genus} hole${s.genus > 1 ? 's' : ''} → ${s.genus} production lane${s.genus > 1 ? 's' : ''}. ` : 'No holes — free to deploy. '}
+              Euler cost {s.euler_cost}.{codex ? ` …it is ${codex.term}.` : ''}
+            </p>
+          </>
+        ) : (
+          <>
+            {/* No 3D preview for undiscovered shapes — pulling is the joy. Just a vague teaser. */}
+            <div style={{ ...S.revealStage, display: 'grid', placeItems: 'center' }}>
+              <span style={{ fontSize: 72, color: '#2a2c3a', fontWeight: 700 }}>?</span>
+            </div>
+            <h2 style={{ color: '#6b7088' }}>Undiscovered</h2>
+            <p style={S.revealSub}>{rarityLabel(s.rarity)} · still adrift in the Manifold</p>
+            <p style={{ ...S.hint, fontStyle: 'italic', color: '#aab' }}>{vagueHint(s.rarity, s.genus)}</p>
+            <p style={{ ...S.hint, opacity: 0.7 }}>Pull to bring it ashore — the reveal is half the joy.</p>
+          </>
+        )}
         <button style={S.pullBtn} onClick={onClose}>{tr('common.close')}</button>
       </div>
     </div>

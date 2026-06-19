@@ -1,6 +1,26 @@
 // Tiny WebAudio synth for juice — no voice acting (deferred), just gentle tones + per-rarity reveal chords
 // (a stand-in for the Eigenmode-timbre layer). Created lazily on first user gesture (the pull button).
 
+import { create } from 'zustand'
+
+const MUTE_KEY = 'shipshape-mute'
+interface MuteStore {
+  muted: boolean
+  toggle: () => void
+}
+export const useMute = create<MuteStore>((set, get) => ({
+  muted: typeof localStorage !== 'undefined' && localStorage.getItem(MUTE_KEY) === '1',
+  toggle: () => {
+    const muted = !get().muted
+    try {
+      localStorage.setItem(MUTE_KEY, muted ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+    set({ muted })
+  },
+}))
+
 let ctx: AudioContext | null = null
 function ac(): AudioContext {
   if (!ctx) {
@@ -12,6 +32,7 @@ function ac(): AudioContext {
 }
 
 function tone(freq: number, dur: number, delay = 0, type: OscillatorType = 'sine', gain = 0.1) {
+  if (useMute.getState().muted) return
   try {
     const a = ac()
     const t0 = a.currentTime + delay
