@@ -11,23 +11,26 @@ validation gates. Inspiration: Zachtronics *Opus Magnum* (a looping, legible mac
 
 ---
 
-## 1. Model (Rust domain — pure)
+## 1. Model (Rust domain — pure) — hex grid + anchored lanes (Opus-Magnum-style)
 
-- **Hex grid**, axial coords `(q, r)`, concentric rings around a center. Render-only geometry; the sim only
-  needs each shape's **cell at tick t**.
-- A placed shape sits on an **orbit** and advances **1 cell/tick** around it. An orbit is fully described by
-  `{ ring: u8, period: u8, phase: u8, dir: ±1 }`. `cell_at(t) = ring_cells[ring][(phase + dir*t) mod period]`.
-- **Topology-seeded, tunable.** The shape's *declared* invariants seed the orbit, the player tunes within
-  topology-allowed ranges:
-  - `genus` → ring/radius (more handles = more lanes = outer, busier rings)
-  - `χ` (Euler) → base period (the "Euler budget" now buys orbital tempo)
-  - `orientability` → `dir` (non-orientable shapes run retrograde — the overdrive flip, now literal)
-  - tuning = pick `period` from a **small allowed set** and `phase` (the only knobs), so meetings are
-    arrangeable but the system period stays bounded (below).
-- **Meetings.** At tick t, shapes sharing a cell (cap **3**/cell) form a meeting. A meeting applies the
-  existing pairwise effects — kin synergy (same family), knot/genus interactions, per-shape `signature` —
-  as a **flux bonus for that tick**, and emits a musical note (§3). Repeated meetings build **resonance**
-  → chords + a resonance multiplier.
+The Engine is a **bounded hex grid** on the factory-floor 3D plane (reuse that environment, hex now). It is a
+**position + timing puzzle**: you place shapes and time their movement so their paths cross.
+
+- **Anchor.** Each deployed shape owns one **anchor** hex cell — **unique, no two shapes share a cell**. You
+  **drag the anchor** to place the shape on the grid (the *position* half of the puzzle).
+- **Movement pattern (lane).** From its anchor the shape traverses a **cyclic, straight-line path** (a lane —
+  out along a hex axis and back, so motion reads as *straight*, never a curve), advancing **1 cell/tick**.
+  `cell_at(t) = anchor + pattern_offset[(phase + t) mod period]`.
+- **Topology-seeded, tunable.** Declared invariants seed the pattern; the player tunes:
+  - `χ` (Euler) → lane length ⇒ `period` (back-and-forth length L ⇒ period 2(L−1); pick L so period ∈ the
+    allowed set ⇒ lcm ≤ cap, below)
+  - `genus` → number/shape of lanes (more handles = a richer pattern)
+  - `orientability` → traversal direction (non-orientable = retrograde)
+  - **tuning knobs = anchor position (drag), rotation (which hex axis the lane points), and phase (timing).**
+    Period is fixed by topology so the system period stays bounded.
+- **Overlaps = the payoff.** When two shapes occupy the **same cell at the same tick** (mid-cycle crossings,
+  cap **3**/cell) they **meet**: a **bonus flux** that tick (kin synergy / knot / signature pairwise effects)
+  + a musical note (§3). Arranging anchors + timing so lanes cross productively *is* the game.
 
 ## 2. O(1) offline — the load-bearing math
 
