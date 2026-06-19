@@ -1,5 +1,5 @@
-import { useRef } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { useEffect, useRef } from 'react'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Environment, Lightformer, Float, ContactShadows, Stars, Sparkles } from '@react-three/drei'
 import * as THREE from 'three'
 import { getGeometry, OPEN_FAMILIES } from './geometry'
@@ -16,13 +16,14 @@ function SceneGem({ shape, side, speaking }: { shape: ShapeRow; side: -1 | 1; sp
     if (ref.current) ref.current.rotation.y += dt * 0.5
   })
   const col = RARITY_COLOR[shape.rarity]
-  // symmetric placement (keeps the composition centred); emphasis comes from depth, scale + light, not x
-  const x = side * 1.55
-  const z = speaking ? 1.0 : -0.5
+  // symmetric placement (keeps the composition centred); emphasis comes from depth, scale + light, not x.
+  // Modest x-spread + only a small forward lean so the active gem never pushes outside the frustum.
+  const x = side * 1.3
+  const z = speaking ? 0.3 : -0.4
   return (
     <>
       <Float speed={2} rotationIntensity={0} floatIntensity={speaking ? 0.9 : 0.35} floatingRange={[0, 0.16]}>
-        <mesh ref={ref} geometry={getGeometry(shape.family)} position={[x, 0, z]} scale={speaking ? 1.08 : 0.7}>
+        <mesh ref={ref} geometry={getGeometry(shape.family)} position={[x, 0, z]} scale={speaking ? 1.0 : 0.62}>
           <meshPhysicalMaterial
             color={col}
             metalness={0.3}
@@ -40,6 +41,23 @@ function SceneGem({ shape, side, speaking }: { shape: ShapeRow; side: -1 | 1; sp
       {speaking && <pointLight position={[x, 0.6, 2.2]} color={col} intensity={6} distance={6} decay={1.4} />}
     </>
   )
+}
+
+// Dolly the camera so a sphere of `radius` around the origin always fits — vertically AND horizontally —
+// for the current canvas aspect (+ margin). Prevents gems clipping on narrow/tall cutscene panels.
+function FitView({ radius }: { radius: number }) {
+  const camera = useThree((s) => s.camera)
+  const size = useThree((s) => s.size)
+  useEffect(() => {
+    const cam = camera as THREE.PerspectiveCamera
+    const vFov = (cam.fov * Math.PI) / 180
+    const aspect = size.width / Math.max(1, size.height)
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect)
+    const dist = Math.max(radius / Math.tan(vFov / 2), radius / Math.tan(hFov / 2)) * 1.1
+    cam.position.setLength(Math.max(dist, 1))
+    cam.updateProjectionMatrix()
+  }, [camera, size, radius])
+  return null
 }
 
 export function ShipScene({ a, b, speakerA }: { a?: ShapeRow; b?: ShapeRow; speakerA: boolean }) {
@@ -60,6 +78,7 @@ export function ShipScene({ a, b, speakerA }: { a?: ShapeRow; b?: ShapeRow; spea
         <Lightformer intensity={1.8} color={backdrop} position={[0, -2, 4]} scale={6} />
         <Lightformer intensity={1.8} color={key} position={[0, 4, 2]} scale={5} />
       </Environment>
+      <FitView radius={2.5} />
       {a && <SceneGem shape={a} side={-1} speaking={speakerA} />}
       {b && <SceneGem shape={b} side={1} speaking={!speakerA} />}
       <ContactShadows position={[0, -1.1, 0]} opacity={0.5} scale={8} blur={2.4} far={3} />

@@ -30,7 +30,7 @@ export function HeroGem({ family, rarity, spin = 0.4, geom }: { family: string; 
     }
   })
   return (
-    <mesh ref={ref} geometry={geom ?? getGeometry(family)} scale={1.7}>
+    <mesh ref={ref} geometry={geom ?? getGeometry(family)} scale={1.55}>
       <MeshTransmissionMaterial
         // Clear refractive glass. NO temporal/animated distortion and NO backside double-pass — both
         // flicker with transmission. The bright nebula env behind makes the body refract colour (not

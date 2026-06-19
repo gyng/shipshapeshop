@@ -1555,8 +1555,10 @@ function ShipCutscene() {
   const close = useShips((s) => s.close)
   const shapes = useGame((s) => s.shapes)
   const [i, setI] = useState(0)
+  const [showLog, setShowLog] = useState(false)
   useEffect(() => {
     setI(0)
+    setShowLog(false)
   }, [activeKey])
   // Speak each line in the active speaker's voice; cut off on advance / close.
   useEffect(() => {
@@ -1574,13 +1576,20 @@ function ShipCutscene() {
   const line = ship.lines[i]
   const last = i >= ship.lines.length - 1
   const speakerA = line.who === 'a'
-  const advance = () => (last ? close() : setI(i + 1))
+  const advance = () => {
+    if (showLog) return
+    if (last) close()
+    else setI(i + 1)
+  }
   const aCol = a ? RARITY_COLOR[a.rarity] : '#888'
   const bCol = b ? RARITY_COLOR[b.rarity] : '#888'
+  const speakerOf = (who: 'a' | 'b') => (who === 'a' ? a : b)
+  const colOf = (who: 'a' | 'b') => (who === 'a' ? aCol : bCol)
   return (
     <div style={S.modal} onClick={advance}>
       <div className="pop-in" style={S.shipCard} onClick={(e) => e.stopPropagation()}>
         <div style={S.shipHead}>♥ {a?.nick} &amp; {b?.nick}</div>
+        <button style={S.logBtn} onClick={() => setShowLog((v) => !v)} title="Dialogue log">{showLog ? '✕' : '📜'}</button>
         <div style={S.shipStage}>
           <ShipScene a={a} b={b} speakerA={speakerA} />
           <div style={S.shipNames}>
@@ -1589,11 +1598,22 @@ function ShipCutscene() {
             <span style={{ color: speakerA ? '#7b8198' : bCol, fontWeight: 700, transition: 'color .2s' }}>{b?.nick}</span>
           </div>
         </div>
-        <div style={S.shipLineBox}>
-          <strong style={{ color: speakerA ? aCol : bCol }}>{speakerA ? a?.nick : b?.nick}</strong>
-          <p style={{ ...S.shipText, fontFamily: fontOf(speakerA ? ship.a : ship.b) }}>{line.text}</p>
-        </div>
-        <button style={S.pullBtn} onClick={advance}>{last ? 'Close ♥' : 'Next ▸'}</button>
+        {showLog ? (
+          <div style={S.logBox}>
+            {ship.lines.slice(0, i + 1).map((ln, j) => (
+              <div key={j} style={{ marginBottom: 9 }}>
+                <strong style={{ color: colOf(ln.who), fontSize: 12 }}>{speakerOf(ln.who)?.nick}</strong>
+                <p style={{ ...S.shipText, margin: '2px 0 0', fontSize: 13, fontFamily: fontOf(ln.who === 'a' ? ship.a : ship.b) }}>{ln.text}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={S.shipLineBox}>
+            <strong style={{ color: speakerA ? aCol : bCol }}>{speakerA ? a?.nick : b?.nick}</strong>
+            <p style={{ ...S.shipText, fontFamily: fontOf(speakerA ? ship.a : ship.b) }}>{line.text}</p>
+          </div>
+        )}
+        <button style={S.pullBtn} onClick={() => (showLog ? setShowLog(false) : advance())}>{showLog ? '▸ Resume' : last ? 'Close ♥' : 'Next ▸'}</button>
         <div style={S.shipDots}>{ship.lines.map((_, j) => <span key={j} style={{ ...S.shipDot, opacity: j === i ? 1 : 0.3 }} />)}</div>
       </div>
     </div>
@@ -1767,8 +1787,10 @@ const S: Record<string, CSSProperties> = {
   watchPill: { marginLeft: 'auto', flexShrink: 0, background: '#3a2440', color: '#ff9ecf', border: '1px solid #6b3a7a', borderRadius: 999, padding: '2px 8px', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' },
 
   // ── Ship cutscene ──
-  shipCard: { width: 'min(480px, 94vw)', background: '#101119', border: '1px solid #3a2c44', borderRadius: 16, padding: 20, textAlign: 'center' },
+  shipCard: { width: 'min(480px, 94vw)', background: '#101119', border: '1px solid #3a2c44', borderRadius: 16, padding: 20, textAlign: 'center', position: 'relative' },
   shipHead: { color: '#ff9ecf', fontWeight: 800, fontSize: 15, marginBottom: 14, letterSpacing: 0.3 },
+  logBtn: { position: 'absolute', top: 14, right: 14, background: 'rgba(40,30,48,0.8)', border: '1px solid #4a3a52', color: '#ffb8e0', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', fontSize: 14, lineHeight: 1 },
+  logBox: { minHeight: 78, maxHeight: 220, overflowY: 'auto', background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: '12px 14px', marginBottom: 14, textAlign: 'left' },
   shipGems: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, marginBottom: 14 },
   shipGem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, transition: 'all 0.25s ease', color: '#cdd2e0', fontSize: 13, fontWeight: 700 },
   shipGemDot: { width: 52, height: 52, borderRadius: '50%', transition: 'all 0.25s ease' },
