@@ -9,4 +9,5 @@ export const UPGRADE_INFO: Record<string, { name: string; desc: string; icon: st
   forge_mastery: { name: 'Connected-Sum Mastery', icon: '🔨', desc: 'Forging costs 25 shards instead of 50.' },
   affinity_bloom: { name: 'Affinity Bloom', icon: '♥', desc: 'All bonds grow 50% faster — idle, inspect, and pat alike.' },
   overflow_cap: { name: 'Overflow Capacitor', icon: '⚡', desc: '+300 Flux/hr to the production ceiling — keeps the numbers climbing past the cap.' },
+  auto_pull: { name: 'Auto-Pull Servo', icon: '🤖', desc: 'Unlocks an auto-pull toggle — the Atlas spends spare Flux on pulls for you (no reveal ceremony, just the haul).' },
 }

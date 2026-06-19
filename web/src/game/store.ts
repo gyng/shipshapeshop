@@ -146,6 +146,8 @@ interface Store {
   toggleDev: () => void
   settingsOpen: boolean
   setSettingsOpen: (v: boolean) => void
+  autoPull: boolean
+  toggleAutoPull: () => void
   devAddFlux: () => void
   devAddShards: () => void
   devUnlockAll: () => void
@@ -175,6 +177,7 @@ export const useGame = create<Store>((set, get) => ({
   offline: null,
   devOpen: false,
   settingsOpen: false,
+  autoPull: typeof localStorage !== 'undefined' && localStorage.getItem('shipshape-autopull') === '1',
   fluxHistory: [],
   milestoneToast: null,
 
@@ -208,7 +211,19 @@ export const useGame = create<Store>((set, get) => ({
       game.tick(now())
       get().refresh()
       const v = get().view
-      if (v) set((s) => ({ fluxHistory: [...s.fluxHistory, v.flux].slice(-120) }))
+      if (v) {
+        set((s) => ({ fluxHistory: [...s.fluxHistory, v.flux].slice(-120) }))
+        // auto-pull: once unlocked + toggled on, spend spare Flux silently (no reveal ceremony)
+        if (get().autoPull && v.upgrades[8] > 0 && v.can_pull) {
+          const out = JSON.parse(game.pull(now())) as PullOutcome
+          if (out.ok) {
+            get().refresh()
+            persist()
+            floatShards(out.dupe_shards)
+            if (out.is_new) useFloaters.getState().spawn('NEW ★', { color: '#ff5d8f', big: true })
+          }
+        }
+      }
     }, 1000)
     setInterval(persist, 5000)
     window.addEventListener('pagehide', persist)
@@ -313,6 +328,15 @@ export const useGame = create<Store>((set, get) => ({
   },
   toggleDev: () => set((s) => ({ devOpen: !s.devOpen })),
   setSettingsOpen: (v) => set({ settingsOpen: v }),
+  toggleAutoPull: () => {
+    const v = !get().autoPull
+    try {
+      localStorage.setItem('shipshape-autopull', v ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+    set({ autoPull: v })
+  },
   devAddFlux: () => {
     game?.dev_add_flux(10000)
     get().refresh()

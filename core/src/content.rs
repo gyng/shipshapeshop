@@ -147,7 +147,7 @@ pub struct UpgradeDef {
 }
 
 // Order is load-bearing — game.rs reads effects by index. Keep in sync.
-pub const UPGRADES: [UpgradeDef; 8] = [
+pub const UPGRADES: [UpgradeDef; 9] = [
     UpgradeDef { key: "expand_floor", flux_cost: 700.0, shard_cost: 0, max_level: 6 }, // 0: +2 Euler cap / level
     UpgradeDef { key: "genus_resonance", flux_cost: 4500.0, shard_cost: 15, max_level: 1 }, // 1: +6% per distinct genus on the floor
     UpgradeDef { key: "twin_bond", flux_cost: 6000.0, shard_cost: 25, max_level: 1 }, // 2: kin synergy doubled
@@ -156,6 +156,7 @@ pub const UPGRADES: [UpgradeDef; 8] = [
     UpgradeDef { key: "forge_mastery", flux_cost: 3000.0, shard_cost: 30, max_level: 1 }, // 5: forge costs 25 (was 50)
     UpgradeDef { key: "affinity_bloom", flux_cost: 5000.0, shard_cost: 0, max_level: 1 }, // 6: all bond gains ×1.5
     UpgradeDef { key: "overflow_cap", flux_cost: 8000.0, shard_cost: 0, max_level: 4 }, // 7: production cap +300/hr / level
+    UpgradeDef { key: "auto_pull", flux_cost: 9000.0, shard_cost: 0, max_level: 1 }, // 8: unlocks the auto-pull toggle (UI)
 ];
 pub const UPGRADE_COUNT: usize = UPGRADES.len();
 

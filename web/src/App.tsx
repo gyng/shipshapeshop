@@ -220,7 +220,7 @@ function Hud() {
 }
 
 function GachaView() {
-  const { view, pull, tenPull, shapes, lastReveal } = useGame()
+  const { view, pull, tenPull, shapes, lastReveal, autoPull, toggleAutoPull } = useGame()
   const tr = useT()
   const focusId = lastReveal?.[0]?.shape_id ?? 0
   const shape = shapes[focusId] ?? shapes[0]
@@ -245,6 +245,15 @@ function GachaView() {
           </button>
         </div>
         <p style={S.hint}>{tr('pull.hint')}</p>
+        {view.upgrades[8] > 0 && (
+          <button
+            onClick={toggleAutoPull}
+            title="Auto-pull (Workshop): spends spare Flux for you, no reveal"
+            style={{ ...S.smallBtn, alignSelf: 'flex-start', ...(autoPull ? S.toggleOn : {}) }}
+          >
+            🤖 Auto-pull · {autoPull ? 'ON' : 'OFF'}
+          </button>
+        )}
       </div>
     </div>
   )
