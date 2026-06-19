@@ -18,6 +18,7 @@ export const useMute = create<MuteStore>((set, get) => ({
     } catch {
       /* ignore */
     }
+    if (muted) stopVoice() // cut off any in-flight spoken line immediately
     set({ muted })
   },
 }))

@@ -844,25 +844,26 @@ function ForgeToast() {
 
 // A light, skippable, replayable first-run tour. A bottom card walks the player through the systems, switching
 // tabs as it goes; it never blocks play (the backdrop is click-through).
-const TOUR_STEPS: { tab: Tab; icon: string; title: string; body: string }[] = [
-  { tab: 'gacha', icon: '✦', title: 'Pull shapes', body: 'Tap Pull to summon a shape with Flux. Odds are shown and pity is visible — keep pulling and a rare one is guaranteed. No tricks.' },
-  { tab: 'gallery', icon: '🗂️', title: 'Your collection', body: 'Every shape you own lives here. Tap one to inspect it, raise its Bond, and hear it speak — each has a personality.' },
-  { tab: 'engine', icon: '🏭', title: 'Deploy for Flux', body: 'This is your factory floor. Deploy shapes here to produce Flux automatically — even while the game is closed.' },
-  { tab: 'engine', icon: '🔧', title: 'Workshop & beyond', body: 'Spend banked Flux on permanent upgrades that change how you play. Complete the core, then Recrystallize to ascend and earn Facets — a deeper prestige tree.' },
-  { tab: 'forge', icon: '🔨', title: 'Forge new shapes', body: 'Glue two shapes together to discover a third — a Möbius strip plus a Möbius strip makes a Klein bottle!' },
-  { tab: 'gacha', icon: '🎯', title: 'Your goals — enjoy', body: 'The Next Goals panel tracks what to chase. Play it calm and cozy or optimise the numbers — entirely your call. Have fun!' },
+const TOUR_STEPS: { tab: Tab; icon: string; key: string }[] = [
+  { tab: 'gacha', icon: '✦', key: 'tour.s0' },
+  { tab: 'gallery', icon: '🗂️', key: 'tour.s1' },
+  { tab: 'engine', icon: '🏭', key: 'tour.s2' },
+  { tab: 'engine', icon: '🔧', key: 'tour.s3' },
+  { tab: 'forge', icon: '🔨', key: 'tour.s4' },
+  { tab: 'gacha', icon: '🎯', key: 'tour.s5' },
 ]
 
 function TourCoachmark({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
+  const tr = useT()
   const running = useTour((s) => s.running)
   const step = useTour((s) => s.step)
   const next = useTour((s) => s.next)
   const finish = useTour((s) => s.finish)
   const cur = TOUR_STEPS[step]
   useEffect(() => {
-    if (running && cur && tab !== cur.tab) setTab(cur.tab)
+    if (running && cur && tab !== cur.tab) setTab(cur.tab) // keep the player on the step's screen
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running, step])
+  }, [running, step, tab])
   if (!running || !cur) return null
   const last = step >= TOUR_STEPS.length - 1
   return (
@@ -870,13 +871,13 @@ function TourCoachmark({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) 
       <div className="pop-in" style={S.tourCard}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 22 }}>{cur.icon}</span>
-          <strong style={{ color: '#e8eaf2' }}>{cur.title}</strong>
+          <strong style={{ color: '#e8eaf2' }}>{tr(`${cur.key}.title`)}</strong>
           <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a90a8' }}>{step + 1}/{TOUR_STEPS.length}</span>
         </div>
-        <p style={{ ...S.boardDesc, margin: '8px 0 12px' }}>{cur.body}</p>
+        <p style={{ ...S.boardDesc, margin: '8px 0 12px' }}>{tr(`${cur.key}.body`)}</p>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button style={S.pullBtn} onClick={() => (last ? finish() : next())}>{last ? "Let’s go ✦" : 'Next ▸'}</button>
-          {!last && <button style={S.smallBtn} onClick={finish}>Skip</button>}
+          <button style={S.pullBtn} onClick={() => (last ? finish() : next())}>{last ? tr('tour.finish') : tr('tour.next')}</button>
+          {!last && <button style={S.smallBtn} onClick={finish}>{tr('tour.skip')}</button>}
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
             {TOUR_STEPS.map((_, j) => <span key={j} style={{ ...S.shipDot, opacity: j === step ? 1 : 0.3 }} />)}
           </div>
@@ -1081,6 +1082,7 @@ function Attribution() {
 }
 
 function SettingsModal() {
+  const tr = useT()
   const settingsOpen = useGame((s) => s.settingsOpen)
   const setSettingsOpen = useGame((s) => s.setSettingsOpen)
   const muted = useMute((s) => s.muted)
@@ -1134,7 +1136,7 @@ function SettingsModal() {
                   useTour.getState().restart()
                 }}
               >
-                ▶ Replay tutorial
+                {tr('settings.replay')}
               </button>
             </>
           )}

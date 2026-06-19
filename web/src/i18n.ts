@@ -96,6 +96,48 @@ const STR: Dict = {
     ja: '📜 アトラスが満ちた。「工房」で再結晶すると次元を上れる——コレクションは引き継がれる。',
     zh: '📜 图志已满。在「引擎」中重结晶即可登上更高维度——收藏会保留。',
   },
+
+  // First-run tour
+  'tour.next': { en: 'Next ▸', ja: '次へ ▸', zh: '下一步 ▸' },
+  'tour.skip': { en: 'Skip', ja: 'スキップ', zh: '跳过' },
+  'tour.finish': { en: 'Let’s go ✦', ja: 'はじめよう ✦', zh: '开始吧 ✦' },
+  'settings.replay': { en: '▶ Replay tutorial', ja: '▶ チュートリアルを再生', zh: '▶ 重看教程' },
+  'tour.s0.title': { en: 'Pull shapes', ja: 'ガチャを引く', zh: '抽取形状' },
+  'tour.s0.body': {
+    en: 'Tap Pull to summon a shape with Flux. Odds are shown and pity is visible — keep pulling and a rare one is guaranteed. No tricks.',
+    ja: '✦ で形を引ける。確率は明示、天井も見える——引き続ければレアは必ず出る。小細工なし。',
+    zh: '用流量抽取形状。概率公开、保底可见——持续抽取必出稀有。绝无套路。',
+  },
+  'tour.s1.title': { en: 'Your collection', ja: 'コレクション', zh: '你的收藏' },
+  'tour.s1.body': {
+    en: 'Every shape you own lives here. Tap one to inspect it, raise its Bond, and hear it speak — each has a personality.',
+    ja: '持っている形はすべてここに。タップして調べ、絆を育て、声を聞こう——みんな個性がある。',
+    zh: '你拥有的形状都在这里。点击查看、培养羁绊、聆听它说话——每个都有个性。',
+  },
+  'tour.s2.title': { en: 'Deploy for Flux', ja: '配置で生産', zh: '部署产出' },
+  'tour.s2.body': {
+    en: 'This is your factory floor. Deploy shapes here to produce Flux automatically — even while the game is closed.',
+    ja: 'ここが工場フロア。形を配置するとフラックスを自動生産——ゲームを閉じていても貯まる。',
+    zh: '这是你的工厂车间。部署形状即可自动产出流量——即使关闭游戏也在累积。',
+  },
+  'tour.s3.title': { en: 'Workshop & beyond', ja: '工房とその先', zh: '工房与进阶' },
+  'tour.s3.body': {
+    en: 'Spend banked Flux on permanent upgrades that change how you play. Complete the core, then Recrystallize to ascend and earn Facets — a deeper prestige tree.',
+    ja: 'フラックスを使い、遊び方を変える恒久強化を購入。コアを完成させたら再結晶で次元を上げ、Facets を獲得——より深い転生ツリーへ。',
+    zh: '用储备的流量购买改变玩法的永久升级。完成核心后重结晶以飞升，并赚取 Facets——更深的转生树。',
+  },
+  'tour.s4.title': { en: 'Forge new shapes', ja: '鍛冶で生成', zh: '熔炉合成' },
+  'tour.s4.body': {
+    en: 'Glue two shapes together to discover a third — a Möbius strip plus a Möbius strip makes a Klein bottle!',
+    ja: '二つの形を繋げて三つ目を発見——メビウスの帯＋メビウスの帯でクラインの壺！',
+    zh: '将两个形状熔合发现第三个——莫比乌斯带＋莫比乌斯带＝克莱因瓶！',
+  },
+  'tour.s5.title': { en: 'Your goals — enjoy', ja: '目標、そして楽しむ', zh: '你的目标——尽情享受' },
+  'tour.s5.body': {
+    en: 'The Next Goals panel tracks what to chase. Play it calm and cozy or optimise the numbers — entirely your call. Have fun!',
+    ja: '『次の目標』パネルが目指す先を示す。のんびり癒しでも、数字を最適化でも——あなた次第。楽しんで！',
+    zh: '『下一目标』面板会指引方向。悠闲治愈，或钻研数字优化——全凭你。玩得开心！',
+  },
 }
 
 export function useT(): (key: string) => string {

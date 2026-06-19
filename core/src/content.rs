@@ -13,7 +13,8 @@ pub struct ShapeDef {
     pub rarity: Rarity,
     /// Number of holes (handle lanes, M7).
     pub genus: u32,
-    /// Euler-budget cost to deploy = max(0, 2 − χ). Spheres/Platonics are free ballast.
+    /// Euler-budget cost to deploy — typically max(0, 2 − χ), but tuned per shape for game balance
+    /// (exotic/fractal Relics in particular). Spheres/Platonics are free ballast.
     pub euler_cost: u32,
     /// Base idle production in Flux/hour when deployed (before genus bonus + prestige).
     pub base_prod: f64,

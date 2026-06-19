@@ -65,7 +65,9 @@ export const useTour = create<TourStore>((set, get) => ({
   running: false,
   step: 0,
   start: () => {
-    if (!get().seen) set({ running: true, step: 0 })
+    // Only ever called from the new-player Welcome flow, so start unconditionally (don't silently no-op on a
+    // stale/corrupted 'seen' flag); the running guard prevents re-entry.
+    if (!get().running) set({ running: true, step: 0 })
   },
   next: () => set({ step: get().step + 1 }),
   finish: () => {

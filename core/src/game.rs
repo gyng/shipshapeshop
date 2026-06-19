@@ -901,7 +901,7 @@ mod tests {
         // 6 hours away
         let r6 = g.compute_offline(6.0 * HOUR);
         assert!((r6.gained_flux - rate * 6.0).abs() < 1e-6);
-        // 100 hours away → capped at the offline cap (20h)
+        // 100 hours away → capped at the offline cap (24h)
         let mut g2 = GameState::new(1, 0.0);
         let r100 = g2.compute_offline(100.0 * HOUR);
         assert_eq!(r100.capped_ms, OFFLINE_CAP_MS);
