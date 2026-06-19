@@ -298,7 +298,7 @@ function Objectives() {
             <span style={{ fontSize: 15 }}>{info.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={S.objLabel}>{info.name}</div>
-              <div style={S.meterTrack}><div style={{ ...S.meterFill, width: `${x.pct * 100}%`, background: '#5fe0c6' }} /></div>
+              <div style={S.meterTrack}><div style={{ ...S.meterFill, width: `${x.pct * 100}%`, background: '#5fe0c6', color: '#5fe0c6' }} /></div>
             </div>
             <span style={S.objNum}>{Math.min(x.cur, x.target)}/{x.target}</span>
           </div>
@@ -458,10 +458,10 @@ function GachaView() {
           <Meter label={`${tr('pull.resonance')} ${view.resonance}/40`} pct={view.resonance / 40} color="#ff5d8f" />
         </div>
         <div style={S.pullRow}>
-          <button className={view.can_pull ? 'ready-pulse' : undefined} title={tr('pull.oneShortcut')} style={{ ...S.pullBtn, opacity: view.can_pull ? 1 : 0.4 }} disabled={!view.can_pull} onClick={pull}>
+          <button className={`pull-cap ${view.can_pull ? 'ready-pulse' : ''}`} title={tr('pull.oneShortcut')} style={{ ...S.pullBtn, opacity: view.can_pull ? 1 : 0.4 }} disabled={!view.can_pull} onClick={pull}>
             {tr('pull.one')} <kbd style={S.kbd}>P</kbd>
           </button>
-          <button title={tr('pull.tenShortcut')} style={{ ...S.pullBtn10, opacity: view.flux >= 1000 ? 1 : 0.4 }} disabled={view.flux < 1000} onClick={tenPull}>
+          <button className="pull-cap" title={tr('pull.tenShortcut')} style={{ ...S.pullBtn10, opacity: view.flux >= 1000 ? 1 : 0.4 }} disabled={view.flux < 1000} onClick={tenPull}>
             {tr('pull.ten')} <kbd style={S.kbd}>T</kbd>
           </button>
         </div>
@@ -615,7 +615,7 @@ function CuratorBadge({ compact = false }: { compact?: boolean }) {
       style={S.rankBadge}
       title={`Curator score ${score}${next ? ` · ${toNext} to rank ${next}` : ' · apex rank'} — from collection, relics, recipes, maxed bonds & prestige.`}
     >
-      <span style={{ ...S.rankLetter, color: col, borderColor: col, boxShadow: `0 0 12px ${col}55` }}>{rank}</span>
+      <span style={{ ...S.rankLetter, color: col, borderColor: col, background: `radial-gradient(circle at 50% 30%, ${col}22, #0e0f17)`, boxShadow: `0 0 12px ${col}55, inset 0 1px 2px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.15)` }}>{rank}</span>
       {!compact && (
         <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
           <span style={{ fontSize: 10.5, color: '#8a90a8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{tr('rank.label')}</span>
@@ -708,7 +708,7 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
               const owned = view.owned[s.id] > 0
               return (
                 <button key={s.id} onClick={() => onInspect(s.id)} className="chip"
-                  style={{ ...S.tile, borderColor: owned ? RARITY_COLOR[r] : '#23252f', color: owned ? '#fff' : '#555', background: owned ? `${RARITY_COLOR[r]}14` : '#13141d' }}>
+                  style={{ ...S.tile, borderColor: owned ? RARITY_COLOR[r] : '#23252f', color: owned ? '#fff' : '#555', background: owned ? `${RARITY_COLOR[r]}14` : 'linear-gradient(180deg,#15161f,#0e0f16)', boxShadow: owned ? `inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 6px rgba(0,0,0,0.4), 0 0 10px ${RARITY_COLOR[r]}33` : 'inset 0 2px 5px rgba(0,0,0,0.55)' }}>
                   <span style={S.tileGlyph}>{owned ? glyphOf(s.family) : '❓'}</span>
                   {owned ? s.nick : tr('gallery.unknownTile')}
                   {(view.star_levels[s.id] ?? 0) > 0 ? (
@@ -766,7 +766,7 @@ function FacetsPanel() {
                 {f.max_level > 1 && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a90a8' }}>{tr('common.lvFraction', { lvl, max: f.max_level })}</span>}
               </div>
               <p style={{ ...S.boardDesc, margin: 0, fontSize: 12 }}>{info.desc}</p>
-              <button style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={(e) => onBuy(e, i, f.key)}>
+              <button className="forge-cap" style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={(e) => onBuy(e, i, f.key)}>
                 {maxed ? tr('common.maxed') : tr('facets.buy', { cost })}
               </button>
             </div>
@@ -837,7 +837,7 @@ function UpgradesPanel() {
                 {u.max_level > 1 && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a90a8' }}>{tr('common.lvFraction', { lvl, max: u.max_level })}</span>}
               </div>
               <p style={{ ...S.boardDesc, margin: 0, fontSize: 12 }}>{info.desc}</p>
-              <button style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={(e) => onBuy(e, i, u.key, flux)}>
+              <button className="forge-cap" style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={(e) => onBuy(e, i, u.key, flux)}>
                 {maxed ? tr('common.maxed') : (
                   <>{tr('workshop.buy')}{fmt(flux)} <span style={S.fluxIcon}>✦</span>{shards > 0 ? <> + {shards} <span style={S.shardIcon}>◈</span></> : null}</>
                 )}
@@ -957,7 +957,7 @@ function BoardGrid({ sel, setSel }: { sel: number | null; setSel: (id: number | 
             key={cell}
             onClick={() => onCell(cell)}
             title={s ? s.nick : tr('board.emptyCell')}
-            style={{ ...S.boardCell, borderColor: s ? RARITY_COLOR[s.rarity] : '#23252f', background: selected ? '#33384e' : s ? '#171922' : '#0c0d15', boxShadow: selected ? '0 0 10px #5fe0c6' : 'none' }}
+            style={{ ...S.boardCell, borderColor: s ? RARITY_COLOR[s.rarity] : '#23252f', background: selected ? '#33384e' : s ? '#171922' : 'linear-gradient(180deg, #14151e, #0e0f17)', boxShadow: selected ? '0 0 10px #5fe0c6, inset 0 0 0 1px #5fe0c6' : s ? `inset 0 0 10px -2px ${RARITY_COLOR[s.rarity]}, 0 0 0 1px ${RARITY_COLOR[s.rarity]}` : 'inset 0 1px 2px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(120,130,160,0.06)' }}
           >
             {s ? <span style={{ fontSize: 'clamp(14px, 5vw, 22px)' }}>{glyphOf(s.family)}</span> : sel != null ? <span style={{ color: '#5fe0c6', opacity: 0.5 }}>+</span> : ''}
           </button>
@@ -1020,7 +1020,7 @@ function EngineView() {
         )}
         <div style={S.budgetBox}>
           <div style={S.budgetTop}><span>{tr('engine.floorSpaceUsed')}</span><span>{view.euler_used} / {view.euler_cap}</span></div>
-          <div style={S.meterTrack}><div style={{ ...S.meterFill, width: `${Math.min(100, pct * 100)}%`, background: pct > 0.85 ? '#ff5d8f' : '#5fe0c6' }} /></div>
+          <div style={S.meterTrack}><div style={{ ...S.meterFill, width: `${Math.min(100, pct * 100)}%`, background: pct > 0.85 ? '#ff5d8f' : '#5fe0c6', color: pct > 0.85 ? '#ff5d8f' : '#5fe0c6' }} /></div>
         </div>
         <div style={S.boardBtns}>
           <button style={S.smallBtn} onClick={autoArrange}>{tr('engine.autoArrange')}</button>
@@ -1076,7 +1076,7 @@ function Meter({ label, pct, color }: { label: string; pct: number; color: strin
       <div style={S.meterTrack}>
         <div
           className={p >= 1 ? 'meter-ready' : undefined}
-          style={{ ...S.meterFill, width: `${p * 100}%`, background: fill, transition: 'width .4s ease, background .4s ease' }}
+          style={{ ...S.meterFill, width: `${p * 100}%`, background: fill, color: fill, transition: 'width .4s ease, background .4s ease' }}
         />
       </div>
     </div>
@@ -1155,7 +1155,7 @@ function RevealModal() {
 
   return (
     <div style={S.modal} onClick={dismissReveal}>
-      <div className={bestRank >= 3 ? 'pop-in reveal-shake' : 'pop-in'} style={{ ...S.revealCard, position: 'relative', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
+      <div className={bestRank >= 3 ? 'pop-in reveal-shake case-door' : 'pop-in case-door'} style={{ ...S.revealCard, position: 'relative', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
         {bestShape && <div className="flash" style={{ background: `radial-gradient(circle, ${RARITY_COLOR[bestShape.rarity]}, transparent 60%)` }} />}
         {bestShape && bestRank >= 4 && <div className="flash-ring" style={{ color: RARITY_COLOR[bestShape.rarity] }} />}
         <div style={S.revealStage}>{bestShape && <HeroView key={bestShape.family} family={bestShape.family} rarity={bestShape.rarity} spin={0.8} />}</div>
@@ -1411,7 +1411,7 @@ function ForgeView() {
           <strong style={{ color: '#ffd76b' }}>{tr('forge.referenceWing.title')}</strong>
           <p style={{ ...S.boardDesc, margin: '4px 0 0' }}>{tr('forge.referenceWing.desc', { owned: view.relics_owned, count: view.relic_count })}</p>
         </div>
-        <button style={{ ...S.summonBtn, opacity: canRelic ? 1 : 0.4 }} disabled={!canRelic} onClick={claimRelic}>
+        <button className="pull-cap" style={{ ...S.summonBtn, opacity: canRelic ? 1 : 0.4 }} disabled={!canRelic} onClick={claimRelic}>
           {view.relics_owned >= view.relic_count ? tr('forge.summon.complete') : tr('forge.summon.cost', { cost: view.relic_cost })}
         </button>
       </div>
@@ -1433,7 +1433,7 @@ function ForgeView() {
                 <span style={S.flowOp}>→</span>
                 <GemChip shape={out} show={discovered} />
               </div>
-              <button style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={() => forge(r.a, r.b)}>
+              <button className="forge-cap" style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={() => forge(r.a, r.b)}>
                 {can ? tr('forge.recipe.forgeCost') : !haveA || !haveB ? tr('forge.recipe.missingShape') : tr('forge.recipe.needShards')}
               </button>
               {discovered && <span style={S.discoveredTag}>{tr('forge.recipe.discovered')}</span>}
@@ -1576,7 +1576,7 @@ function ShopView() {
               ) : owned ? (
                 <button style={S.forgeBtn} onClick={() => selectScene(sc.id)}>{tr('shop.equip')}</button>
               ) : (
-                <button style={{ ...S.summonBtn, opacity: canBuy ? 1 : 0.4 }} disabled={!canBuy} onClick={() => buyCosmetic(sc.id, sc.cost)}>{tr('shop.buy')} · {fmt(sc.cost)} ✦</button>
+                <button className="pull-cap" style={{ ...S.summonBtn, opacity: canBuy ? 1 : 0.4 }} disabled={!canBuy} onClick={() => buyCosmetic(sc.id, sc.cost)}>{tr('shop.buy')} · {fmt(sc.cost)} ✦</button>
               )}
             </div>
           )
@@ -1981,7 +1981,7 @@ function ShipCutscene() {
   const colOf = (who: 'a' | 'b') => (who === 'a' ? aCol : bCol)
   return (
     <div style={S.modal} onClick={advance}>
-      <div className="pop-in" style={S.shipCard} onClick={(e) => e.stopPropagation()}>
+      <div className="pop-in case-door" style={S.shipCard} onClick={(e) => e.stopPropagation()}>
         <div style={S.shipHead}>♥ {a?.nick} &amp; {b?.nick}</div>
         <button style={S.logBtn} onClick={() => setShowLog((v) => !v)} title={tr('dialogLog.title')}>{showLog ? '✕' : '📜'}</button>
         <div style={S.shipStage}>
@@ -2041,30 +2041,48 @@ function ShipWatcher() {
   return null
 }
 
+// VITRINE skeuomorph — two reusable materials. RECESSED PANEL = a frosted pane sunk into a bezel;
+// RAISED CAP = a domed metal button that sits proud (and sinks on :active via juice.css). Spread these in,
+// then keep each element's own borderRadius/padding/layout.
+const VITRINE: CSSProperties = {
+  background: 'linear-gradient(180deg, #0c0d15 0%, #111219 60%, #15161f 100%)',
+  border: '1px solid #2c2f3c',
+  boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.6), inset 0 -1px 0 rgba(120,130,160,0.10), inset 0 0 0 1px rgba(255,207,107,0.05), 0 1px 0 rgba(255,255,255,0.03)',
+}
+const CAP: CSSProperties = {
+  background: 'linear-gradient(180deg, #2a2d3b 0%, #20222e 52%, #181922 100%)',
+  border: '1px solid #34384a',
+  borderTopColor: '#444a5e',
+  borderBottomColor: '#14151d',
+  color: '#e8eaf2',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.10), inset 0 -1px 2px rgba(0,0,0,0.4), 0 2px 3px rgba(0,0,0,0.45), 0 1px 0 rgba(0,0,0,0.3)',
+  cursor: 'pointer',
+}
+
 const S: Record<string, CSSProperties> = {
   loading: { color: '#9aa6c2', background: '#0d0d16', height: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'system-ui', fontSize: 18 },
   app: { background: '#0d0d16', color: '#e8e8f0', minHeight: '100vh', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' },
-  hud: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderBottom: '1px solid #1c1e2a', flexWrap: 'wrap', gap: 8, background: 'linear-gradient(180deg, rgba(255,207,107,0.05), transparent)' },
+  hud: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', flexWrap: 'wrap', gap: 8, background: 'linear-gradient(180deg, #16131a 0%, #100f17 100%), linear-gradient(180deg, rgba(255,207,107,0.06), transparent)', borderBottom: '1px solid #2c2f3c', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -1px 0 rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.4)' },
   fluxLabel: { color: '#8a90a8', marginRight: 8, fontSize: 13 },
   fluxValue: { fontSize: 28, fontWeight: 800, color: '#ffe1a3', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 14px rgba(255,207,107,0.35)' },
   rate: { color: '#5fe0c6', marginLeft: 10, fontSize: 13 },
   hudStats: { display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 12, rowGap: 6, fontSize: 13, color: '#aab', alignItems: 'center', minWidth: 0 },
   langSwitch: { display: 'flex', gap: 4 },
-  langBtn: { background: 'none', border: '1px solid #2a2c3a', color: '#8a90a8', borderRadius: 6, padding: '2px 7px', fontSize: 11, cursor: 'pointer' },
+  langBtn: { ...CAP, color: '#aab2c8', borderRadius: 6, padding: '2px 7px', fontSize: 11 },
   langBtnOn: { background: '#28304a', color: '#fff', borderColor: '#5fe0c6' },
-  nav: { display: 'flex', gap: 4, padding: '8px 16px', borderBottom: '1px solid #1c1e2a', overflowX: 'auto' },
+  nav: { display: 'flex', gap: 4, padding: '8px 16px', overflowX: 'auto', background: 'linear-gradient(180deg,#15161f,#0e0f17)', boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.5)', borderBottom: '1px solid #20222e' },
   navBtn: { background: 'none', border: 'none', color: '#8a90a8', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' },
-  navBtnActive: { background: '#23263a', color: '#fff', boxShadow: 'inset 0 -2px 0 #5fe0c6' },
-  navBtnImportant: { color: '#bff0e6', background: 'rgba(95,224,198,0.10)', boxShadow: 'inset 0 0 0 1px rgba(95,224,198,0.45)', fontWeight: 700 },
+  navBtnActive: { background: 'linear-gradient(180deg, #262a3e, #1b1e2c)', color: '#fff', border: '1px solid #34384a', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -3px 0 -1px #5fe0c6, 0 2px 4px rgba(0,0,0,0.4)' },
+  navBtnImportant: { color: '#bff0e6', background: 'rgba(95,224,198,0.10)', boxShadow: 'inset 0 0 0 1px rgba(95,224,198,0.5), inset 0 1px 0 rgba(255,255,255,0.06)', fontWeight: 700 },
   main: { flex: 1, padding: 16, overflow: 'auto' },
   gacha: { maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 },
-  stageWrap: { position: 'relative', height: 340, borderRadius: 16, overflow: 'hidden', background: '#0a0a12' },
+  stageWrap: { position: 'relative', height: 340, borderRadius: 16, overflow: 'hidden', background: '#0a0a12', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.7)' },
   focusName: { position: 'absolute', bottom: 10, left: 0, right: 0, textAlign: 'center', fontSize: 18, fontWeight: 600, pointerEvents: 'none' },
   focusFam: { color: '#8a90a8', fontStyle: 'normal', fontWeight: 400, fontSize: 13 },
   secretaryTag: { color: '#ffd76b', fontSize: 12, fontWeight: 700 },
   effectPreview: { position: 'absolute', top: 10, left: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(16,17,25,0.82)', border: '1px solid #2a2c3a', borderRadius: 999, padding: '6px 12px', fontSize: 12, color: '#cdd2e0', cursor: 'pointer', backdropFilter: 'blur(4px)', maxWidth: 'calc(100% - 20px)' },
   bannerRow: { display: 'flex', gap: 8, marginBottom: 4 },
-  bannerCard: { flex: 1, textAlign: 'left', background: '#14151d', border: '1px solid #23252f', borderRadius: 10, padding: '8px 10px', cursor: 'pointer', color: '#cdd2e0' },
+  bannerCard: { ...VITRINE, flex: 1, textAlign: 'left', borderRadius: 10, padding: '8px 10px', cursor: 'pointer', color: '#cdd2e0' },
   bannerCardOn: { borderColor: '#5fe0c6', background: '#16201f', boxShadow: 'inset 0 -2px 0 #5fe0c6' },
   bannerName: { fontSize: 12.5, fontWeight: 700, color: '#e8eaf2', marginBottom: 4 },
   bannerRotate: { color: '#ff9d6b', fontSize: 10, fontWeight: 800 },
@@ -2075,11 +2093,11 @@ const S: Record<string, CSSProperties> = {
   pitymeters: { display: 'flex', flexDirection: 'column', gap: 6 },
   meter: { display: 'flex', flexDirection: 'column', gap: 3 },
   meterLabel: { fontSize: 11, color: '#a6adc4' },
-  meterTrack: { height: 7, background: '#2a2e3e', borderRadius: 4, overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.45)' },
-  meterFill: { height: '100%', borderRadius: 4, transition: 'width 0.3s' },
+  meterTrack: { height: 7, background: 'linear-gradient(180deg, #15161e, #1f2230)', border: '1px solid rgba(0,0,0,0.5)', borderRadius: 4, overflow: 'hidden', boxShadow: 'inset 0 2px 3px rgba(0,0,0,0.7), inset 0 -1px 0 rgba(120,130,160,0.10), 0 1px 0 rgba(255,255,255,0.03)' },
+  meterFill: { height: '100%', borderRadius: 4, transition: 'width 0.3s', boxShadow: '0 0 6px 0 currentColor, inset 0 1px 0 rgba(255,255,255,0.4)' },
   pullRow: { display: 'flex', gap: 10 },
-  pullBtn: { flex: 1, background: 'linear-gradient(135deg,#ff5d8f,#b985ff)', border: 'none', color: '#fff', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer' },
-  pullBtn10: { flex: 1, background: '#1c1e2a', border: '1px solid #ff5d8f', color: '#fff', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer' },
+  pullBtn: { flex: 1, background: 'linear-gradient(180deg, #ff7ba6 0%, #ff5d8f 38%, #c264e6 78%, #a94fd6 100%)', border: 'none', color: '#fff', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 800, cursor: 'pointer', textShadow: '0 1px 1px rgba(80,0,40,0.5)', boxShadow: 'inset 0 1.5px 0 rgba(255,255,255,0.45), inset 0 -3px 6px rgba(120,0,70,0.45), 0 4px 10px rgba(255,93,143,0.4), 0 2px 4px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,180,210,0.3)' },
+  pullBtn10: { flex: 1, background: 'linear-gradient(180deg, #1a1c28, #121420)', border: '1px solid #ff5d8f', color: '#ffd7e4', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 12px rgba(255,93,143,0.18), inset 0 -2px 4px rgba(0,0,0,0.5), 0 3px 7px rgba(0,0,0,0.45), 0 0 8px rgba(255,93,143,0.22)' },
   hint: { color: '#8a90a8', fontSize: 12, lineHeight: 1.5 },
   gallery: { maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 },
   tierHead: { margin: '0 0 8px', fontSize: 15 },
@@ -2088,36 +2106,36 @@ const S: Record<string, CSSProperties> = {
   tileDot: { width: 12, height: 12, borderRadius: '50%', flexShrink: 0 },
   dupe: { marginLeft: 'auto', color: '#8a90a8', fontSize: 12 },
   starBadge: { marginLeft: 'auto', color: '#ffd76b', fontSize: 10, letterSpacing: -1 },
-  effectBox: { background: '#0e1620', border: '1px solid #243042', borderRadius: 10, padding: '8px 12px', margin: '2px 0 8px' },
-  chatFeed: { height: 'min(62vh, 500px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: 14 },
-  chatMsg: { display: 'flex', flexDirection: 'column', gap: 1, background: '#14151d', borderRadius: 10, padding: '8px 12px' },
+  effectBox: { ...VITRINE, borderRadius: 10, padding: '8px 12px', margin: '2px 0 8px' },
+  chatFeed: { height: 'min(62vh, 500px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: 14, boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(95,224,198,0.04)' },
+  chatMsg: { display: 'flex', flexDirection: 'column', gap: 1, background: 'linear-gradient(180deg, #181a24, #131420)', borderRadius: 10, padding: '8px 12px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.35)' },
   chatHandle: { fontSize: 11, fontWeight: 800 },
   chatText: { fontSize: 13.5, color: '#cdd2e0', lineHeight: 1.45 },
   chatSticker: { width: 132, height: 'auto', borderRadius: 8, marginTop: 4 },
   stickerBar: { display: 'flex', gap: 6, overflowX: 'auto', padding: '10px 4px 2px', marginTop: 4 },
-  stickerPick: { flex: '0 0 auto', width: 54, height: 54, padding: 3, background: '#14151d', border: '1px solid #23252f', borderRadius: 10, cursor: 'pointer' },
+  stickerPick: { ...CAP, flex: '0 0 auto', width: 54, height: 54, padding: 3, borderRadius: 10 },
   subTabs: { display: 'flex', gap: 6, marginTop: 4 },
-  subTab: { flex: 1, background: '#14151d', border: '1px solid #23252f', color: '#8a90a8', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 13, fontWeight: 700 },
+  subTab: { ...VITRINE, flex: 1, color: '#8a90a8', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 13, fontWeight: 700 },
   subTabOn: { background: '#23263a', color: '#fff', borderColor: '#5fe0c6' },
   histList: { display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 340, overflowY: 'auto', marginTop: 4 },
-  histRow: { display: 'flex', alignItems: 'center', gap: 8, background: '#14151d', border: '1px solid #23252f', borderRadius: 8, padding: '7px 10px', fontSize: 13.5 },
-  rankBadge: { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#14151d', border: '1px solid #23252f', borderRadius: 12, padding: '6px 12px 6px 8px' },
+  histRow: { ...VITRINE, display: 'flex', alignItems: 'center', gap: 8, borderRadius: 8, padding: '7px 10px', fontSize: 13.5 },
+  rankBadge: { display: 'inline-flex', alignItems: 'center', gap: 8, background: 'linear-gradient(180deg, #1a1b24, #101119)', border: '1px solid #3a3320', borderRadius: 12, padding: '6px 12px 6px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,207,107,0.12), 0 2px 5px rgba(0,0,0,0.4)' },
   rankLetter: { fontSize: 19, fontWeight: 900, border: '2px solid', borderRadius: 9, minWidth: 34, height: 34, padding: '0 4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   multGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 6, marginBottom: 10 },
-  multRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#14151d', border: '1px solid #23252f', borderRadius: 8, padding: '6px 10px' },
+  multRow: { ...VITRINE, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 8, padding: '6px 10px' },
   engine: { maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 },
   engineHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   engineBtns: { display: 'flex', gap: 8 },
-  smallBtn: { background: '#1c1e2a', border: '1px solid #2a2c3a', color: '#fff', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 13 },
+  smallBtn: { ...CAP, padding: '8px 12px', borderRadius: 8, fontSize: 13 },
   engineList: { display: 'flex', flexDirection: 'column', gap: 6 },
   engineRow: { display: 'flex', alignItems: 'center', gap: 10, background: '#13141d', border: '1px solid', borderRadius: 10, padding: '8px 12px' },
   engineNick: { fontWeight: 600 },
   engineCost: { color: '#8a90a8', fontSize: 12, marginLeft: 'auto', marginRight: 10 },
-  toggle: { background: '#1c1e2a', border: '1px solid #2a2c3a', color: '#fff', padding: '6px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 13 },
+  toggle: { ...CAP, padding: '6px 12px', borderRadius: 8, fontSize: 13 },
   toggleOn: { background: '#28304a', borderColor: '#5fe0c6' },
-  modal: { position: 'fixed', inset: 0, background: 'rgba(5,5,10,0.82)', display: 'grid', placeItems: 'center', zIndex: 10, padding: 16 },
-  revealCard: { background: '#13141d', border: '1px solid #2a2c3a', borderRadius: 18, padding: 24, textAlign: 'center', maxWidth: 420, width: '100%' },
-  revealStage: { height: 280, borderRadius: 12, overflow: 'hidden', marginBottom: 10, background: '#0a0a12' },
+  modal: { position: 'fixed', inset: 0, background: 'radial-gradient(circle at 50% 40%, rgba(10,10,20,0.55), rgba(3,3,8,0.9))', backdropFilter: 'blur(3px)', display: 'grid', placeItems: 'center', zIndex: 10, padding: 16 },
+  revealCard: { background: 'radial-gradient(120% 90% at 50% 0%, #1a1c28 0%, #121320 55%, #0c0d15 100%)', border: '1px solid #34384a', borderRadius: 18, padding: 24, textAlign: 'center', maxWidth: 420, width: '100%', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 0 0 1px rgba(255,207,107,0.10), inset 0 0 40px rgba(0,0,0,0.5), 0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.6)' },
+  revealStage: { height: 280, borderRadius: 12, overflow: 'hidden', marginBottom: 10, background: '#0a0a12', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.7)' },
   revealSub: { color: '#aab', margin: '4px 0 14px' },
   revealRow: { display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
   chargeWrap: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 24 },
@@ -2131,61 +2149,61 @@ const S: Record<string, CSSProperties> = {
   nudgeClose: { background: 'none', border: 'none', color: '#8a90a8', cursor: 'pointer', fontSize: 14, padding: 4 },
   devBar: { position: 'fixed', top: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, alignItems: 'center', background: 'rgba(40,20,50,0.96)', border: '1px solid #6b3a7a', borderRadius: 10, padding: '6px 10px', zIndex: 20, flexWrap: 'wrap', maxWidth: '94%' },
   devTitle: { color: '#ff9ecf', fontSize: 12, fontWeight: 700, marginRight: 4 },
-  devBtn: { background: '#3a2348', border: '1px solid #6b3a7a', color: '#fff', borderRadius: 6, padding: '4px 8px', fontSize: 12, cursor: 'pointer' },
+  devBtn: { ...CAP, border: '1px solid #6b3a7a', borderRadius: 6, padding: '4px 8px', fontSize: 12 },
   fluxIcon: { color: '#ffcf6b' }, // Flux ✦ — warm gold
   shardIcon: { color: '#5ad4ff' }, // Shards ◈ — cool cyan
 
   // ── Engine / Forge visual boards ──
   board: { display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 28 },
-  boardIntro: { background: '#14151c', border: '1px solid #23252f', borderRadius: 12, padding: '12px 14px' },
+  boardIntro: { ...VITRINE, borderRadius: 12, padding: '12px 14px' },
   boardTitle: { margin: '0 0 6px', fontSize: 16, color: '#e8eaf2' },
   boardDesc: { margin: 0, fontSize: 13, lineHeight: 1.5, color: '#9aa0b4' },
   shardBank: { marginTop: 8, fontSize: 13, color: '#cdd2e0', fontWeight: 600 },
-  boardStats: { display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', background: '#14151c', border: '1px solid #23252f', borderRadius: 12, padding: 14 },
+  boardStats: { ...VITRINE, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', borderRadius: 12, padding: 14 },
   bigStat: { display: 'flex', flexDirection: 'column', minWidth: 120 },
   bigStatNum: { fontSize: 28, fontWeight: 800, lineHeight: 1 },
   bigStatLbl: { fontSize: 12, color: '#9aa0b4', marginTop: 3 },
   budgetBox: { flex: 1, minWidth: 160 },
   budgetTop: { display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#9aa0b4', marginBottom: 4 },
   boardBtns: { display: 'flex', gap: 8 },
-  floorWrap: { position: 'relative', height: 300, borderRadius: 14, overflow: 'hidden', border: '1px solid #23252f', background: '#0a0b12' },
+  floorWrap: { position: 'relative', height: 300, borderRadius: 14, overflow: 'hidden', border: '1px solid #23252f', background: '#0a0b12', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.7)' },
   floorTag: { position: 'absolute', left: 0, right: 0, bottom: 10, textAlign: 'center', color: '#9aa0b4', fontSize: 13, pointerEvents: 'none', textShadow: '0 1px 6px #000' },
   floorEmpty: { display: 'grid', placeItems: 'center', height: '100%', padding: 24, textAlign: 'center', color: '#6b7088', fontSize: 14, lineHeight: 1.5 },
   boardSub: { margin: '6px 2px 0', fontSize: 12, color: '#8a90a8', textTransform: 'uppercase', letterSpacing: 0.6 },
   chipGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(146px, 1fr))', gap: 8 },
   boardGrid: { display: 'grid', gap: 5, maxWidth: 360, margin: '0 auto 4px' },
   boardCell: { aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid', borderRadius: 8, cursor: 'pointer', color: '#e8eaf2', padding: 0, transition: 'background .12s, box-shadow .12s' },
-  deployChip: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, background: '#1a1c26', border: '2px solid', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', color: '#e8eaf2' },
-  benchChip: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, background: '#101119', border: '1px solid #23252f', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', color: '#cdd2e0' },
+  deployChip: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, background: 'linear-gradient(180deg, #1e202c, #15161f)', border: '2px solid', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', color: '#e8eaf2', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), 0 3px 6px rgba(0,0,0,0.4)' },
+  benchChip: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, background: 'linear-gradient(180deg, #101119, #0c0d15)', border: '1px solid #23252f', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', color: '#cdd2e0', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(120,130,160,0.08)' },
   chipNick: { fontSize: 14, fontWeight: 700 },
   chipProd: { fontSize: 12, color: '#9aa0b4', fontWeight: 600 },
   chipMeta: { fontSize: 11, color: '#6b7088' },
-  emptyHint: { gridColumn: '1 / -1', fontSize: 13, color: '#9aa0b4', lineHeight: 1.6, background: '#0e0f17', border: '1px dashed #2a2e3e', borderRadius: 12, padding: '22px 16px', textAlign: 'center' },
-  relicPanel: { display: 'flex', alignItems: 'center', gap: 12, background: 'linear-gradient(90deg, #1f1a0e, #14151c)', border: '1px solid #6b5a2a', borderRadius: 12, padding: 14 },
-  summonBtn: { background: 'linear-gradient(90deg,#ffce5c,#ff9d5c)', color: '#2a1d00', border: 'none', borderRadius: 8, padding: '10px 14px', fontWeight: 800, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' },
+  emptyHint: { ...VITRINE, border: '1px dashed #2a2e3e', gridColumn: '1 / -1', fontSize: 13, color: '#9aa0b4', lineHeight: 1.6, borderRadius: 12, padding: '22px 16px', textAlign: 'center' },
+  relicPanel: { display: 'flex', alignItems: 'center', gap: 12, background: 'linear-gradient(120deg, #221c0e 0%, #16151c 60%)', border: '1px solid #6b5a2a', borderRadius: 12, padding: 14, boxShadow: 'inset 0 1px 0 rgba(255,222,150,0.12), inset 0 0 24px rgba(120,90,20,0.12), inset 0 0 0 1px rgba(255,207,107,0.10), 0 3px 8px rgba(0,0,0,0.4)' },
+  summonBtn: { background: 'linear-gradient(180deg, #ffe08a, #ffce5c 45%, #ff9d5c)', color: '#2a1d00', border: 'none', borderRadius: 8, padding: '10px 14px', fontWeight: 800, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap', textShadow: '0 1px 0 rgba(255,230,180,0.5)', boxShadow: 'inset 0 1.5px 0 rgba(255,255,255,0.6), inset 0 -2px 4px rgba(150,80,0,0.45), 0 3px 7px rgba(255,170,60,0.4), 0 0 0 1px rgba(120,70,0,0.4)' },
   recipeGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(232px, 1fr))', gap: 10 },
-  recipeCard: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 10, background: '#14151c', border: '2px solid', borderRadius: 12, padding: 12 },
+  recipeCard: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 10, background: 'linear-gradient(180deg, #16171f, #101119)', border: '2px solid', borderRadius: 12, padding: 12, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -2px 5px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.3)' },
   recipeFlow: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 },
   flowOp: { color: '#6b7088', fontSize: 14, fontWeight: 700 },
   gemChip: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 56 },
   gemChipDot: { width: 26, height: 26, borderRadius: '50%', boxShadow: '0 0 10px rgba(0,0,0,0.4)' },
   gemChipName: { fontSize: 11, color: '#cdd2e0', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 56 },
-  forgeBtn: { background: '#2a2c3a', color: '#fff', border: '1px solid #3a3d4f', borderRadius: 8, padding: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 },
+  forgeBtn: { background: 'linear-gradient(180deg, #303341, #23252f 55%, #1a1b24)', color: '#fff', border: '1px solid #3a3d4f', borderTopColor: '#4a4e62', borderRadius: 8, padding: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 2px rgba(0,0,0,0.45), 0 2px 3px rgba(0,0,0,0.4)' },
   discoveredTag: { position: 'absolute', top: 8, right: 10, fontSize: 10, color: '#5fe0c6' },
 
   // ── Shop / Ledger / Settings ──
   sceneSwatch: { display: 'flex', height: 38, borderRadius: 8, overflow: 'hidden', border: '1px solid #23252f' },
   statGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 },
-  statCard: { display: 'flex', flexDirection: 'column', gap: 2, background: '#14151c', border: '1px solid #23252f', borderRadius: 10, padding: '10px 12px' },
+  statCard: { ...VITRINE, display: 'flex', flexDirection: 'column', gap: 2, borderRadius: 10, padding: '10px 12px' },
   statVal: { fontSize: 20, fontWeight: 800, color: '#e8eaf2' },
   statLbl: { fontSize: 11, color: '#8a90a8' },
-  settingsCard: { width: 'min(560px, 94vw)', maxHeight: '86vh', overflow: 'auto', background: '#101119', border: '1px solid #2a2c3a', borderRadius: 14, padding: 16 },
+  settingsCard: { width: 'min(560px, 94vw)', maxHeight: '86vh', overflow: 'auto', background: 'radial-gradient(120% 90% at 50% 0%, #1a1c28 0%, #121320 55%, #0c0d15 100%)', border: '1px solid #34384a', borderRadius: 14, padding: 16, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 0 0 1px rgba(255,207,107,0.10), inset 0 0 40px rgba(0,0,0,0.5), 0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.6)' },
   settingsHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   settingsTabs: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 },
   settingsBody: { minHeight: 140 },
   settingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #1c1e2a', color: '#cdd2e0', fontSize: 14 },
   attrList: { margin: '0 0 4px', paddingLeft: 18 },
-  kinBox: { marginTop: 6, padding: '8px 10px', background: '#0e0f17', border: '1px solid #23252f', borderRadius: 10, textAlign: 'left' },
+  kinBox: { ...VITRINE, marginTop: 6, padding: '8px 10px', borderRadius: 10, textAlign: 'left' },
   kinHead: { fontSize: 11, color: '#ff9ecf', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 },
   kinRow: { display: 'flex', gap: 6, alignItems: 'baseline', fontSize: 12, lineHeight: 1.5 },
   kinType: { color: '#8a90a8', fontSize: 10, textTransform: 'uppercase', width: 56, flexShrink: 0 },
@@ -2195,38 +2213,38 @@ const S: Record<string, CSSProperties> = {
   watchPill: { marginLeft: 'auto', flexShrink: 0, background: '#3a2440', color: '#ff9ecf', border: '1px solid #6b3a7a', borderRadius: 999, padding: '2px 8px', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' },
 
   // ── Ship cutscene ──
-  shipCard: { width: 'min(480px, 94vw)', background: '#101119', border: '1px solid #3a2c44', borderRadius: 16, padding: 20, textAlign: 'center', position: 'relative' },
+  shipCard: { width: 'min(480px, 94vw)', background: 'radial-gradient(120% 90% at 50% 0%, #1a1c28 0%, #121320 55%, #0c0d15 100%)', border: '1px solid #34384a', borderRadius: 16, padding: 20, textAlign: 'center', position: 'relative', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 0 0 1px rgba(255,207,107,0.10), inset 0 0 40px rgba(0,0,0,0.5), 0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.6)' },
   shipHead: { color: '#ff9ecf', fontWeight: 800, fontSize: 15, marginBottom: 14, letterSpacing: 0.3 },
   logBtn: { position: 'absolute', top: 14, right: 14, background: 'rgba(40,30,48,0.8)', border: '1px solid #4a3a52', color: '#ffb8e0', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', fontSize: 14, lineHeight: 1 },
-  logBox: { minHeight: 78, maxHeight: 220, overflowY: 'auto', background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: '12px 14px', marginBottom: 14, textAlign: 'left' },
-  logModalCard: { width: 'min(460px, 94vw)', background: '#101119', border: '1px solid #2a2c3a', borderRadius: 16, padding: 20, textAlign: 'center' },
-  logModalBox: { maxHeight: '58vh', overflowY: 'auto', textAlign: 'left', margin: '12px 0 14px', background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: '12px 14px' },
+  logBox: { minHeight: 78, maxHeight: 220, overflowY: 'auto', background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: '12px 14px', marginBottom: 14, textAlign: 'left', boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(95,224,198,0.04)' },
+  logModalCard: { width: 'min(460px, 94vw)', background: 'radial-gradient(120% 90% at 50% 0%, #1a1c28 0%, #121320 55%, #0c0d15 100%)', border: '1px solid #34384a', borderRadius: 16, padding: 20, textAlign: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 0 0 1px rgba(255,207,107,0.10), inset 0 0 40px rgba(0,0,0,0.5), 0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.6)' },
+  logModalBox: { maxHeight: '58vh', overflowY: 'auto', textAlign: 'left', margin: '12px 0 14px', background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: '12px 14px', boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(95,224,198,0.04)' },
   shipGems: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, marginBottom: 14 },
   shipGem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, transition: 'all 0.25s ease', color: '#cdd2e0', fontSize: 13, fontWeight: 700 },
   shipGemDot: { width: 52, height: 52, borderRadius: '50%', transition: 'all 0.25s ease' },
   shipHeart: { color: '#ff5d8f', fontSize: 22 },
-  shipLineBox: { minHeight: 78, background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: '12px 14px', marginBottom: 14, textAlign: 'left' },
+  shipLineBox: { minHeight: 78, background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: '12px 14px', marginBottom: 14, textAlign: 'left', boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(95,224,198,0.04)' },
   shipText: { color: '#e8eaf2', fontSize: 15, lineHeight: 1.5, margin: '6px 0 0', fontStyle: 'italic' },
   shipDots: { display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 },
   shipDot: { width: 7, height: 7, borderRadius: '50%', background: '#ff9ecf' },
 
   // ── list search / filters ──
   listHead: { display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'space-between', flexWrap: 'wrap' },
-  search: { background: '#0c0d15', border: '1px solid #2a2c3a', borderRadius: 8, color: '#e8eaf2', padding: '6px 10px', fontSize: 13, width: 170 },
+  search: { background: '#0c0d15', border: '1px solid #2a2c3a', borderRadius: 8, color: '#e8eaf2', padding: '6px 10px', fontSize: 13, width: 170, boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.6), inset 0 -1px 0 rgba(120,130,160,0.08)' },
   galleryControls: { display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginBottom: 8 },
   filterChips: { display: 'flex', gap: 6, flexWrap: 'wrap' },
   filterChip: { background: '#101119', border: '1px solid', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' },
   tileGlyph: { fontSize: 18, lineHeight: 1, marginRight: 2 },
   kbd: { fontSize: 10, background: 'rgba(0,0,0,0.32)', border: '1px solid rgba(255,255,255,0.28)', borderRadius: 4, padding: '0 5px', marginLeft: 5, fontFamily: 'ui-monospace, monospace' },
-  shipModel: { position: 'relative', width: 132, height: 132, borderRadius: 12, overflow: 'hidden', transition: 'all 0.25s ease' },
+  shipModel: { position: 'relative', width: 132, height: 132, borderRadius: 12, overflow: 'hidden', transition: 'all 0.25s ease', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.7)' },
   shipModelName: { position: 'absolute', left: 0, right: 0, bottom: 4, textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#fff', textShadow: '0 1px 4px #000', pointerEvents: 'none' },
-  shipStage: { position: 'relative', height: 250, borderRadius: 12, overflow: 'hidden', border: '1px solid #2a2c3a', marginBottom: 14 },
+  shipStage: { position: 'relative', height: 250, borderRadius: 12, overflow: 'hidden', border: '1px solid #2a2c3a', marginBottom: 14, boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.7)' },
   shipNames: { position: 'absolute', left: 0, right: 0, bottom: 8, display: 'flex', justifyContent: 'center', gap: 14, fontSize: 13, textShadow: '0 1px 6px #000', pointerEvents: 'none' },
   kbRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid #1c1e2a' },
   kbDesc: { color: '#9aa0b4', fontSize: 12.5 },
-  kbd2: { fontFamily: 'ui-monospace, monospace', fontSize: 12, background: '#0c0d15', border: '1px solid #3a3d4f', borderRadius: 5, padding: '2px 7px', color: '#e8eaf2' },
-  milestoneRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#0e0f17', border: '1px solid #23252f', borderRadius: 8, fontSize: 13 },
-  objectives: { background: '#14151c', border: '1px solid #23252f', borderRadius: 12, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 },
+  kbd2: { fontFamily: 'ui-monospace, monospace', fontSize: 12, background: '#0c0d15', border: '1px solid #3a3d4f', borderRadius: 5, padding: '2px 7px', color: '#e8eaf2', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.6), inset 0 -1px 0 rgba(120,130,160,0.08)' },
+  milestoneRow: { ...VITRINE, display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', borderRadius: 8, fontSize: 13 },
+  objectives: { ...VITRINE, borderRadius: 12, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 },
   objHead: { fontSize: 12, color: '#8a90a8', textTransform: 'uppercase', letterSpacing: 0.6 },
   objRow: { display: 'flex', alignItems: 'center', gap: 8 },
   objLabel: { fontSize: 12, color: '#cdd2e0', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },

@@ -115,3 +115,81 @@ button:disabled { filter: grayscale(0.6) brightness(0.82); cursor: not-allowed; 
   .gacha-split > .gacha-stage { order: 2; flex: 1.25; }
   .gacha-split > .gacha-controls { order: 1; flex: 1; justify-content: center; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   VITRINE — global skeuomorphic material layer (museum display case).
+   Pure CSS + one tiny SVG-noise data-URI; no per-frame cost. These rules
+   come AFTER the base button/.chip rules above so they win.
+   ───────────────────────────────────────────────────────────── */
+
+:root {
+  /* Brushed-metal micro-grain (anisotropic, painted once, low-alpha so text contrast is untouched). */
+  --brush: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='90'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9 0.012' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  --brass: linear-gradient(90deg, transparent, rgba(255,207,107,0.45), rgba(255,233,180,0.55), rgba(255,207,107,0.45), transparent);
+}
+
+/* Brushed grain on the console chrome (nav rail + hud) — an EXTRA background-image
+   via overlay blend so the inline gradient survives (no !important on background-image). */
+nav, header {
+  background-image: var(--brush), none;
+  background-blend-mode: overlay;
+  background-size: 180px 180px;
+}
+
+/* Brass hairline under the HUD (the nameplate edge). */
+header { position: relative; }
+header::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px;
+  background: var(--brass); pointer-events: none;
+}
+
+/* ── REAL PRESS PHYSICS — override the blunt global scale(0.95) for raised caps. ── */
+button:not(:disabled):active {
+  transform: translateY(1px) scale(0.99);
+  filter: brightness(0.96);
+}
+button.pull-cap:not(:disabled):active,
+button.forge-cap:not(:disabled):active {
+  transform: translateY(2px) scale(0.985);
+  box-shadow:
+    inset 0 2px 5px rgba(0,0,0,0.5),
+    inset 0 1px 0 rgba(255,255,255,0.18),
+    0 1px 2px rgba(0,0,0,0.4) !important;
+}
+
+/* Hover sheen on caps (lit by case lighting), softer than the global brightness(1.09). */
+button:not(:disabled):hover { filter: brightness(1.06); }
+
+/* ── Specimen card hover — overrides the .chip lift above to add a brass edge. ── */
+.chip:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 8px 20px rgba(0,0,0,0.5),
+    0 0 0 1px rgba(255,207,107,0.10);
+}
+
+/* ── Etched-glass sheen sweep on the hero reveal card (one-shot, no idle cost). ── */
+@keyframes case-sheen {
+  0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
+  18% { opacity: 0.5; }
+  60%, 100% { transform: translateX(220%) skewX(-18deg); opacity: 0; }
+}
+.case-door { position: relative; overflow: hidden; }
+.case-door::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 40%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
+  pointer-events: none; animation: case-sheen 1.4s ease-out 0.1s 1;
+}
+
+/* ── Recessed input focus: warm/teal lit edge instead of the default ring. ── */
+input:focus, textarea:focus {
+  outline: none;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,0.6), 0 0 0 2px rgba(95,224,198,0.28) !important;
+  border-color: #3a6f6a !important;
+}
+
+/* Reduced-motion: kill the sheen sweep, keep the depth. */
+@media (prefers-reduced-motion: reduce) {
+  .case-door::before { animation: none; display: none; }
+}
