@@ -18,6 +18,8 @@ const FAMILIES = [
   'tesseract', 'cell_16', 'cell_24', 'cell_120', 'cell_600', 'klein_quartic', 'hopf', 'mazur',
   // Relics (Reference Wing)
   'utah_teapot', 'stanford_bunny', 'benchy', 'stanford_dragon', 'suzanne', 'spot', 'cow', 'armadillo', 'lucy', 'csaszar',
+  // Relics — fractals & classical surfaces (procedurally generated)
+  'menger', 'sierpinski', 'dini', 'torus_knot_2_7',
 ]
 
 // Relic families backed by a real downloaded mesh (loaded on demand by ModelGem).
@@ -26,9 +28,9 @@ const MODEL_FILES_ON_DISK = [
 ]
 
 describe('shape content validation', () => {
-  it('has 51 families with no duplicates', () => {
-    expect(FAMILIES.length).toBe(51)
-    expect(new Set(FAMILIES).size).toBe(51)
+  it('has 55 families with no duplicates', () => {
+    expect(FAMILIES.length).toBe(55)
+    expect(new Set(FAMILIES).size).toBe(55)
   })
 
   it('every family has a complete codex entry', () => {

@@ -12,7 +12,7 @@ import { TeapotGeometry } from 'three/examples/jsm/geometries/TeapotGeometry.js'
 // leaves them looking holey/wrong (closed solids stay front-side for cheaper fill).
 export const OPEN_FAMILIES = new Set<string>([
   'mobius', 'klein_bottle', 'rp2', 'boys_surface', 'cross_cap',
-  'catenoid', 'helicoid', 'hyperboloid', 'monkey_saddle', 'costa', 'seifert', 'disk',
+  'catenoid', 'helicoid', 'hyperboloid', 'monkey_saddle', 'costa', 'seifert', 'disk', 'dini',
 ])
 
 type ParamFn = (u: number, v: number, target: THREE.Vector3) => void
@@ -87,6 +87,19 @@ const monkeySaddle: ParamFn = (u, v, t) => {
   t.set(x, y, x * x * x - 3 * x * y * y)
 }
 
+// Dini's surface — a surface of constant negative curvature: a pseudosphere twisted into a spiralling horn.
+// v is kept away from 0 (where ln(tan(v/2)) → −∞); two full twists in u read as the iconic seashell coil.
+const dini: ParamFn = (u, v, t) => {
+  const a = 1.0
+  const b = 0.18
+  const uu = u * 4 * Math.PI
+  const vv = 0.12 + v * (1.55 - 0.12)
+  const x = a * Math.cos(uu) * Math.sin(vv)
+  const y = a * Math.sin(uu) * Math.sin(vv)
+  const z = a * (Math.cos(vv) + Math.log(Math.tan(vv / 2))) + b * uu
+  t.set(x, z, y) // spiral axis vertical-ish — reads better in the gallery
+}
+
 function mergedTori(count: number, spread: number): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = []
   for (let i = 0; i < count; i++) {
@@ -129,6 +142,90 @@ function hopfFibration(): THREE.BufferGeometry {
     parts.push(g)
   }
   return mergeGeometries(parts)!
+}
+
+// Menger sponge (level 2): recursively divide a cube into 3×3×3 and drop the centre + 6 face-centres
+// (any cell with ≥2 coordinates in the middle). 20² = 400 surviving sub-cubes → the iconic drilled fractal.
+function mengerSponge(): THREE.BufferGeometry {
+  const cells: [number, number, number, number][] = [] // x, y, z, size
+  const keep = (i: number, j: number, k: number) => {
+    let mid = 0
+    if (i === 1) mid++
+    if (j === 1) mid++
+    if (k === 1) mid++
+    return mid < 2
+  }
+  const recurse = (cx: number, cy: number, cz: number, size: number, depth: number) => {
+    if (depth === 0) {
+      cells.push([cx, cy, cz, size])
+      return
+    }
+    const s = size / 3
+    for (let i = 0; i < 3; i++)
+      for (let j = 0; j < 3; j++)
+        for (let k = 0; k < 3; k++)
+          if (keep(i, j, k)) recurse(cx + (i - 1) * s, cy + (j - 1) * s, cz + (k - 1) * s, s, depth - 1)
+  }
+  recurse(0, 0, 0, 2.0, 2)
+  const parts = cells.map(([x, y, z, s]) => {
+    const g = new THREE.BoxGeometry(s, s, s)
+    g.translate(x, y, z)
+    return g
+  })
+  return mergeGeometries(parts)!
+}
+
+// One solid tetrahedron from 4 points, with every face wound outward (so normals point away from centroid).
+function tetraFromPoints(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3): THREE.BufferGeometry {
+  const center = a.clone().add(b).add(c).add(d).multiplyScalar(0.25)
+  const tris: [THREE.Vector3, THREE.Vector3, THREE.Vector3][] = [
+    [a, b, c],
+    [a, b, d],
+    [a, c, d],
+    [b, c, d],
+  ]
+  const pos: number[] = []
+  for (const [p, q, r] of tris) {
+    const n = q.clone().sub(p).cross(r.clone().sub(p))
+    const faceCenter = p.clone().add(q).add(r).multiplyScalar(1 / 3).sub(center)
+    if (n.dot(faceCenter) < 0) pos.push(p.x, p.y, p.z, r.x, r.y, r.z, q.x, q.y, q.z)
+    else pos.push(p.x, p.y, p.z, q.x, q.y, q.z, r.x, r.y, r.z)
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.computeVertexNormals()
+  return g
+}
+
+// Sierpinski tetrahedron (level 3): the classic midpoint recursion — each tetra spawns 4 half-scale copies at
+// its corners, leaving the central void. 4³ = 64 solid tetrahedra.
+function sierpinskiTetra(): THREE.BufferGeometry {
+  const leaves: [THREE.Vector3, THREE.Vector3, THREE.Vector3, THREE.Vector3][] = []
+  const mid = (p: THREE.Vector3, q: THREE.Vector3) => p.clone().add(q).multiplyScalar(0.5)
+  const recurse = (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3, depth: number) => {
+    if (depth === 0) {
+      leaves.push([a, b, c, d])
+      return
+    }
+    const ab = mid(a, b)
+    const ac = mid(a, c)
+    const ad = mid(a, d)
+    const bc = mid(b, c)
+    const bd = mid(b, d)
+    const cd = mid(c, d)
+    recurse(a, ab, ac, ad, depth - 1)
+    recurse(ab, b, bc, bd, depth - 1)
+    recurse(ac, bc, c, cd, depth - 1)
+    recurse(ad, bd, cd, d, depth - 1)
+  }
+  recurse(
+    new THREE.Vector3(1, 1, 1),
+    new THREE.Vector3(1, -1, -1),
+    new THREE.Vector3(-1, 1, -1),
+    new THREE.Vector3(-1, -1, 1),
+    3,
+  )
+  return mergeGeometries(leaves.map(([a, b, c, d]) => tetraFromPoints(a, b, c, d)))!
 }
 
 // Stylised 3DBenchy: hull + cabin + funnel (a recognisable little boat, not a plain box).
@@ -198,6 +295,11 @@ function build(family: string): THREE.BufferGeometry {
     case 'armadillo': return new THREE.IcosahedronGeometry(1.05, 1)
     case 'lucy': return new THREE.CapsuleGeometry(0.34, 1.15, 8, 16)
     case 'csaszar': return new THREE.TorusGeometry(0.7, 0.3, 6, 14)
+    // Famous fractals & classical surfaces (Relic tier)
+    case 'menger': return mengerSponge()
+    case 'sierpinski': return sierpinskiTetra()
+    case 'dini': return parametric(dini, 140, 40)
+    case 'torus_knot_2_7': return new THREE.TorusKnotGeometry(0.7, 0.16, 240, 18, 2, 7)
     default: return new THREE.IcosahedronGeometry(1)
   }
 }

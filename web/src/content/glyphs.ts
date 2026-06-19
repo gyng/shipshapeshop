@@ -15,6 +15,7 @@ export const SHAPE_GLYPH: Record<string, string> = {
   tesseract: '🧩', cell_16: '🔷', cell_24: '🔮', cell_120: '👑', cell_600: '⛈️', klein_quartic: '🎼', hopf: '🪐', mazur: '👹',
   // Relics
   utah_teapot: '🫖', stanford_bunny: '🐰', benchy: '🚤', stanford_dragon: '🐉', suzanne: '🐵', spot: '🐮', cow: '🐄', armadillo: '🦔', lucy: '👼', csaszar: '🍩',
+  menger: '🔲', sierpinski: '🔻', dini: '🐚', torus_knot_2_7: '✴️',
 }
 
 export const glyphOf = (family: string): string => SHAPE_GLYPH[family] ?? '✦'

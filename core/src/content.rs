@@ -26,7 +26,7 @@ const E: f64 = 150.0;
 const S: f64 = 250.0;
 const U: f64 = 400.0;
 
-pub const SHAPES: [ShapeDef; 51] = [
+pub const SHAPES: [ShapeDef; 55] = [
     // ── Common (ids 0..10) — genus 0, χ=2, free ballast ──────────────────────────────
     ShapeDef { nick: "Pip",     family: "sphere",        rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
     ShapeDef { nick: "Boxy",    family: "cube",          rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
@@ -85,6 +85,11 @@ pub const SHAPES: [ShapeDef; 51] = [
     ShapeDef { nick: "Dillo",   family: "armadillo",      rarity: Rarity::Relic, genus: 0, euler_cost: 5, base_prod: U },
     ShapeDef { nick: "Lucy",    family: "lucy",           rarity: Rarity::Relic, genus: 0, euler_cost: 6, base_prod: U },
     ShapeDef { nick: "Cee",     family: "csaszar",        rarity: Rarity::Relic, genus: 1, euler_cost: 2, base_prod: U },
+    // Famous fractals & classical surfaces (procedurally generated in the web layer) — ids 51..55
+    ShapeDef { nick: "Spongey", family: "menger",         rarity: Rarity::Relic, genus: 5, euler_cost: 8, base_prod: U },
+    ShapeDef { nick: "Pinski",  family: "sierpinski",     rarity: Rarity::Relic, genus: 0, euler_cost: 4, base_prod: U },
+    ShapeDef { nick: "Dini",    family: "dini",           rarity: Rarity::Relic, genus: 0, euler_cost: 2, base_prod: U },
+    ShapeDef { nick: "Sevvy",   family: "torus_knot_2_7", rarity: Rarity::Relic, genus: 1, euler_cost: 2, base_prod: U },
 ];
 
 pub const COUNT: usize = SHAPES.len();
@@ -100,7 +105,7 @@ pub fn rarity_range(r: Rarity) -> std::ops::Range<usize> {
         Rarity::Epic => 18..26,
         Rarity::Ssr => 26..33,
         Rarity::Ur => 33..41,
-        Rarity::Relic => 41..51,
+        Rarity::Relic => 41..55,
     }
 }
 
