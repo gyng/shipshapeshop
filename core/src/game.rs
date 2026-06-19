@@ -7,6 +7,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::content::{self, COUNT, SHAPES};
 use crate::gacha::{banner_unit, relic_unit, roll_rarity, shape_index, PityState, Rarity};
+use crate::orrery::{self, OrreryState, Placement};
 
 const SCHEMA_VERSION: u32 = 2;
 const PULL_COST: f64 = 100.0;
@@ -32,6 +33,10 @@ const BOND_THRESHOLDS: [u32; 6] = [0, 100, 300, 700, 1500, 3000]; // levels 0..5
 const PLATONIC_SET_MULT: f64 = 0.15; // +15% global for completing the Platonic set
 const SYNERGY_BONUS: f64 = 0.08; // +8% per deployed kin pair (duals/soulmates)
 const AFFINITY_PER_HR_DEPLOYED: f64 = 30.0; // passive bond gain while deployed
+                                            // ── Orrery (periodic-orbit engine, behind `use_orrery`; see ORRERY_PLAN.md) ──
+const ORRERY_RING: u32 = 12; // cells in the clock ring (every allowed period divides it)
+const ORRERY_TICK_SECONDS: f64 = 1.0; // one orbital step per real second → a period (≤12) cycles in ≤12s
+const ORRERY_SCALE: f64 = 1_000_000.0; // fixed-point scale: per-tick flux is small, so store µ-units in u64
 
 fn shard_value(r: Rarity) -> u64 {
     match r {
@@ -53,12 +58,12 @@ pub struct GameState {
     pub flux: f64,
     pub shards: u64,
     pub pity: PityState,
-    pub owned: Vec<u32>,    // count per shape id (len = COUNT); 0 = not owned
+    pub owned: Vec<u32>,     // count per shape id (len = COUNT); 0 = not owned
     pub loadout: Vec<usize>, // deployed shape ids
     #[serde(default)]
     pub board_cells: Vec<u8>, // parallel to loadout: the grid cell (0..BOARD_N) each deployed shape sits in
     pub euler_cap: u32,
-    pub viewport_dim: u32,  // prestige axis (starts at 3 = our native 3D vantage)
+    pub viewport_dim: u32, // prestige axis (starts at 3 = our native 3D vantage)
     pub ng_cycle: u32,
     pub prestige_mult: f64, // 1.6^ng_cycle
     #[serde(default)]
@@ -89,6 +94,8 @@ pub struct GameState {
     pub facet_perks: Vec<u32>, // level per content::FACET_PERKS id
     #[serde(default)]
     pub current_banner: u32, // selected gacha banner (0 = Standard); rate-up steering only
+    #[serde(default)]
+    pub use_orrery: bool, // opt-in periodic-orbit engine; false ⇒ the static-board path is byte-identical
 }
 
 #[derive(Serialize)]
@@ -114,6 +121,14 @@ pub struct OfflineReport {
     pub elapsed_ms: f64,
     pub capped_ms: f64,
     pub gained_flux: f64,
+}
+
+/// One shape's orbit, for the UI to animate (cell at tick t = path[(phase + t) % period]).
+#[derive(Serialize)]
+pub struct OrbitView {
+    pub path: Vec<u8>,
+    pub phase: u8,
+    pub period: u8,
 }
 
 #[derive(Serialize)]
@@ -172,8 +187,14 @@ pub struct GameStateView {
     pub mult_signature: f64,
     pub mult_shape_effects: f64, // aggregate of the deployed shapes' own effects (handle-lane★ · overdrive · knots · signature)
     pub upgrade_costs: Vec<(f64, u64)>, // NEXT-level (flux, shard) cost per upgrade — UI displays, never recomputes
-    pub upgrade_unlocked: Vec<bool>, // tech-tree gate per upgrade (prereq satisfied)
-    pub facet_perk_costs: Vec<u64>, // NEXT-level Facet cost per perk
+    pub upgrade_unlocked: Vec<bool>,    // tech-tree gate per upgrade (prereq satisfied)
+    pub facet_perk_costs: Vec<u64>,     // NEXT-level Facet cost per perk
+    // ── Orrery (engine v2; UI tweens the orbit motion from these) ──
+    pub use_orrery: bool,
+    pub orrery_ring: u32,              // cells in the clock ring
+    pub orrery_period: u32,            // system period L (ticks per full cycle)
+    pub orrery_tick_ms: f64,           // real ms per orbital step
+    pub orrery_orbits: Vec<OrbitView>, // parallel to loadout
 }
 
 impl GameState {
@@ -208,16 +229,17 @@ impl GameState {
             facets: 0,
             facet_perks: vec![0; content::FACET_PERK_COUNT],
             current_banner: 0,
+            use_orrery: false,
         }
     }
 
     /// Total production from the deployed loadout, with per-shape ShapeEffects: Handle-Lane (genus × star),
     /// Orientability Overdrive (non-orientable flat boost), and Knot Entanglement (a knot lifts its loadout
     /// neighbours — so ORDER matters). All constant-rate, so the closed-form O(1) offline integral is intact.
-    fn deployed_production(&self) -> f64 {
-        let n = self.loadout.len();
-        let mut prod: Vec<f64> = self
-            .loadout
+    /// Per-deployed-shape SELF production (handle-lane × overdrive × signature self-bonus), parallel to
+    /// `loadout`, before any spatial coupling. This is the Orrery's per-shape base rate (flux/hr).
+    fn per_shape_self_prod(&self) -> Vec<f64> {
+        self.loadout
             .iter()
             .map(|&id| {
                 let s = &SHAPES[id];
@@ -231,7 +253,12 @@ impl GameState {
                 }
                 p
             })
-            .collect();
+            .collect()
+    }
+
+    fn deployed_production(&self) -> f64 {
+        let n = self.loadout.len();
+        let mut prod: Vec<f64> = self.per_shape_self_prod();
         let grid = self.occupant_grid();
         for (i, &id) in self.loadout.iter().enumerate() {
             if content::is_knot(SHAPES[id].family) {
@@ -253,7 +280,11 @@ impl GameState {
 
     /// Euler Ballast: each deployed χ=2 anchor steadies the floor (+3%, capped at 6).
     fn ballast_mult(&self) -> f64 {
-        let n = self.loadout.iter().filter(|&&id| content::is_ballast(id)).count();
+        let n = self
+            .loadout
+            .iter()
+            .filter(|&&id| content::is_ballast(id))
+            .count();
         1.0 + 0.03 * n.min(6) as f64
     }
 
@@ -284,10 +315,15 @@ impl GameState {
         m
     }
 
-    pub fn rate_per_hr(&self) -> f64 {
-        let cap = RATE_CAP + 300.0 * self.upgrade_level(7) as f64; // overflow_cap (#7)
-        (BASE_IDLE + self.deployed_production()).min(cap)
-            * self.prestige_mult
+    /// The Flux/hr cap on the *base* rate (BASE_IDLE + production), before global multipliers.
+    fn cap_rate(&self) -> f64 {
+        RATE_CAP + 300.0 * self.upgrade_level(7) as f64 // overflow_cap (#7)
+    }
+
+    /// Product of every global multiplier (prestige, set, bonds, synergy, …) — applied on top of the
+    /// capped base rate. Shared by the static-board and Orrery paths so they stack identically.
+    fn globals_mult(&self) -> f64 {
+        self.prestige_mult
             * self.set_bonus_mult()
             * self.bond_mult()
             * self.synergy_mult()
@@ -297,6 +333,96 @@ impl GameState {
             * self.ballast_mult()
             * self.crossdim_mult()
             * self.signature_global_mult()
+    }
+
+    pub fn rate_per_hr(&self) -> f64 {
+        let production = if self.use_orrery {
+            self.orrery_avg_prod_per_hr()
+        } else {
+            self.deployed_production()
+        };
+        (BASE_IDLE + production).min(self.cap_rate()) * self.globals_mult()
+    }
+
+    // ── Orrery engine (active only when `use_orrery`) ──────────────────────────────────────────────
+    /// Build the orbit arrangement from the current loadout (placement `shape` = loadout slot index, so the
+    /// base-rate / pair-bonus tables below index by slot).
+    fn orrery_state(&self) -> OrreryState {
+        OrreryState {
+            placements: self
+                .loadout
+                .iter()
+                .enumerate()
+                .map(|(i, &id)| Placement {
+                    shape: i as u16,
+                    orbit: content::orbit_for(&SHAPES[id], i),
+                })
+                .collect(),
+        }
+    }
+
+    /// `(per-period prefix sums, system period L)` for the current loadout. Base = each shape's self-prod
+    /// in per-tick µ-units; the meeting `pair_bonus` is **knot entanglement** — the only old *spatial*
+    /// effect (board adjacency) now triggered by co-location. All other effects stay global.
+    fn orrery_prefix(&self) -> (Vec<u64>, u32) {
+        let self_prod = self.per_shape_self_prod(); // flux/hr per slot
+        let to_units = |per_hr: f64| (per_hr / 3600.0 * ORRERY_SCALE).round().max(0.0) as u64;
+        let base: Vec<u64> = self_prod.iter().map(|&p| to_units(p)).collect();
+        let knot_amt: Vec<f64> = self
+            .loadout
+            .iter()
+            .map(|&id| {
+                if content::is_knot(SHAPES[id].family) {
+                    0.15 * (1.0 + 0.15 * self.star_level(id) as f64)
+                } else {
+                    0.0
+                }
+            })
+            .collect();
+        let pair = |a: u16, b: u16| -> u64 {
+            let (a, b) = (a as usize, b as usize);
+            // a knot lifts whom it meets (and vice-versa) — the entanglement bonus, as added flux/hr.
+            to_units(knot_amt[a] * self_prod[b] + knot_amt[b] * self_prod[a])
+        };
+        let st = self.orrery_state();
+        let l = st.system_period();
+        (st.period_prefix(&base, &pair), l)
+    }
+
+    /// Sustained Orrery production (flux/hr) = per-period average, mapped back to an hourly rate.
+    fn orrery_avg_prod_per_hr(&self) -> f64 {
+        if self.loadout.is_empty() {
+            return 0.0;
+        }
+        let (prefix, l) = self.orrery_prefix();
+        if l == 0 {
+            return 0.0;
+        }
+        (prefix[l as usize] as f64 / l as f64) / ORRERY_SCALE * (3600.0 / ORRERY_TICK_SECONDS)
+    }
+
+    /// Closed-form Orrery catch-up over a (pre-capped) span — O(1) in the span length: the exact periodic
+    /// production via `orrery::offline_flux`, throttled by the rate cap, plus the idle floor, times globals.
+    fn orrery_offline_gain(&self, capped_ms: f64) -> f64 {
+        let idle_hours = capped_ms / MS_PER_HOUR;
+        if self.loadout.is_empty() {
+            return BASE_IDLE.min(self.cap_rate()) * idle_hours * self.globals_mult();
+        }
+        let (prefix, l) = self.orrery_prefix();
+        let tick_ms = ORRERY_TICK_SECONDS * 1000.0;
+        let ticks = (capped_ms / tick_ms).floor() as u64;
+        let t0 = ((self.last_seen_ms / tick_ms).floor() as i64).rem_euclid(l as i64) as u32;
+        let raw_prod_flux = orrery::offline_flux(&prefix, t0, ticks) as f64 / ORRERY_SCALE;
+        // The cap applies to (BASE_IDLE + production rate); throttle the production by how far it overshoots.
+        let avg_prod =
+            (prefix[l as usize] as f64 / l as f64) / ORRERY_SCALE * (3600.0 / ORRERY_TICK_SECONDS);
+        let room = (self.cap_rate() - BASE_IDLE).max(0.0);
+        let prod_factor = if avg_prod > room && avg_prod > 1e-9 {
+            room / avg_prod
+        } else {
+            1.0
+        };
+        (BASE_IDLE * idle_hours + raw_prod_flux * prod_factor) * self.globals_mult()
     }
 
     /// Family set bonus (M7): completing the 5 Platonic solids grants a permanent global multiplier.
@@ -328,7 +454,10 @@ impl GameState {
             for &ni in &neigh {
                 if ni >= 0 {
                     let b = self.loadout[ni as usize];
-                    if content::SYNERGY_PAIRS.iter().any(|&(x, y)| (x == a && y == b) || (x == b && y == a)) {
+                    if content::SYNERGY_PAIRS
+                        .iter()
+                        .any(|&(x, y)| (x == a && y == b) || (x == b && y == a))
+                    {
                         n += 1;
                     }
                 }
@@ -356,7 +485,11 @@ impl GameState {
         self.euler_cap + 2 * self.upgrade_level(0) + self.facet_level(1) // resonant_floor
     }
     fn affinity_mult(&self) -> f64 {
-        if self.upgrade_level(6) > 0 { 1.5 } else { 1.0 } // affinity_bloom
+        if self.upgrade_level(6) > 0 {
+            1.5
+        } else {
+            1.0
+        } // affinity_bloom
     }
     /// genus_resonance (#1): +6% production per DISTINCT genus among deployed shapes.
     fn genus_resonance_mult(&self) -> f64 {
@@ -516,12 +649,25 @@ impl GameState {
 
     /// Forge two owned shapes via a connected-sum recipe; grants the output, costs shards, flags discovery.
     pub fn forge(&mut self, a: usize, b: usize) -> ForgeResult {
-        let fail = ForgeResult { ok: false, out_id: -1, is_discovery: false };
+        let fail = ForgeResult {
+            ok: false,
+            out_id: -1,
+            is_discovery: false,
+        };
         let Some(ri) = content::find_recipe(a, b) else {
             return fail;
         };
-        let cost = if self.upgrade_level(5) > 0 { 25 } else { FORGE_COST }; // forge_mastery (#5)
-        if a >= COUNT || b >= COUNT || self.owned[a] == 0 || self.owned[b] == 0 || self.shards < cost {
+        let cost = if self.upgrade_level(5) > 0 {
+            25
+        } else {
+            FORGE_COST
+        }; // forge_mastery (#5)
+        if a >= COUNT
+            || b >= COUNT
+            || self.owned[a] == 0
+            || self.owned[b] == 0
+            || self.shards < cost
+        {
             return fail;
         }
         self.shards -= cost;
@@ -534,7 +680,11 @@ impl GameState {
             self.shards += 100; // discovery sting reward
             self.lifetime_shards += 100;
         }
-        ForgeResult { ok: true, out_id: out as i32, is_discovery }
+        ForgeResult {
+            ok: true,
+            out_id: out as i32,
+            is_discovery,
+        }
     }
 
     /// Foreground accumulation (rate is piecewise-constant between actions → O(1)).
@@ -553,12 +703,20 @@ impl GameState {
         let elapsed = (now_ms - self.last_seen_ms).max(0.0);
         let cap = OFFLINE_CAP_MS + self.upgrade_level(3) as f64 * 12.0 * MS_PER_HOUR; // patience (#3)
         let capped = elapsed.min(cap);
-        let gained = self.rate_per_hr() * (capped / MS_PER_HOUR);
+        let gained = if self.use_orrery {
+            self.orrery_offline_gain(capped) // exact periodic, closed-form O(1)
+        } else {
+            self.rate_per_hr() * (capped / MS_PER_HOUR)
+        };
         self.flux += gained;
         self.lifetime_flux += gained;
         self.add_affinity(capped);
         self.last_seen_ms = now_ms;
-        OfflineReport { elapsed_ms: elapsed, capped_ms: capped, gained_flux: gained }
+        OfflineReport {
+            elapsed_ms: elapsed,
+            capped_ms: capped,
+            gained_flux: gained,
+        }
     }
 
     fn first_missing(&self, range: std::ops::Range<usize>) -> Option<usize> {
@@ -584,7 +742,12 @@ impl GameState {
     /// shape; lower tiers are random in-tier. Applies the Resonance Spark (UR-priority, SSR-spill).
     /// Which shape to grant for a rolled tier. On a themed banner, a rate-up roll biases the pick toward a
     /// featured shape in that tier (preferring a missing one); otherwise the standard steering applies.
-    fn pick_pull_shape(&self, rarity: Rarity, range: &std::ops::Range<usize>, counter: u64) -> usize {
+    fn pick_pull_shape(
+        &self,
+        rarity: Rarity,
+        range: &std::ops::Range<usize>,
+        counter: u64,
+    ) -> usize {
         let b = self.current_banner as usize;
         if b < content::BANNER_COUNT && !content::BANNERS[b].featured.is_empty() {
             let featured: Vec<usize> = content::BANNERS[b]
@@ -594,7 +757,11 @@ impl GameState {
                 .filter(|id| range.contains(id))
                 .collect();
             if !featured.is_empty() && banner_unit(self.master_seed, counter) < BANNER_RATEUP {
-                return featured.iter().copied().find(|&id| self.owned[id] == 0).unwrap_or(featured[0]);
+                return featured
+                    .iter()
+                    .copied()
+                    .find(|&id| self.owned[id] == 0)
+                    .unwrap_or(featured[0]);
             }
         }
         match rarity {
@@ -609,8 +776,13 @@ impl GameState {
         self.tick(now_ms);
         if self.flux < PULL_COST {
             return PullOutcome {
-                ok: false, shape_id: -1, rarity: None, is_new: false,
-                dupe_shards: 0, spark_shape_id: -1, spark_is_new: false,
+                ok: false,
+                shape_id: -1,
+                rarity: None,
+                is_new: false,
+                dupe_shards: 0,
+                spark_shape_id: -1,
+                spark_is_new: false,
             };
         }
         self.flux -= PULL_COST;
@@ -620,13 +792,20 @@ impl GameState {
         let range = content::rarity_range(roll.rarity);
 
         // Rare "lucky find": a small chance the pull turns up a missing Relic instead of the rolled shape.
-        let relic_chance = if self.current_banner == 0 { RELIC_DROP_STD } else { RELIC_DROP_BANNER };
+        let relic_chance = if self.current_banner == 0 {
+            RELIC_DROP_STD
+        } else {
+            RELIC_DROP_BANNER
+        };
         let (id, out_rarity) = match (
             relic_unit(self.master_seed, c_before) < relic_chance,
             self.first_missing(content::rarity_range(Rarity::Relic)),
         ) {
             (true, Some(rid)) => (rid, Rarity::Relic),
-            _ => (self.pick_pull_shape(roll.rarity, &range, c_before), roll.rarity),
+            _ => (
+                self.pick_pull_shape(roll.rarity, &range, c_before),
+                roll.rarity,
+            ),
         };
         let (is_new, dupe_shards) = self.grant(id, out_rarity);
         let ridx = match out_rarity {
@@ -654,8 +833,13 @@ impl GameState {
         }
 
         PullOutcome {
-            ok: true, shape_id: id as i32, rarity: Some(out_rarity), is_new,
-            dupe_shards, spark_shape_id, spark_is_new,
+            ok: true,
+            shape_id: id as i32,
+            rarity: Some(out_rarity),
+            is_new,
+            dupe_shards,
+            spark_shape_id,
+            spark_is_new,
         }
     }
 
@@ -682,9 +866,17 @@ impl GameState {
         let (r, col) = (c / BOARD_W, c % BOARD_W);
         [
             if col > 0 { (c - 1) as i32 } else { -1 },
-            if col + 1 < BOARD_W { (c + 1) as i32 } else { -1 },
+            if col + 1 < BOARD_W {
+                (c + 1) as i32
+            } else {
+                -1
+            },
             if r > 0 { (c - BOARD_W) as i32 } else { -1 },
-            if r + 1 < BOARD_H { (c + BOARD_W) as i32 } else { -1 },
+            if r + 1 < BOARD_H {
+                (c + BOARD_W) as i32
+            } else {
+                -1
+            },
         ]
     }
     pub fn deploy(&mut self, id: usize) -> bool {
@@ -694,7 +886,9 @@ impl GameState {
         if self.euler_used() + SHAPES[id].euler_cost > self.effective_euler_cap() {
             return false;
         }
-        let Some(cell) = self.first_free_cell() else { return false };
+        let Some(cell) = self.first_free_cell() else {
+            return false;
+        };
         self.loadout.push(id);
         self.board_cells.push(cell);
         true
@@ -742,9 +936,15 @@ impl GameState {
         ids.sort_by(|&a, &b| {
             let eff = |id: usize| {
                 let c = SHAPES[id].euler_cost;
-                if c == 0 { f64::INFINITY } else { content::effective_prod(id) / c as f64 }
+                if c == 0 {
+                    f64::INFINITY
+                } else {
+                    content::effective_prod(id) / c as f64
+                }
             };
-            eff(b).partial_cmp(&eff(a)).unwrap_or(std::cmp::Ordering::Equal)
+            eff(b)
+                .partial_cmp(&eff(a))
+                .unwrap_or(std::cmp::Ordering::Equal)
         });
         self.board_cells.clear();
         let mut used = 0u32;
@@ -807,11 +1007,17 @@ impl GameState {
     }
 
     pub fn distinct_owned(&self) -> u32 {
-        self.owned[..content::PULL_COUNT].iter().filter(|&&c| c > 0).count() as u32
+        self.owned[..content::PULL_COUNT]
+            .iter()
+            .filter(|&&c| c > 0)
+            .count() as u32
     }
 
     pub fn relics_owned(&self) -> u32 {
-        self.owned[content::PULL_COUNT..].iter().filter(|&&c| c > 0).count() as u32
+        self.owned[content::PULL_COUNT..]
+            .iter()
+            .filter(|&&c| c > 0)
+            .count() as u32
     }
 
     /// Summon a Relic (famous CG model) — earned with banked dupe-shards, not pulled. Grants the next
@@ -915,7 +1121,9 @@ impl GameState {
             state.upgrades.resize(content::UPGRADE_COUNT, 0);
         }
         if state.milestones_done.len() != content::MILESTONE_COUNT {
-            state.milestones_done.resize(content::MILESTONE_COUNT, false);
+            state
+                .milestones_done
+                .resize(content::MILESTONE_COUNT, false);
         }
         if state.facet_perks.len() != content::FACET_PERK_COUNT {
             state.facet_perks.resize(content::FACET_PERK_COUNT, 0);
@@ -996,12 +1204,43 @@ impl GameState {
             mult_crossdim: self.crossdim_mult(),
             mult_signature: self.signature_global_mult(),
             mult_shape_effects: {
-                let base: f64 = self.loadout.iter().map(|&id| SHAPES[id].base_prod * (1.0 + 0.25 * SHAPES[id].genus as f64)).sum();
-                if base > 1e-9 { self.deployed_production() / base } else { 1.0 }
+                let base: f64 = self
+                    .loadout
+                    .iter()
+                    .map(|&id| SHAPES[id].base_prod * (1.0 + 0.25 * SHAPES[id].genus as f64))
+                    .sum();
+                if base > 1e-9 {
+                    self.deployed_production() / base
+                } else {
+                    1.0
+                }
             },
-            upgrade_costs: (0..content::UPGRADE_COUNT).map(|i| content::upgrade_cost(i, self.upgrade_level(i))).collect(),
-            upgrade_unlocked: (0..content::UPGRADE_COUNT).map(|i| self.upgrade_unlocked(i)).collect(),
-            facet_perk_costs: (0..content::FACET_PERK_COUNT).map(|i| content::facet_perk_cost(i, self.facet_level(i))).collect(),
+            upgrade_costs: (0..content::UPGRADE_COUNT)
+                .map(|i| content::upgrade_cost(i, self.upgrade_level(i)))
+                .collect(),
+            upgrade_unlocked: (0..content::UPGRADE_COUNT)
+                .map(|i| self.upgrade_unlocked(i))
+                .collect(),
+            facet_perk_costs: (0..content::FACET_PERK_COUNT)
+                .map(|i| content::facet_perk_cost(i, self.facet_level(i)))
+                .collect(),
+            use_orrery: self.use_orrery,
+            orrery_ring: ORRERY_RING,
+            orrery_period: self.orrery_state().system_period(),
+            orrery_tick_ms: ORRERY_TICK_SECONDS * 1000.0,
+            orrery_orbits: self
+                .loadout
+                .iter()
+                .enumerate()
+                .map(|(i, &id)| {
+                    let o = content::orbit_for(&SHAPES[id], i);
+                    OrbitView {
+                        path: o.path.clone(),
+                        phase: o.phase,
+                        period: o.period() as u8,
+                    }
+                })
+                .collect(),
         }
     }
 }
@@ -1017,7 +1256,9 @@ pub struct Game {
 impl Game {
     #[wasm_bindgen(constructor)]
     pub fn new(seed: f64, now_ms: f64) -> Game {
-        Game { state: GameState::new(seed as u64, now_ms) }
+        Game {
+            state: GameState::new(seed as u64, now_ms),
+        }
     }
 
     /// Load a save; the caller then typically calls `compute_offline(now)`.
@@ -1112,6 +1353,11 @@ impl Game {
     pub fn view(&self) -> String {
         serde_json::to_string(&self.state.view()).unwrap()
     }
+    /// Toggle the Orrery engine (opt-in; banks production at `now_ms` first so the switch is seamless).
+    pub fn set_use_orrery(&mut self, on: bool, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.use_orrery = on;
+    }
 }
 
 /// The static shape table for the web layer (nicknames, families, rarities, costs).
@@ -1205,7 +1451,10 @@ pub fn milestones_json() -> String {
     }
     let rows: Vec<MilestoneRow> = content::MILESTONES
         .iter()
-        .map(|m| MilestoneRow { key: m.key, bonus: m.bonus })
+        .map(|m| MilestoneRow {
+            key: m.key,
+            bonus: m.bonus,
+        })
         .collect();
     serde_json::to_string(&rows).unwrap()
 }
@@ -1221,7 +1470,11 @@ pub fn facets_json() -> String {
     }
     let rows: Vec<FacetRow> = content::FACET_PERKS
         .iter()
-        .map(|f| FacetRow { key: f.key, cost: f.cost, max_level: f.max_level })
+        .map(|f| FacetRow {
+            key: f.key,
+            cost: f.cost,
+            max_level: f.max_level,
+        })
         .collect();
     serde_json::to_string(&rows).unwrap()
 }
@@ -1237,7 +1490,11 @@ pub fn banners_json() -> String {
     }
     let rows: Vec<BannerRow> = content::BANNERS
         .iter()
-        .map(|b| BannerRow { key: b.key, featured: b.featured.to_vec(), rotating: b.rotating })
+        .map(|b| BannerRow {
+            key: b.key,
+            featured: b.featured.to_vec(),
+            rotating: b.rotating,
+        })
         .collect();
     serde_json::to_string(&rows).unwrap()
 }
@@ -1265,6 +1522,73 @@ mod tests {
     }
 
     #[test]
+    fn orrery_every_shapedef_orbit_valid() {
+        // Every shape seeds a period in the allowed set ⇒ any loadout's lcm ≤ L_CAP (offline stays O(1)).
+        for (id, def) in SHAPES.iter().enumerate() {
+            let o = content::orbit_for(def, id);
+            assert!(
+                orrery::ALLOWED_PERIODS.contains(&o.period()),
+                "shape {id} got period {}",
+                o.period()
+            );
+        }
+        // Even the entire catalogue deployed at once respects the cap.
+        let st = OrreryState {
+            placements: (0..COUNT)
+                .map(|id| Placement {
+                    shape: id as u16,
+                    orbit: content::orbit_for(&SHAPES[id], id),
+                })
+                .collect(),
+        };
+        assert!(st.checked_system_period().is_some());
+        assert!(st.system_period() <= orrery::L_CAP);
+    }
+
+    #[test]
+    fn orrery_offline_is_o1_and_stable() {
+        let mut g = GameState::new(7, 0.0);
+        for id in 0..6 {
+            g.owned[id] = 1;
+        }
+        g.auto_arrange();
+        g.use_orrery = true;
+        g.last_seen_ms = 0.0;
+        assert!(!g.loadout.is_empty() && g.rate_per_hr() > 0.0);
+
+        // seconds span (uncapped): bit-stable + positive (computed via the closed form, no loop).
+        let r1 = g.clone().compute_offline(90_000.0);
+        let r2 = g.clone().compute_offline(90_000.0);
+        assert_eq!(r1.gained_flux.to_bits(), r2.gained_flux.to_bits());
+        assert!(r1.gained_flux > 0.0);
+
+        // weeks span: instant (no per-tick loop), capped at the offline cap, and within the rate ceiling.
+        let rw = g.clone().compute_offline(14.0 * 24.0 * HOUR);
+        assert_eq!(rw.capped_ms, OFFLINE_CAP_MS);
+        assert!(rw.gained_flux.is_finite() && rw.gained_flux > r1.gained_flux);
+        let ceiling = g.cap_rate() * g.globals_mult() * 24.0;
+        assert!(rw.gained_flux <= ceiling + 1e-6);
+    }
+
+    #[test]
+    fn orrery_flag_off_is_byte_identical_and_deterministic() {
+        let mut g = GameState::new(7, 0.0);
+        for id in 0..6 {
+            g.owned[id] = 1;
+        }
+        g.auto_arrange();
+        let static_rate = g.rate_per_hr();
+        g.use_orrery = true;
+        let orrery_rate = g.rate_per_hr();
+        assert!(orrery_rate > 0.0);
+        g.use_orrery = false;
+        assert_eq!(g.rate_per_hr().to_bits(), static_rate.to_bits()); // flag off ⇒ unchanged
+                                                                      // orrery prefix is deterministic
+        g.use_orrery = true;
+        assert_eq!(g.orrery_prefix(), g.orrery_prefix());
+    }
+
+    #[test]
     fn starter_shape_and_tap_bootstrap() {
         let mut g = GameState::new(1, 0.0);
         assert_eq!(g.owned[STARTER_SHAPE], 1); // begins owning one common
@@ -1286,7 +1610,7 @@ mod tests {
         assert!(out.shape_id >= 0);
         assert!((g.flux - 150.0).abs() < 1e-6); // 250 − 100
         assert_eq!(g.owned.iter().sum::<u32>(), before + 1); // pull granted exactly one copy
-        // can't pull when broke
+                                                             // can't pull when broke
         g.flux = 50.0;
         assert!(!g.pull(0.0).ok);
     }
@@ -1308,7 +1632,10 @@ mod tests {
         g.owned[26] = 1; // Hept, euler_cost 14 (> cap 6)
         g.owned[0] = 1; // Pip, cost 0
         assert!(g.deploy(0), "free ballast should always deploy");
-        assert!(!g.deploy(26), "heptoroid (cost 14) must exceed the cap-6 budget");
+        assert!(
+            !g.deploy(26),
+            "heptoroid (cost 14) must exceed the cap-6 budget"
+        );
         assert_eq!(g.euler_used(), 0);
     }
 
@@ -1319,7 +1646,10 @@ mod tests {
             g.owned[i] = 1; // own everything
         }
         g.auto_arrange();
-        assert!(g.euler_used() <= g.euler_cap, "auto-arrange overspent the budget");
+        assert!(
+            g.euler_used() <= g.euler_cap,
+            "auto-arrange overspent the budget"
+        );
         // free commons (cost 0) should all be deployed
         assert!((0..10).all(|i| g.loadout.contains(&i)));
     }
@@ -1377,7 +1707,10 @@ mod tests {
     #[test]
     fn recrystallize_requires_core_complete_then_ascends() {
         let mut g = GameState::new(1, 0.0);
-        assert!(!g.recrystallize(), "can't ascend before completing the core");
+        assert!(
+            !g.recrystallize(),
+            "can't ascend before completing the core"
+        );
         for i in 0..COUNT {
             g.owned[i] = 1;
         }
@@ -1459,7 +1792,11 @@ mod tests {
         for _ in 0..20 {
             g.buy_upgrade(0);
         }
-        assert_eq!(g.upgrade_level(0), content::UPGRADES[0].max_level, "stops at max level");
+        assert_eq!(
+            g.upgrade_level(0),
+            content::UPGRADES[0].max_level,
+            "stops at max level"
+        );
     }
 
     #[test]
@@ -1522,7 +1859,11 @@ mod tests {
         g.owned[filler] = 1;
         g.loadout = vec![a, filler, b];
         g.board_cells = vec![0, 7, 13]; // a and b placed far apart (not orthogonally adjacent)
-        assert_eq!(g.synergy_count(), 0, "non-adjacent kin pair gives no synergy");
+        assert_eq!(
+            g.synergy_count(),
+            0,
+            "non-adjacent kin pair gives no synergy"
+        );
     }
 
     #[test]
@@ -1551,7 +1892,10 @@ mod tests {
         g.owned[0] = 1; // a free filler that would separate the pair under a naive sort
         g.auto_arrange();
         assert!(g.loadout.contains(&a) && g.loadout.contains(&b));
-        assert!(g.synergy_count() >= 1, "auto-arrange should place the kin pair adjacent");
+        assert!(
+            g.synergy_count() >= 1,
+            "auto-arrange should place the kin pair adjacent"
+        );
     }
 
     #[test]

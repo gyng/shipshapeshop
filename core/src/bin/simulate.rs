@@ -59,11 +59,16 @@ fn casual(seed: u64, every_h: f64) -> f64 {
 }
 
 fn main() {
-    println!("Shape Gacha — economy simulation (target: complete the 41-shape core in ~1–2 days)\n");
+    println!(
+        "Shape Gacha — economy simulation (target: complete the 41-shape core in ~1–2 days)\n"
+    );
     let mut gh = vec![];
     for seed in [1u64, 7, 42, 99, 2024] {
         let (h, pulls, rate) = greedy(seed);
-        println!("  greedy  seed {seed:>4}: {h:5.1}h ({:.2}d), {pulls} pulls, end rate {rate:.0}/hr", h / 24.0);
+        println!(
+            "  greedy  seed {seed:>4}: {h:5.1}h ({:.2}d), {pulls} pulls, end rate {rate:.0}/hr",
+            h / 24.0
+        );
         gh.push(h);
     }
     let avg = gh.iter().sum::<f64>() / gh.len() as f64;
@@ -71,7 +76,10 @@ fn main() {
 
     for every in [8.0, 12.0, 24.0] {
         let h = casual(42, every);
-        println!("  casual (checks every {every:>4.0}h): {h:5.1}h ({:.2} days)", h / 24.0);
+        println!(
+            "  casual (checks every {every:>4.0}h): {h:5.1}h ({:.2} days)",
+            h / 24.0
+        );
     }
 }
 
@@ -96,6 +104,9 @@ mod tests {
     #[test]
     fn casual_idler_in_one_to_three_days() {
         let h = casual(42, 12.0);
-        assert!((24.0..=72.0).contains(&h), "casual 12h-check completion {h:.1}h outside 1–3 days");
+        assert!(
+            (24.0..=72.0).contains(&h),
+            "casual 12h-check completion {h:.1}h outside 1–3 days"
+        );
     }
 }

@@ -46,10 +46,10 @@ const P_RARE_GIVEN_LOW: f64 = (50.0 + 30.0) / 94.0;
 /// advances on every committed pull (save-scum resistance).
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct PityState {
-    pub counter: u64,                 // RNG counter = total pulls on this banner
-    pub since_top: u32,               // pulls since SSR-or-better
-    pub since_epic: u32,              // pulls since Epic-or-better
-    pub resonance: u32,               // +1 per pull; spark at SPARK_AT
+    pub counter: u64,                  // RNG counter = total pulls on this banner
+    pub since_top: u32,                // pulls since SSR-or-better
+    pub since_epic: u32,               // pulls since Epic-or-better
+    pub resonance: u32,                // +1 per pull; spark at SPARK_AT
     pub guaranteed_featured_top: bool, // 50/50-loss carry → next top is the featured UR
 }
 
@@ -145,7 +145,11 @@ pub fn roll_rarity(seed: u64, pity: &mut PityState) -> Roll {
             pity.guaranteed_featured_top = true;
             false
         };
-        if is_ur { Rarity::Ur } else { Rarity::Ssr }
+        if is_ur {
+            Rarity::Ur
+        } else {
+            Rarity::Ssr
+        }
     } else {
         pity.since_top += 1;
         let r = if pity.since_epic + 1 >= EPIC_FLOOR {
@@ -171,7 +175,10 @@ pub fn roll_rarity(seed: u64, pity: &mut PityState) -> Roll {
         pity.resonance = 0;
     }
     pity.counter += 1;
-    Roll { rarity, spark_fired }
+    Roll {
+        rarity,
+        spark_fired,
+    }
 }
 
 /// Uniform shape index within a tier (the 4th draw of the pull), for non-steered coupon-collector grants.
@@ -249,7 +256,10 @@ mod tests {
 
     #[test]
     fn deterministic_same_seed_same_result() {
-        assert_eq!(simulate_core(123, true, 2000), simulate_core(123, true, 2000));
+        assert_eq!(
+            simulate_core(123, true, 2000),
+            simulate_core(123, true, 2000)
+        );
     }
 
     #[test]
@@ -267,7 +277,10 @@ mod tests {
                 gap += 1;
             }
         }
-        assert!(max_gap <= HARD_PITY, "max dry streak {max_gap} exceeded hard pity {HARD_PITY}");
+        assert!(
+            max_gap <= HARD_PITY,
+            "max dry streak {max_gap} exceeded hard pity {HARD_PITY}"
+        );
     }
 
     #[test]
@@ -285,7 +298,10 @@ mod tests {
                 gap += 1;
             }
         }
-        assert!(max_gap <= EPIC_FLOOR, "max non-epic streak {max_gap} exceeded floor {EPIC_FLOOR}");
+        assert!(
+            max_gap <= EPIC_FLOOR,
+            "max non-epic streak {max_gap} exceeded floor {EPIC_FLOOR}"
+        );
     }
 
     #[test]
@@ -295,13 +311,19 @@ mod tests {
         let n = 1_000_000u32;
         let mut tops = 0u32;
         for _ in 0..n {
-            if matches!(pull(31337, &mut pity, &mut coll, true), Rarity::Ssr | Rarity::Ur) {
+            if matches!(
+                pull(31337, &mut pity, &mut coll, true),
+                Rarity::Ssr | Rarity::Ur
+            ) {
                 tops += 1;
             }
         }
         let rate = tops as f64 / n as f64;
         // base 6% lifted by soft/hard pity → spec says effective ~7.8%
-        assert!((0.06..0.10).contains(&rate), "effective top rate {rate} outside 6–10%");
+        assert!(
+            (0.06..0.10).contains(&rate),
+            "effective top rate {rate} outside 6–10%"
+        );
     }
 
     #[test]
@@ -312,7 +334,10 @@ mod tests {
         let p90 = percentile(&samples, 0.90);
         let max = *samples.last().unwrap();
         // DESIGN.md §7 target ≈ 169 mean / p90 ≈ 200 — assert a robust band around it.
-        assert!((150.0..195.0).contains(&mean), "mean {mean} outside target band");
+        assert!(
+            (150.0..195.0).contains(&mean),
+            "mean {mean} outside target band"
+        );
         assert!(p90 <= 230, "p90 {p90} too high");
         assert!(max < 2000, "a seed dead-stalled (hit the cap): {max}");
     }
@@ -333,6 +358,9 @@ mod tests {
             with_mean <= without_mean + 0.01,
             "spill must never increase pulls: with={with_mean:.1} without={without_mean:.1}"
         );
-        assert!(with_max < 600, "no seed should dead-stall (worst completion = {with_max})");
+        assert!(
+            with_max < 600,
+            "no seed should dead-stall (worst completion = {with_max})"
+        );
     }
 }

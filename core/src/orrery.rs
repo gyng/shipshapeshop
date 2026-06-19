@@ -252,15 +252,17 @@ mod tests {
         // (a) k whole periods from any phase == k · per_period, for a weeks-scale k.
         let weeks: u64 = 7 * 24 * 3600; // ticks if 1 tick = 1s; far beyond any loop budget
         for t0 in 0..(l as u32) {
-            assert_eq!(offline_flux(&prefix, t0, weeks * l), weeks.saturating_mul(per));
+            assert_eq!(
+                offline_flux(&prefix, t0, weeks * l),
+                weeks.saturating_mul(per)
+            );
         }
         // (b) additivity (the semigroup the real offline relies on) at huge spans.
         let big_a = 9_876_543_210u64;
         let big_b = 1_234_567_890u64;
         assert_eq!(
             offline_flux(&prefix, 3, big_a + big_b),
-            offline_flux(&prefix, 3, big_a)
-                + offline_flux(&prefix, 3 + (big_a % l) as u32, big_b)
+            offline_flux(&prefix, 3, big_a) + offline_flux(&prefix, 3 + (big_a % l) as u32, big_b)
         );
         // (c) a seconds-scale span still matches brute force (bit-stable small case).
         assert_eq!(offline_flux(&prefix, 5, 90), brute(&state, &base, 5, 90));
@@ -323,7 +325,10 @@ mod tests {
         let base = vec![1u64, 1, 1, 1];
         let expected_base = 4u64;
         let expected_pairs = pair(0, 1) + pair(0, 2) + pair(1, 2);
-        assert_eq!(state.prod_at(0, &base, &pair), expected_base + expected_pairs);
+        assert_eq!(
+            state.prod_at(0, &base, &pair),
+            expected_base + expected_pairs
+        );
     }
 
     #[test]

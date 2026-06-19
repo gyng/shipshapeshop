@@ -29,68 +29,453 @@ const U: f64 = 400.0;
 
 pub const SHAPES: [ShapeDef; 55] = [
     // ── Common (ids 0..10) — genus 0, χ=2, free ballast ──────────────────────────────
-    ShapeDef { nick: "Pip",     family: "sphere",        rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
-    ShapeDef { nick: "Boxy",    family: "cube",          rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
-    ShapeDef { nick: "Tetra",   family: "tetrahedron",   rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
-    ShapeDef { nick: "Spike",   family: "octahedron",    rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
-    ShapeDef { nick: "Dodi",    family: "dodecahedron",  rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
-    ShapeDef { nick: "Ico",     family: "icosahedron",   rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
-    ShapeDef { nick: "Cans",    family: "cylinder",      rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
-    ShapeDef { nick: "Scoop",   family: "cone",          rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
-    ShapeDef { nick: "Coaster", family: "disk",          rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
-    ShapeDef { nick: "Ollie",   family: "ellipsoid",     rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
+    ShapeDef {
+        nick: "Pip",
+        family: "sphere",
+        rarity: Rarity::Common,
+        genus: 0,
+        euler_cost: 0,
+        base_prod: C,
+    },
+    ShapeDef {
+        nick: "Boxy",
+        family: "cube",
+        rarity: Rarity::Common,
+        genus: 0,
+        euler_cost: 0,
+        base_prod: C,
+    },
+    ShapeDef {
+        nick: "Tetra",
+        family: "tetrahedron",
+        rarity: Rarity::Common,
+        genus: 0,
+        euler_cost: 0,
+        base_prod: C,
+    },
+    ShapeDef {
+        nick: "Spike",
+        family: "octahedron",
+        rarity: Rarity::Common,
+        genus: 0,
+        euler_cost: 0,
+        base_prod: C,
+    },
+    ShapeDef {
+        nick: "Dodi",
+        family: "dodecahedron",
+        rarity: Rarity::Common,
+        genus: 0,
+        euler_cost: 0,
+        base_prod: C,
+    },
+    ShapeDef {
+        nick: "Ico",
+        family: "icosahedron",
+        rarity: Rarity::Common,
+        genus: 0,
+        euler_cost: 0,
+        base_prod: C,
+    },
+    ShapeDef {
+        nick: "Cans",
+        family: "cylinder",
+        rarity: Rarity::Common,
+        genus: 0,
+        euler_cost: 0,
+        base_prod: C,
+    },
+    ShapeDef {
+        nick: "Scoop",
+        family: "cone",
+        rarity: Rarity::Common,
+        genus: 0,
+        euler_cost: 0,
+        base_prod: C,
+    },
+    ShapeDef {
+        nick: "Coaster",
+        family: "disk",
+        rarity: Rarity::Common,
+        genus: 0,
+        euler_cost: 0,
+        base_prod: C,
+    },
+    ShapeDef {
+        nick: "Ollie",
+        family: "ellipsoid",
+        rarity: Rarity::Common,
+        genus: 0,
+        euler_cost: 0,
+        base_prod: C,
+    },
     // ── Rare (ids 10..18) ────────────────────────────────────────────────────────────
-    ShapeDef { nick: "Donna",   family: "torus",         rarity: Rarity::Rare, genus: 1, euler_cost: 2, base_prod: R },
-    ShapeDef { nick: "Mo",      family: "mobius",        rarity: Rarity::Rare, genus: 1, euler_cost: 2, base_prod: R },
-    ShapeDef { nick: "Twiggy",  family: "genus2",        rarity: Rarity::Rare, genus: 2, euler_cost: 4, base_prod: R },
-    ShapeDef { nick: "Cooper",  family: "hyperboloid",   rarity: Rarity::Rare, genus: 0, euler_cost: 2, base_prod: R },
-    ShapeDef { nick: "Cat",     family: "catenoid",      rarity: Rarity::Rare, genus: 0, euler_cost: 2, base_prod: R },
-    ShapeDef { nick: "Lex",     family: "helicoid",      rarity: Rarity::Rare, genus: 0, euler_cost: 2, base_prod: R },
-    ShapeDef { nick: "Trey",    family: "trefoil",       rarity: Rarity::Rare, genus: 1, euler_cost: 2, base_prod: R },
-    ShapeDef { nick: "Trip",    family: "monkey_saddle", rarity: Rarity::Rare, genus: 0, euler_cost: 1, base_prod: R },
+    ShapeDef {
+        nick: "Donna",
+        family: "torus",
+        rarity: Rarity::Rare,
+        genus: 1,
+        euler_cost: 2,
+        base_prod: R,
+    },
+    ShapeDef {
+        nick: "Mo",
+        family: "mobius",
+        rarity: Rarity::Rare,
+        genus: 1,
+        euler_cost: 2,
+        base_prod: R,
+    },
+    ShapeDef {
+        nick: "Twiggy",
+        family: "genus2",
+        rarity: Rarity::Rare,
+        genus: 2,
+        euler_cost: 4,
+        base_prod: R,
+    },
+    ShapeDef {
+        nick: "Cooper",
+        family: "hyperboloid",
+        rarity: Rarity::Rare,
+        genus: 0,
+        euler_cost: 2,
+        base_prod: R,
+    },
+    ShapeDef {
+        nick: "Cat",
+        family: "catenoid",
+        rarity: Rarity::Rare,
+        genus: 0,
+        euler_cost: 2,
+        base_prod: R,
+    },
+    ShapeDef {
+        nick: "Lex",
+        family: "helicoid",
+        rarity: Rarity::Rare,
+        genus: 0,
+        euler_cost: 2,
+        base_prod: R,
+    },
+    ShapeDef {
+        nick: "Trey",
+        family: "trefoil",
+        rarity: Rarity::Rare,
+        genus: 1,
+        euler_cost: 2,
+        base_prod: R,
+    },
+    ShapeDef {
+        nick: "Trip",
+        family: "monkey_saddle",
+        rarity: Rarity::Rare,
+        genus: 0,
+        euler_cost: 1,
+        base_prod: R,
+    },
     // ── Epic (ids 18..26) ──────────────────────────────────────────────────────────────
-    ShapeDef { nick: "Klein",   family: "klein_bottle",  rarity: Rarity::Epic, genus: 1, euler_cost: 2, base_prod: E },
-    ShapeDef { nick: "Ar-Pee",  family: "rp2",           rarity: Rarity::Epic, genus: 1, euler_cost: 1, base_prod: E },
-    ShapeDef { nick: "Boyd",    family: "boys_surface",  rarity: Rarity::Epic, genus: 1, euler_cost: 1, base_prod: E },
-    ShapeDef { nick: "Cappy",   family: "cross_cap",     rarity: Rarity::Epic, genus: 1, euler_cost: 1, base_prod: E },
-    ShapeDef { nick: "Figgy",   family: "figure8_knot",  rarity: Rarity::Epic, genus: 1, euler_cost: 2, base_prod: E },
-    ShapeDef { nick: "Cinq",    family: "torus_knot_2_5",rarity: Rarity::Epic, genus: 1, euler_cost: 2, base_prod: E },
-    ShapeDef { nick: "Gyro",    family: "gyroid",        rarity: Rarity::Epic, genus: 5, euler_cost: 6, base_prod: E },
-    ShapeDef { nick: "Percy",   family: "schwarz_p",     rarity: Rarity::Epic, genus: 5, euler_cost: 6, base_prod: E },
+    ShapeDef {
+        nick: "Klein",
+        family: "klein_bottle",
+        rarity: Rarity::Epic,
+        genus: 1,
+        euler_cost: 2,
+        base_prod: E,
+    },
+    ShapeDef {
+        nick: "Ar-Pee",
+        family: "rp2",
+        rarity: Rarity::Epic,
+        genus: 1,
+        euler_cost: 1,
+        base_prod: E,
+    },
+    ShapeDef {
+        nick: "Boyd",
+        family: "boys_surface",
+        rarity: Rarity::Epic,
+        genus: 1,
+        euler_cost: 1,
+        base_prod: E,
+    },
+    ShapeDef {
+        nick: "Cappy",
+        family: "cross_cap",
+        rarity: Rarity::Epic,
+        genus: 1,
+        euler_cost: 1,
+        base_prod: E,
+    },
+    ShapeDef {
+        nick: "Figgy",
+        family: "figure8_knot",
+        rarity: Rarity::Epic,
+        genus: 1,
+        euler_cost: 2,
+        base_prod: E,
+    },
+    ShapeDef {
+        nick: "Cinq",
+        family: "torus_knot_2_5",
+        rarity: Rarity::Epic,
+        genus: 1,
+        euler_cost: 2,
+        base_prod: E,
+    },
+    ShapeDef {
+        nick: "Gyro",
+        family: "gyroid",
+        rarity: Rarity::Epic,
+        genus: 5,
+        euler_cost: 6,
+        base_prod: E,
+    },
+    ShapeDef {
+        nick: "Percy",
+        family: "schwarz_p",
+        rarity: Rarity::Epic,
+        genus: 5,
+        euler_cost: 6,
+        base_prod: E,
+    },
     // ── SSR (ids 26..33) ────────────────────────────────────────────────────────────────
-    ShapeDef { nick: "Hept",    family: "heptoroid",     rarity: Rarity::Ssr, genus: 7, euler_cost: 14, base_prod: S },
-    ShapeDef { nick: "Costa",   family: "costa",         rarity: Rarity::Ssr, genus: 1, euler_cost: 4,  base_prod: S },
-    ShapeDef { nick: "The Bor", family: "borromean",     rarity: Rarity::Ssr, genus: 3, euler_cost: 6,  base_prod: S },
-    ShapeDef { nick: "Surface", family: "seifert",       rarity: Rarity::Ssr, genus: 2, euler_cost: 4,  base_prod: S },
-    ShapeDef { nick: "Lorrie",  family: "lorenz",        rarity: Rarity::Ssr, genus: 2, euler_cost: 5,  base_prod: S },
-    ShapeDef { nick: "Dee",     family: "schwarz_d",     rarity: Rarity::Ssr, genus: 6, euler_cost: 8,  base_prod: S },
-    ShapeDef { nick: "Pretzel", family: "triple_torus",  rarity: Rarity::Ssr, genus: 3, euler_cost: 6,  base_prod: S },
+    ShapeDef {
+        nick: "Hept",
+        family: "heptoroid",
+        rarity: Rarity::Ssr,
+        genus: 7,
+        euler_cost: 14,
+        base_prod: S,
+    },
+    ShapeDef {
+        nick: "Costa",
+        family: "costa",
+        rarity: Rarity::Ssr,
+        genus: 1,
+        euler_cost: 4,
+        base_prod: S,
+    },
+    ShapeDef {
+        nick: "The Bor",
+        family: "borromean",
+        rarity: Rarity::Ssr,
+        genus: 3,
+        euler_cost: 6,
+        base_prod: S,
+    },
+    ShapeDef {
+        nick: "Surface",
+        family: "seifert",
+        rarity: Rarity::Ssr,
+        genus: 2,
+        euler_cost: 4,
+        base_prod: S,
+    },
+    ShapeDef {
+        nick: "Lorrie",
+        family: "lorenz",
+        rarity: Rarity::Ssr,
+        genus: 2,
+        euler_cost: 5,
+        base_prod: S,
+    },
+    ShapeDef {
+        nick: "Dee",
+        family: "schwarz_d",
+        rarity: Rarity::Ssr,
+        genus: 6,
+        euler_cost: 8,
+        base_prod: S,
+    },
+    ShapeDef {
+        nick: "Pretzel",
+        family: "triple_torus",
+        rarity: Rarity::Ssr,
+        genus: 3,
+        euler_cost: 6,
+        base_prod: S,
+    },
     // ── UR / "Manifold" (ids 33..41) ──────────────────────────────────────────────────
-    ShapeDef { nick: "Tess",     family: "tesseract",     rarity: Rarity::Ur, genus: 0, euler_cost: 10, base_prod: U },
-    ShapeDef { nick: "Hex",      family: "cell_16",       rarity: Rarity::Ur, genus: 0, euler_cost: 10, base_prod: U },
-    ShapeDef { nick: "Two-Four", family: "cell_24",       rarity: Rarity::Ur, genus: 0, euler_cost: 12, base_prod: U },
-    ShapeDef { nick: "Cosa",     family: "cell_120",      rarity: Rarity::Ur, genus: 0, euler_cost: 20, base_prod: U },
-    ShapeDef { nick: "Cosi",     family: "cell_600",      rarity: Rarity::Ur, genus: 0, euler_cost: 20, base_prod: U },
-    ShapeDef { nick: "Sette",    family: "klein_quartic", rarity: Rarity::Ur, genus: 3, euler_cost: 6,  base_prod: U },
-    ShapeDef { nick: "Link",     family: "hopf",          rarity: Rarity::Ur, genus: 0, euler_cost: 12, base_prod: U },
-    ShapeDef { nick: "Corky",    family: "mazur",         rarity: Rarity::Ur, genus: 0, euler_cost: 1,  base_prod: U },
+    ShapeDef {
+        nick: "Tess",
+        family: "tesseract",
+        rarity: Rarity::Ur,
+        genus: 0,
+        euler_cost: 10,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Hex",
+        family: "cell_16",
+        rarity: Rarity::Ur,
+        genus: 0,
+        euler_cost: 10,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Two-Four",
+        family: "cell_24",
+        rarity: Rarity::Ur,
+        genus: 0,
+        euler_cost: 12,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Cosa",
+        family: "cell_120",
+        rarity: Rarity::Ur,
+        genus: 0,
+        euler_cost: 20,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Cosi",
+        family: "cell_600",
+        rarity: Rarity::Ur,
+        genus: 0,
+        euler_cost: 20,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Sette",
+        family: "klein_quartic",
+        rarity: Rarity::Ur,
+        genus: 3,
+        euler_cost: 6,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Link",
+        family: "hopf",
+        rarity: Rarity::Ur,
+        genus: 0,
+        euler_cost: 12,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Corky",
+        family: "mazur",
+        rarity: Rarity::Ur,
+        genus: 0,
+        euler_cost: 1,
+        base_prod: U,
+    },
     // ── Relics / "Reference Wing" (ids 41..47) — famous CG models; summoned with shards, not pulled ──
-    ShapeDef { nick: "Teapot",  family: "utah_teapot",    rarity: Rarity::Relic, genus: 1, euler_cost: 3, base_prod: U },
-    ShapeDef { nick: "Bun",     family: "stanford_bunny", rarity: Rarity::Relic, genus: 0, euler_cost: 4, base_prod: U },
-    ShapeDef { nick: "Benchy",  family: "benchy",         rarity: Rarity::Relic, genus: 1, euler_cost: 4, base_prod: U },
-    ShapeDef { nick: "Drake",   family: "stanford_dragon",rarity: Rarity::Relic, genus: 0, euler_cost: 6, base_prod: U },
-    ShapeDef { nick: "Suzanne", family: "suzanne",        rarity: Rarity::Relic, genus: 0, euler_cost: 4, base_prod: U },
-    ShapeDef { nick: "Spot",    family: "spot",           rarity: Rarity::Relic, genus: 0, euler_cost: 3, base_prod: U },
+    ShapeDef {
+        nick: "Teapot",
+        family: "utah_teapot",
+        rarity: Rarity::Relic,
+        genus: 1,
+        euler_cost: 3,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Bun",
+        family: "stanford_bunny",
+        rarity: Rarity::Relic,
+        genus: 0,
+        euler_cost: 4,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Benchy",
+        family: "benchy",
+        rarity: Rarity::Relic,
+        genus: 1,
+        euler_cost: 4,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Drake",
+        family: "stanford_dragon",
+        rarity: Rarity::Relic,
+        genus: 0,
+        euler_cost: 6,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Suzanne",
+        family: "suzanne",
+        rarity: Rarity::Relic,
+        genus: 0,
+        euler_cost: 4,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Spot",
+        family: "spot",
+        rarity: Rarity::Relic,
+        genus: 0,
+        euler_cost: 3,
+        base_prod: U,
+    },
     // Real scanned/sculpted meshes (loaded on demand) — Princeton Suggestive-Contours + Stanford scans
-    ShapeDef { nick: "Mooky",   family: "cow",            rarity: Rarity::Relic, genus: 0, euler_cost: 3, base_prod: U },
-    ShapeDef { nick: "Dillo",   family: "armadillo",      rarity: Rarity::Relic, genus: 0, euler_cost: 5, base_prod: U },
-    ShapeDef { nick: "Lucy",    family: "lucy",           rarity: Rarity::Relic, genus: 0, euler_cost: 6, base_prod: U },
-    ShapeDef { nick: "Cee",     family: "csaszar",        rarity: Rarity::Relic, genus: 1, euler_cost: 2, base_prod: U },
+    ShapeDef {
+        nick: "Mooky",
+        family: "cow",
+        rarity: Rarity::Relic,
+        genus: 0,
+        euler_cost: 3,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Dillo",
+        family: "armadillo",
+        rarity: Rarity::Relic,
+        genus: 0,
+        euler_cost: 5,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Lucy",
+        family: "lucy",
+        rarity: Rarity::Relic,
+        genus: 0,
+        euler_cost: 6,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Cee",
+        family: "csaszar",
+        rarity: Rarity::Relic,
+        genus: 1,
+        euler_cost: 2,
+        base_prod: U,
+    },
     // Famous fractals & classical surfaces (procedurally generated in the web layer) — ids 51..55
-    ShapeDef { nick: "Spongey", family: "menger",         rarity: Rarity::Relic, genus: 5, euler_cost: 8, base_prod: U },
-    ShapeDef { nick: "Pinski",  family: "sierpinski",     rarity: Rarity::Relic, genus: 0, euler_cost: 4, base_prod: U },
-    ShapeDef { nick: "Dini",    family: "dini",           rarity: Rarity::Relic, genus: 0, euler_cost: 2, base_prod: U },
-    ShapeDef { nick: "Sevvy",   family: "torus_knot_2_7", rarity: Rarity::Relic, genus: 1, euler_cost: 2, base_prod: U },
+    ShapeDef {
+        nick: "Spongey",
+        family: "menger",
+        rarity: Rarity::Relic,
+        genus: 5,
+        euler_cost: 8,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Pinski",
+        family: "sierpinski",
+        rarity: Rarity::Relic,
+        genus: 0,
+        euler_cost: 4,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Dini",
+        family: "dini",
+        rarity: Rarity::Relic,
+        genus: 0,
+        euler_cost: 2,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Sevvy",
+        family: "torus_knot_2_7",
+        rarity: Rarity::Relic,
+        genus: 1,
+        euler_cost: 2,
+        base_prod: U,
+    },
 ];
 
 pub const COUNT: usize = SHAPES.len();
@@ -158,19 +543,56 @@ pub fn dupes_to_next_star(r: Rarity, dupes: u32) -> Option<(u32, u32)> {
 // ── ShapeEffect archetypes (keyed to real topology) — the "each character is unique" layer. ──
 /// Non-orientable surfaces → Orientability Overdrive (a flat production boost; the oscillation is cosmetic).
 pub fn is_nonorientable(family: &str) -> bool {
-    matches!(family, "mobius" | "klein_bottle" | "rp2" | "boys_surface" | "cross_cap" | "klein_quartic")
+    matches!(
+        family,
+        "mobius" | "klein_bottle" | "rp2" | "boys_surface" | "cross_cap" | "klein_quartic"
+    )
 }
 /// Knots & links → Entanglement (boost loadout-adjacent neighbours — makes ORDER matter).
 pub fn is_knot(family: &str) -> bool {
-    matches!(family, "trefoil" | "figure8_knot" | "torus_knot_2_5" | "torus_knot_2_7" | "borromean" | "seifert" | "hopf")
+    matches!(
+        family,
+        "trefoil"
+            | "figure8_knot"
+            | "torus_knot_2_5"
+            | "torus_knot_2_7"
+            | "borromean"
+            | "seifert"
+            | "hopf"
+    )
 }
 /// 4D polytopes → Cross-Dimension (a global bonus, inert until the viewport reaches 4D in New Game+).
 pub fn is_polytope_4d(family: &str) -> bool {
-    matches!(family, "tesseract" | "cell_16" | "cell_24" | "cell_120" | "cell_600")
+    matches!(
+        family,
+        "tesseract" | "cell_16" | "cell_24" | "cell_120" | "cell_600"
+    )
 }
 /// χ=2 free-to-deploy anchors (Sphere/Platonics) → Euler Ballast (a small steady team bonus).
 pub fn is_ballast(id: usize) -> bool {
     SHAPES[id].euler_cost == 0
+}
+
+/// Topology → orbit seeding for the Orrery (see ORRERY_PLAN.md). Shapes ride a 12-cell "clock" ring; every
+/// allowed period divides 12, so a shape cleanly steps `12/period` cells per tick (period 12 = the
+/// second-hand, period 1 = stationary) and `lcm` of any loadout is ≤ `L_CAP` by construction.
+/// - **χ (via `euler_cost`)** → orbital tempo (`period`): the Euler budget now buys speed.
+/// - **orientability** → direction: non-orientable shapes run *retrograde* (the overdrive flip, made literal).
+/// - **genus** → a phase offset (more handles → staggered start), so meetings are arrangeable.
+pub fn orbit_for(def: &ShapeDef, slot: usize) -> crate::orrery::Orbit {
+    use crate::orrery::{Orbit, ALLOWED_PERIODS};
+    const RING: u32 = 12;
+    let period = ALLOWED_PERIODS[def.euler_cost.min(5) as usize]; // 0..5 → 1,2,3,4,6,12 (always in-set ⇒ lcm ≤ L_CAP)
+    let step = RING / period;
+    let retro = is_nonorientable(def.family);
+    let path: Vec<u8> = (0..period)
+        .map(|i| {
+            let k = if retro { (period - i) % period } else { i };
+            (k * step) as u8
+        })
+        .collect();
+    let phase = ((slot as u32 + def.genus) % period) as u8;
+    Orbit { path, phase }
 }
 
 /// Bespoke "signature" SELF bonuses for iconic shapes — layered on top of their archetype, star-scaled.
@@ -178,14 +600,33 @@ pub fn is_ballast(id: usize) -> bool {
 /// handled separately in game.rs::signature_global_mult.
 pub const SIGNATURE: &[(usize, f64, &str)] = &[
     (18, 0.30, "Flagship Klein — the overdrive runs deepest here"),
-    (26, 0.50, "Genus-7 powerhouse — seven handle-lanes roaring at once"),
-    (16, 0.20, "The first knot — it sets the standard others follow"),
-    (30, 0.25, "Strange attractor — chaotic, relentless throughput"),
+    (
+        26,
+        0.50,
+        "Genus-7 powerhouse — seven handle-lanes roaring at once",
+    ),
+    (
+        16,
+        0.20,
+        "The first knot — it sets the standard others follow",
+    ),
+    (
+        30,
+        0.25,
+        "Strange attractor — chaotic, relentless throughput",
+    ),
     (51, 0.30, "Infinite surface, finite swagger"),
-    (40, 0.25, "The Mazur trick — something from very nearly nothing"),
+    (
+        40,
+        0.25,
+        "The Mazur trick — something from very nearly nothing",
+    ),
 ];
 pub fn signature(id: usize) -> Option<(f64, &'static str)> {
-    SIGNATURE.iter().find(|&&(i, _, _)| i == id).map(|&(_, b, l)| (b, l))
+    SIGNATURE
+        .iter()
+        .find(|&&(i, _, _)| i == id)
+        .map(|&(_, b, l)| (b, l))
 }
 
 /// Connected-sum forge recipes (M6): gluing two shapes makes a third, by the real topology
@@ -197,10 +638,26 @@ pub struct Recipe {
 }
 
 pub const RECIPES: &[Recipe] = &[
-    Recipe { a: 11, b: 11, out: 18 }, // Mo # Mo = Klein bottle (the flagship)
-    Recipe { a: 19, b: 19, out: 18 }, // RP2 # RP2 = Klein bottle
-    Recipe { a: 10, b: 10, out: 12 }, // torus # torus = genus-2
-    Recipe { a: 10, b: 12, out: 32 }, // torus # genus-2 = triple torus
+    Recipe {
+        a: 11,
+        b: 11,
+        out: 18,
+    }, // Mo # Mo = Klein bottle (the flagship)
+    Recipe {
+        a: 19,
+        b: 19,
+        out: 18,
+    }, // RP2 # RP2 = Klein bottle
+    Recipe {
+        a: 10,
+        b: 10,
+        out: 12,
+    }, // torus # torus = genus-2
+    Recipe {
+        a: 10,
+        b: 12,
+        out: 32,
+    }, // torus # genus-2 = triple torus
 ];
 
 /// Find a recipe matching an unordered input pair.
@@ -228,15 +685,78 @@ pub struct UpgradeDef {
 // Order is load-bearing — game.rs reads effects by index. Keep in sync. A small tech tree: two roots
 // (expand_floor, patience) branch into the rest; `twin_bond` + `auto_pull` are secret (revealed on unlock).
 pub const UPGRADES: [UpgradeDef; 9] = [
-    UpgradeDef { key: "expand_floor", flux_cost: 700.0, shard_cost: 0, max_level: 6, requires: None, secret: false }, // 0: +2 Euler cap / level (root)
-    UpgradeDef { key: "genus_resonance", flux_cost: 4500.0, shard_cost: 15, max_level: 1, requires: Some((0, 2)), secret: false }, // 1: +6% per distinct genus
-    UpgradeDef { key: "twin_bond", flux_cost: 6000.0, shard_cost: 25, max_level: 1, requires: Some((1, 1)), secret: true }, // 2: kin synergy doubled (secret)
-    UpgradeDef { key: "patience", flux_cost: 2500.0, shard_cost: 0, max_level: 3, requires: None, secret: false }, // 3: +12h offline cap / level (root)
-    UpgradeDef { key: "shard_dividend", flux_cost: 3500.0, shard_cost: 0, max_level: 1, requires: Some((3, 1)), secret: false }, // 4: dupe shards ×1.5
-    UpgradeDef { key: "forge_mastery", flux_cost: 3000.0, shard_cost: 30, max_level: 1, requires: Some((0, 1)), secret: false }, // 5: forge costs 25
-    UpgradeDef { key: "affinity_bloom", flux_cost: 5000.0, shard_cost: 0, max_level: 1, requires: Some((4, 1)), secret: false }, // 6: bond gains ×1.5
-    UpgradeDef { key: "overflow_cap", flux_cost: 8000.0, shard_cost: 0, max_level: 4, requires: Some((0, 4)), secret: false }, // 7: cap +300/hr / level
-    UpgradeDef { key: "auto_pull", flux_cost: 9000.0, shard_cost: 0, max_level: 1, requires: Some((7, 1)), secret: true }, // 8: auto-pull toggle (secret)
+    UpgradeDef {
+        key: "expand_floor",
+        flux_cost: 700.0,
+        shard_cost: 0,
+        max_level: 6,
+        requires: None,
+        secret: false,
+    }, // 0: +2 Euler cap / level (root)
+    UpgradeDef {
+        key: "genus_resonance",
+        flux_cost: 4500.0,
+        shard_cost: 15,
+        max_level: 1,
+        requires: Some((0, 2)),
+        secret: false,
+    }, // 1: +6% per distinct genus
+    UpgradeDef {
+        key: "twin_bond",
+        flux_cost: 6000.0,
+        shard_cost: 25,
+        max_level: 1,
+        requires: Some((1, 1)),
+        secret: true,
+    }, // 2: kin synergy doubled (secret)
+    UpgradeDef {
+        key: "patience",
+        flux_cost: 2500.0,
+        shard_cost: 0,
+        max_level: 3,
+        requires: None,
+        secret: false,
+    }, // 3: +12h offline cap / level (root)
+    UpgradeDef {
+        key: "shard_dividend",
+        flux_cost: 3500.0,
+        shard_cost: 0,
+        max_level: 1,
+        requires: Some((3, 1)),
+        secret: false,
+    }, // 4: dupe shards ×1.5
+    UpgradeDef {
+        key: "forge_mastery",
+        flux_cost: 3000.0,
+        shard_cost: 30,
+        max_level: 1,
+        requires: Some((0, 1)),
+        secret: false,
+    }, // 5: forge costs 25
+    UpgradeDef {
+        key: "affinity_bloom",
+        flux_cost: 5000.0,
+        shard_cost: 0,
+        max_level: 1,
+        requires: Some((4, 1)),
+        secret: false,
+    }, // 6: bond gains ×1.5
+    UpgradeDef {
+        key: "overflow_cap",
+        flux_cost: 8000.0,
+        shard_cost: 0,
+        max_level: 4,
+        requires: Some((0, 4)),
+        secret: false,
+    }, // 7: cap +300/hr / level
+    UpgradeDef {
+        key: "auto_pull",
+        flux_cost: 9000.0,
+        shard_cost: 0,
+        max_level: 1,
+        requires: Some((7, 1)),
+        secret: true,
+    }, // 8: auto-pull toggle (secret)
 ];
 pub const UPGRADE_COUNT: usize = UPGRADES.len();
 
@@ -244,7 +764,10 @@ pub const UPGRADE_COUNT: usize = UPGRADES.len();
 pub fn upgrade_cost(id: usize, level: u32) -> (f64, u64) {
     let d = &UPGRADES[id];
     let mult = 1.8_f64.powi(level as i32);
-    ((d.flux_cost * mult).floor(), (d.shard_cost as f64 * mult).floor() as u64)
+    (
+        (d.flux_cost * mult).floor(),
+        (d.shard_cost as f64 * mult).floor() as u64,
+    )
 }
 
 /// Facet perks — the PRESTIGE meta-tree. Recrystallizing grants Facets (a meta-currency); these perks are
@@ -255,11 +778,31 @@ pub struct FacetPerk {
     pub max_level: u32,
 }
 pub const FACET_PERKS: [FacetPerk; 5] = [
-    FacetPerk { key: "meta_production", cost: 2, max_level: 5 },   // 0: +5% global production / level (forever)
-    FacetPerk { key: "resonant_floor", cost: 3, max_level: 4 },    // 1: +1 base Euler cap / level
-    FacetPerk { key: "crystalline_start", cost: 2, max_level: 5 }, // 2: +600 Flux head-start each ascent / level
-    FacetPerk { key: "collectors_eye", cost: 3, max_level: 3 },    // 3: +15% dupe shards / level
-    FacetPerk { key: "ascendant", cost: 5, max_level: 3 },         // 4: +0.1 to the prestige base / level (compounds NG+)
+    FacetPerk {
+        key: "meta_production",
+        cost: 2,
+        max_level: 5,
+    }, // 0: +5% global production / level (forever)
+    FacetPerk {
+        key: "resonant_floor",
+        cost: 3,
+        max_level: 4,
+    }, // 1: +1 base Euler cap / level
+    FacetPerk {
+        key: "crystalline_start",
+        cost: 2,
+        max_level: 5,
+    }, // 2: +600 Flux head-start each ascent / level
+    FacetPerk {
+        key: "collectors_eye",
+        cost: 3,
+        max_level: 3,
+    }, // 3: +15% dupe shards / level
+    FacetPerk {
+        key: "ascendant",
+        cost: 5,
+        max_level: 3,
+    }, // 4: +0.1 to the prestige base / level (compounds NG+)
 ];
 pub const FACET_PERK_COUNT: usize = FACET_PERKS.len();
 pub fn facet_perk_cost(id: usize, level: u32) -> u64 {
@@ -274,15 +817,42 @@ pub struct Milestone {
     pub bonus: f64, // permanent global production bonus once latched
 }
 pub const MILESTONES: [Milestone; 9] = [
-    Milestone { key: "own_10", bonus: 0.03 },        // 0
-    Milestone { key: "own_25", bonus: 0.05 },        // 1
-    Milestone { key: "core_complete", bonus: 0.10 }, // 2
-    Milestone { key: "forge_3", bonus: 0.04 },       // 3
-    Milestone { key: "bond_5", bonus: 0.05 },        // 4
-    Milestone { key: "kin_3", bonus: 0.05 },         // 5
-    Milestone { key: "all_relics", bonus: 0.08 },    // 6
-    Milestone { key: "platonic", bonus: 0.03 },      // 7
-    Milestone { key: "ascend", bonus: 0.05 },        // 8
+    Milestone {
+        key: "own_10",
+        bonus: 0.03,
+    }, // 0
+    Milestone {
+        key: "own_25",
+        bonus: 0.05,
+    }, // 1
+    Milestone {
+        key: "core_complete",
+        bonus: 0.10,
+    }, // 2
+    Milestone {
+        key: "forge_3",
+        bonus: 0.04,
+    }, // 3
+    Milestone {
+        key: "bond_5",
+        bonus: 0.05,
+    }, // 4
+    Milestone {
+        key: "kin_3",
+        bonus: 0.05,
+    }, // 5
+    Milestone {
+        key: "all_relics",
+        bonus: 0.08,
+    }, // 6
+    Milestone {
+        key: "platonic",
+        bonus: 0.03,
+    }, // 7
+    Milestone {
+        key: "ascend",
+        bonus: 0.05,
+    }, // 8
 ];
 pub const MILESTONE_COUNT: usize = MILESTONES.len();
 
@@ -296,10 +866,26 @@ pub struct BannerDef {
     pub rotating: bool,             // themed banners rotate in/out; Standard is always available
 }
 pub const BANNERS: [BannerDef; 4] = [
-    BannerDef { key: "standard", featured: &[], rotating: false },
-    BannerDef { key: "knots", featured: &[16, 22, 23, 28, 29, 39], rotating: true }, // Knots & Links (UR: Hopf link)
-    BannerDef { key: "fourth_dim", featured: &[33, 34, 35, 36, 37], rotating: true }, // The Fourth Dimension (4D polytopes)
-    BannerDef { key: "nonorientable", featured: &[11, 18, 19, 20, 21, 38], rotating: true }, // Non-Orientable (UR: Klein quartic)
+    BannerDef {
+        key: "standard",
+        featured: &[],
+        rotating: false,
+    },
+    BannerDef {
+        key: "knots",
+        featured: &[16, 22, 23, 28, 29, 39],
+        rotating: true,
+    }, // Knots & Links (UR: Hopf link)
+    BannerDef {
+        key: "fourth_dim",
+        featured: &[33, 34, 35, 36, 37],
+        rotating: true,
+    }, // The Fourth Dimension (4D polytopes)
+    BannerDef {
+        key: "nonorientable",
+        featured: &[11, 18, 19, 20, 21, 38],
+        rotating: true,
+    }, // Non-Orientable (UR: Klein quartic)
 ];
 pub const BANNER_COUNT: usize = BANNERS.len();
 
@@ -329,7 +915,8 @@ mod tests {
         assert_eq!(stars_from_dupes(Rarity::Common, 999), 5); // hard cap
         assert_eq!(stars_from_dupes(Rarity::Ur, 1), 0); // UR ★1 needs 3 dupes (scalar 3)
         assert_eq!(stars_from_dupes(Rarity::Ur, 3), 1);
-        assert!(stars_from_dupes(Rarity::Ur, 44) < 5 && stars_from_dupes(Rarity::Ur, 45) == 5); // ★5 = 45 dupes
+        assert!(stars_from_dupes(Rarity::Ur, 44) < 5 && stars_from_dupes(Rarity::Ur, 45) == 5);
+        // ★5 = 45 dupes
     }
 
     const TIERS: [Rarity; 6] = [
@@ -345,7 +932,11 @@ mod tests {
     fn nicks_are_distinct_case_insensitive() {
         let mut seen = HashSet::new();
         for s in SHAPES.iter() {
-            assert!(seen.insert(s.nick.to_lowercase()), "duplicate nick: {}", s.nick);
+            assert!(
+                seen.insert(s.nick.to_lowercase()),
+                "duplicate nick: {}",
+                s.nick
+            );
         }
     }
 
@@ -364,7 +955,11 @@ mod tests {
             let r = rarity_range(t);
             assert_eq!(r.start, next, "gap/overlap before {:?}", t);
             for id in r.clone() {
-                assert_eq!(SHAPES[id].rarity, t, "shape {} ({}) wrong tier for {:?}", id, SHAPES[id].nick, t);
+                assert_eq!(
+                    SHAPES[id].rarity, t,
+                    "shape {} ({}) wrong tier for {:?}",
+                    id, SHAPES[id].nick, t
+                );
             }
             next = r.end;
         }
@@ -382,8 +977,14 @@ mod tests {
     #[test]
     fn recipes_reference_valid_distinct_ids() {
         for r in RECIPES.iter() {
-            assert!(r.a < COUNT && r.b < COUNT && r.out < COUNT, "recipe id out of range");
-            assert!(r.out >= PULL_COUNT || SHAPES[r.out].rarity != Rarity::Common, "forge output too cheap");
+            assert!(
+                r.a < COUNT && r.b < COUNT && r.out < COUNT,
+                "recipe id out of range"
+            );
+            assert!(
+                r.out >= PULL_COUNT || SHAPES[r.out].rarity != Rarity::Common,
+                "forge output too cheap"
+            );
         }
     }
 
@@ -398,14 +999,21 @@ mod tests {
     fn effective_prod_scales_with_genus() {
         for (id, s) in SHAPES.iter().enumerate() {
             let expected = s.base_prod * (1.0 + 0.25 * s.genus as f64);
-            assert!((effective_prod(id) - expected).abs() < 1e-9, "effective_prod mismatch for {}", s.nick);
+            assert!(
+                (effective_prod(id) - expected).abs() < 1e-9,
+                "effective_prod mismatch for {}",
+                s.nick
+            );
         }
     }
 
     #[test]
     fn synergy_pairs_are_valid_distinct_ids() {
         for (a, b) in SYNERGY_PAIRS {
-            assert!(a < COUNT && b < COUNT && a != b, "bad synergy pair ({a},{b})");
+            assert!(
+                a < COUNT && b < COUNT && a != b,
+                "bad synergy pair ({a},{b})"
+            );
         }
     }
 
@@ -414,7 +1022,11 @@ mod tests {
         assert_eq!(PLATONIC_IDS.len(), 5);
         for &id in PLATONIC_IDS.iter() {
             assert!(id < COUNT);
-            assert_eq!(SHAPES[id].rarity, Rarity::Common, "platonic set should be Common-tier");
+            assert_eq!(
+                SHAPES[id].rarity,
+                Rarity::Common,
+                "platonic set should be Common-tier"
+            );
         }
     }
 }
