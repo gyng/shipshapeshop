@@ -17,7 +17,7 @@ import { MILESTONE_INFO } from './content/milestones'
 import { FACET_INFO } from './content/facets'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
-import { useMute, sfxUpgrade } from './audio'
+import { useMute, sfxUpgrade, speak, stopVoice } from './audio'
 import { DEV_MODE } from './devmode'
 import { Floaters, useFloaters } from './juice'
 
@@ -676,9 +676,15 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
   const [patMode, setPatMode] = useState(false)
   const s = shapes[id]
   const owned = !!view && view.owned[id] > 0
-  // Inspecting an owned shape grants affinity — the calm idler's path to bonds.
+  // Inspecting an owned shape grants affinity — the calm idler's path to bonds — and a little spoken greeting.
   useEffect(() => {
-    if (owned) inspect(id)
+    if (owned) {
+      inspect(id)
+      const sh = shapes[id]
+      const cx = sh ? CODEX[sh.family] : undefined
+      if (sh && cx) speak(sh.family, (view?.bond_levels[id] ?? 0) >= 1 ? cx.bond : cx.blurb)
+    }
+    return () => stopVoice()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
   if (!s || !view) return null
@@ -1122,6 +1128,15 @@ function ShipCutscene() {
   useEffect(() => {
     setI(0)
   }, [activeKey])
+  // Speak each line in the active speaker's voice; cut off on advance / close.
+  useEffect(() => {
+    if (!activeKey) return
+    const sc = SHIP_SCENES[activeKey]
+    const ln = sc?.lines[i]
+    if (!ln) return
+    speak(ln.who === 'a' ? sc.a : sc.b, ln.text)
+    return () => stopVoice()
+  }, [activeKey, i])
   if (!activeKey) return null
   const ship = SHIP_SCENES[activeKey]
   const a = shapes.find((s) => s.family === ship.a)

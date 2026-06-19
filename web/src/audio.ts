@@ -2,6 +2,7 @@
 // (a stand-in for the Eigenmode-timbre layer). Created lazily on first user gesture (the pull button).
 
 import { create } from 'zustand'
+import { voiceOf } from './content/voiceSignatures'
 
 const MUTE_KEY = 'shipshape-mute'
 interface MuteStore {
@@ -48,6 +49,54 @@ function tone(freq: number, dur: number, delay = 0, type: OscillatorType = 'sine
     osc.stop(t0 + dur + 0.02)
   } catch {
     /* audio unavailable (muted / no gesture yet) — silent fallback */
+  }
+}
+
+// ── Procedural character "voice" — short pitched blips under dialog captions (Animalese-style) ──
+let activeVoice: OscillatorNode[] = []
+
+/** Cut off any in-flight spoken line (called on line-advance / dialog close). */
+export function stopVoice() {
+  for (const osc of activeVoice) {
+    try {
+      osc.stop()
+    } catch {
+      /* already stopped */
+    }
+  }
+  activeVoice = []
+}
+
+/** Speak a caption line in a character's voice: one quiet pitched blip per ~2 glyphs, timbre from the family. */
+export function speak(family: string, text: string) {
+  stopVoice()
+  if (useMute.getState().muted) return
+  try {
+    const a = ac()
+    const sig = voiceOf(family)
+    const clean = text.replace(/\s+/g, ' ')
+    let blip = 0
+    const MAX = 44 // cap so long lines stay snappy
+    for (let c = 0; c < clean.length && blip < MAX; c += 2) {
+      if (clean[c] === ' ') continue
+      const semi = (((clean.charCodeAt(c) % 7) - 3) * sig.jitter) / 6
+      const freq = sig.baseFreq * Math.pow(2, semi / 12)
+      const t0 = a.currentTime + (blip * sig.rate) / 1000
+      const osc = a.createOscillator()
+      const g = a.createGain()
+      osc.type = sig.waveform
+      osc.frequency.value = freq
+      g.gain.setValueAtTime(0, t0)
+      g.gain.linearRampToValueAtTime(0.05, t0 + 0.008)
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.06)
+      osc.connect(g).connect(a.destination)
+      osc.start(t0)
+      osc.stop(t0 + 0.08)
+      activeVoice.push(osc)
+      blip++
+    }
+  } catch {
+    /* audio unavailable — captions remain the fallback */
   }
 }
 
