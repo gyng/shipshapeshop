@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
-import { useGame, RARITY_ORDER } from './game/store'
+import { useGame, RARITY_ORDER, type ShapeRow } from './game/store'
 import { HeroView } from './three/HeroView'
 import { RARITY_COLOR } from './three/Gem'
 import { CODEX } from './content/codex'
@@ -7,6 +7,7 @@ import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
 import { useMute } from './audio'
 import { DEV_MODE } from './devmode'
+import { Floaters, useFloaters } from './juice'
 
 function fmt(n: number): string {
   if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
@@ -73,8 +74,27 @@ export function App() {
       {inspect !== null && <Inspector id={inspect} onClose={() => setInspect(null)} />}
       <Nudge />
       <DevBar />
+      <Floaters />
+      <IdleFlux />
     </div>
   )
+}
+
+// Periodic floating "+X ✦" near the HUD Flux counter — the idle-income dopamine drip.
+function IdleFlux() {
+  const last = useRef<number | null>(null)
+  useEffect(() => {
+    const t = setInterval(() => {
+      const cur = useGame.getState().view?.flux ?? 0
+      if (last.current !== null) {
+        const gained = cur - last.current
+        if (gained > 0.5) useFloaters.getState().spawn(`+${fmt(gained)} ✦`, { color: '#ffcf6b', x: 150, y: 66 })
+      }
+      last.current = cur
+    }, 4000)
+    return () => clearInterval(t)
+  }, [])
+  return null
 }
 
 // Dev toolbar — compiled out at release via DEV_MODE (see devmode.ts).
@@ -168,7 +188,7 @@ function GachaView() {
         <Meter label={`${tr('pull.resonance')} ${view.resonance}/40`} pct={view.resonance / 40} color="#ff5d8f" />
       </div>
       <div style={S.pullRow}>
-        <button style={{ ...S.pullBtn, opacity: view.can_pull ? 1 : 0.4 }} disabled={!view.can_pull} onClick={pull}>
+        <button className={view.can_pull ? 'ready-pulse' : undefined} style={{ ...S.pullBtn, opacity: view.can_pull ? 1 : 0.4 }} disabled={!view.can_pull} onClick={pull}>
           {tr('pull.one')}
         </button>
         <button style={{ ...S.pullBtn10, opacity: view.flux >= 1000 ? 1 : 0.4 }} disabled={view.flux < 1000} onClick={tenPull}>
@@ -207,43 +227,72 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
   )
 }
 
+// A mini gem chip for forge recipes / flows.
+function GemChip({ shape, show }: { shape: ShapeRow | undefined; show: boolean }) {
+  return (
+    <div style={S.gemChip}>
+      <span style={{ ...S.gemChipDot, background: show && shape ? RARITY_COLOR[shape.rarity] : '#2a2c3a' }} />
+      <span style={S.gemChipName}>{show && shape ? shape.nick : '???'}</span>
+    </div>
+  )
+}
+
 function EngineView() {
   const { shapes, view, deploy, undeploy, autoArrange, recrystallize } = useGame()
-  const tr = useT()
   if (!view) return null
   const owned = shapes.filter((s) => view.owned[s.id] > 0)
+  const deployed = owned.filter((s) => view.loadout.includes(s.id))
+  const bench = owned.filter((s) => !view.loadout.includes(s.id))
+  const pct = view.euler_cap ? view.euler_used / view.euler_cap : 0
   return (
-    <div style={S.engine}>
-      <div style={S.engineHead}>
-        <div>
-          <strong>{tr('engine.budget')} {view.euler_used}/{view.euler_cap}</strong>
-          <div style={S.rate}>Producing +{fmt(view.rate_per_hr)} Flux/hr</div>
+    <div style={S.board}>
+      <div style={S.boardIntro}>
+        <h3 style={S.boardTitle}>⚙ Engine — your Flux factory</h3>
+        <p style={S.boardDesc}>
+          Deploy shapes onto the floor and they generate <b style={S.fluxIcon}>✦ Flux</b> every hour — even while you’re away.
+          Each shape takes <b>floor space</b> (round shapes are free; exotic many-holed ones cost more but pay far more).
+        </p>
+      </div>
+      <div style={S.boardStats}>
+        <div style={S.bigStat}>
+          <span style={{ ...S.bigStatNum, color: '#ffcf6b' }}>+{fmt(view.rate_per_hr)}</span>
+          <span style={S.bigStatLbl}>✦ Flux / hour</span>
         </div>
-        <div style={S.engineBtns}>
-          <button style={S.smallBtn} onClick={autoArrange}>{tr('engine.auto')}</button>
-          <button style={{ ...S.smallBtn, opacity: view.core_complete ? 1 : 0.4 }} disabled={!view.core_complete} onClick={recrystallize}>
-            {tr('engine.recrystallize')}
-          </button>
+        <div style={S.budgetBox}>
+          <div style={S.budgetTop}><span>Floor space used</span><span>{view.euler_used} / {view.euler_cap}</span></div>
+          <div style={S.meterTrack}><div style={{ ...S.meterFill, width: `${Math.min(100, pct * 100)}%`, background: pct > 0.85 ? '#ff5d8f' : '#5fe0c6' }} /></div>
+        </div>
+        <div style={S.boardBtns}>
+          <button style={S.smallBtn} onClick={autoArrange}>✨ Auto-arrange</button>
+          <button style={{ ...S.smallBtn, opacity: view.core_complete ? 1 : 0.4 }} disabled={!view.core_complete} onClick={recrystallize}>↑ Recrystallize</button>
         </div>
       </div>
-      <p style={S.hint}>Deploy shapes to produce Flux — but exotic, many-holed shapes weigh on the floor (cost Euler budget). Round shapes are free ballast.</p>
-      <div style={S.engineList}>
-        {owned.map((s) => {
-          const isOn = view.loadout.includes(s.id)
-          const wouldFit = isOn || view.euler_used + s.euler_cost <= view.euler_cap
+
+      <h4 style={S.boardSub}>On the floor — {deployed.length}</h4>
+      <div style={S.chipGrid}>
+        {deployed.length === 0 && <p style={S.emptyHint}>Nothing deployed yet — tap a shape below (or hit Auto-arrange) to start earning Flux.</p>}
+        {deployed.map((s) => (
+          <button key={s.id} className="chip chip-on" style={{ ...S.deployChip, borderColor: RARITY_COLOR[s.rarity] }} onClick={() => undeploy(s.id)}>
+            <span style={{ ...S.tileDot, background: RARITY_COLOR[s.rarity] }} />
+            <span style={S.chipNick}>{s.nick}</span>
+            <span style={{ ...S.chipProd, color: '#ffcf6b' }}>+{fmt(s.prod)} ✦/hr</span>
+            <span style={S.chipMeta}>tap to remove ✕</span>
+          </button>
+        ))}
+      </div>
+
+      <h4 style={S.boardSub}>In storage — {bench.length}</h4>
+      <div style={S.chipGrid}>
+        {bench.length === 0 && <p style={S.emptyHint}>Everything you own is deployed. Pull more shapes to expand the floor!</p>}
+        {bench.map((s) => {
+          const fits = view.euler_used + s.euler_cost <= view.euler_cap
           return (
-            <div key={s.id} style={{ ...S.engineRow, borderColor: isOn ? RARITY_COLOR[s.rarity] : '#23252f' }}>
+            <button key={s.id} className="chip" style={{ ...S.benchChip, opacity: fits ? 1 : 0.45 }} disabled={!fits} onClick={() => deploy(s.id)}>
               <span style={{ ...S.tileDot, background: RARITY_COLOR[s.rarity] }} />
-              <span style={S.engineNick}>{s.nick}</span>
-              <span style={S.engineCost}>cost {s.euler_cost}{s.genus > 0 ? ` · ${s.genus} lanes` : ''}</span>
-              <button
-                style={{ ...S.toggle, ...(isOn ? S.toggleOn : {}), opacity: wouldFit ? 1 : 0.35 }}
-                disabled={!wouldFit}
-                onClick={() => (isOn ? undeploy(s.id) : deploy(s.id))}
-              >
-                {isOn ? tr('engine.deployed') : tr('engine.deploy')}
-              </button>
-            </div>
+              <span style={S.chipNick}>{s.nick}</span>
+              <span style={S.chipProd}>+{fmt(s.prod)} ✦/hr</span>
+              <span style={S.chipMeta}>{s.euler_cost === 0 ? 'free to deploy' : fits ? `space: ${s.euler_cost}` : `needs ${s.euler_cost} space`}</span>
+            </button>
           )
         })}
       </div>
@@ -268,7 +317,8 @@ function RevealModal() {
   const shape = shapes[best.shape_id]
   return (
     <div style={S.modal} onClick={dismissReveal}>
-      <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
+      <div className="pop-in" style={{ ...S.revealCard, position: 'relative', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
+        {shape && <div className="flash" style={{ background: `radial-gradient(circle, ${RARITY_COLOR[shape.rarity]}, transparent 60%)` }} />}
         <div style={S.revealStage}>{shape && <HeroView key={shape.family} family={shape.family} rarity={shape.rarity} spin={0.8} />}</div>
         {shape && <h2 style={{ color: RARITY_COLOR[shape.rarity] }}>{shape.nick}</h2>}
         {shape && <p style={S.revealSub}>{best.is_new ? tr('reveal.new') : `+${best.dupe_shards} ◈ ${tr('hud.shards')}`}</p>}
@@ -293,7 +343,7 @@ function OfflineModal() {
   const hrs = (offline.capped_ms / 3_600_000).toFixed(1)
   return (
     <div style={S.modal} onClick={dismissOffline}>
-      <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
+      <div className="pop-in" style={S.revealCard} onClick={(e) => e.stopPropagation()}>
         <h2>{tr('offline.title')}</h2>
         <p style={S.revealSub}>{hrs}h</p>
         <p style={{ ...S.fluxValue, color: '#5fe0c6' }}>+{fmt(offline.gained_flux)} ✦</p>
@@ -336,7 +386,7 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
   const bond = view.bond_levels[id] ?? 0
   return (
     <div style={S.modal} onClick={onClose}>
-      <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
+      <div className="pop-in" style={S.revealCard} onClick={(e) => e.stopPropagation()}>
         {owned ? (
           <>
             <div style={S.revealStage}><HeroView key={s.family} family={s.family} rarity={s.rarity} controls /></div>
@@ -369,24 +419,32 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
 
 function ForgeView() {
   const { recipes, view, shapes, forge, claimRelic } = useGame()
-  const tr = useT()
   if (!view) return null
   const canRelic = view.shards >= view.relic_cost && view.relics_owned < view.relic_count
   return (
-    <div style={S.engine}>
-      <div style={S.engineHead}>
-        <strong>{tr('forge.title')} · <span style={S.shardIcon}>◈</span> {view.shards} {tr('hud.shards')}</strong>
+    <div style={S.board}>
+      <div style={S.boardIntro}>
+        <h3 style={S.boardTitle}>🔨 Forge — fuse shapes together</h3>
+        <p style={S.boardDesc}>
+          Glue two shapes you own into a rarer third (a <em>connected sum</em> — real topology picks the result).
+          Each forge costs <b style={S.shardIcon}>◈ 50</b>; the first time you discover a recipe you earn <b>+100 ◈</b>.
+          Shards come from duplicate pulls.
+        </p>
+        <div style={S.shardBank}><span style={S.shardIcon}>◈</span> {view.shards} shards in the bank</div>
       </div>
-      <div style={{ ...S.engineRow, borderColor: '#ffd76b', marginBottom: 4 }}>
-        <span style={{ ...S.tileDot, background: '#ffd76b' }} />
-        <span style={S.engineNick}>Reference Wing · Relics {view.relics_owned}/{view.relic_count}</span>
-        <button style={{ ...S.toggle, marginLeft: 'auto', opacity: canRelic ? 1 : 0.35 }} disabled={!canRelic} onClick={claimRelic}>
-          {view.relics_owned >= view.relic_count ? 'Complete' : `Summon · ${view.relic_cost} ◈`}
+
+      <div style={S.relicPanel}>
+        <div style={{ flex: 1 }}>
+          <strong style={{ color: '#ffd76b' }}>★ Reference Wing</strong>
+          <p style={{ ...S.boardDesc, margin: '4px 0 0' }}>Summon a legendary CG model — Teapot, Bunny, Dragon… <b>{view.relics_owned}/{view.relic_count}</b> collected.</p>
+        </div>
+        <button style={{ ...S.summonBtn, opacity: canRelic ? 1 : 0.4 }} disabled={!canRelic} onClick={claimRelic}>
+          {view.relics_owned >= view.relic_count ? 'Complete ✓' : `Summon · ${view.relic_cost} ◈`}
         </button>
       </div>
-      <p style={S.hint}>Relics are the patron saints of computer graphics — the Teapot, the Bunny, Benchy… earned with banked shards, not pulled. A bonus wing beyond the core 41.</p>
-      <p style={S.hint}>Glue two shapes together (a <em>connected sum</em>) to make a third — the real topology decides the result. First-time crafts unlock a Discovery (+100 shards). Each forge costs 50 shards; dupes give shards.</p>
-      <div style={S.engineList}>
+
+      <h4 style={S.boardSub}>Recipes</h4>
+      <div style={S.recipeGrid}>
         {recipes.map((r, i) => {
           const haveA = view.owned[r.a] > 0
           const haveB = view.owned[r.b] > 0
@@ -394,10 +452,18 @@ function ForgeView() {
           const discovered = view.discovered[i]
           const out = shapes[r.out]
           return (
-            <div key={i} style={{ ...S.engineRow, borderColor: discovered ? RARITY_COLOR[out.rarity] : '#23252f' }}>
-              <span style={S.engineNick}>{haveA ? r.a_nick : '???'} ＋ {haveB ? r.b_nick : '???'} → {discovered ? r.out_nick : '???'}</span>
-              <span style={S.engineCost}>{discovered ? '✓ discovered' : '50 ◈'}</span>
-              <button style={{ ...S.toggle, opacity: can ? 1 : 0.35 }} disabled={!can} onClick={() => forge(r.a, r.b)}>Forge</button>
+            <div key={i} className="chip" style={{ ...S.recipeCard, borderColor: discovered ? RARITY_COLOR[out.rarity] : '#23252f' }}>
+              <div style={S.recipeFlow}>
+                <GemChip shape={shapes[r.a]} show={haveA} />
+                <span style={S.flowOp}>＋</span>
+                <GemChip shape={shapes[r.b]} show={haveB} />
+                <span style={S.flowOp}>→</span>
+                <GemChip shape={out} show={discovered} />
+              </div>
+              <button style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={() => forge(r.a, r.b)}>
+                {can ? 'Forge · 50 ◈' : !haveA || !haveB ? 'Missing a shape' : 'Need 50 ◈'}
+              </button>
+              {discovered && <span style={S.discoveredTag}>✓ discovered</span>}
             </div>
           )
         })}
@@ -413,7 +479,7 @@ function ForgeToast() {
   const s = shapes[lastForge.out_id]
   return (
     <div style={S.modal} onClick={dismissForge}>
-      <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
+      <div className="pop-in" style={S.revealCard} onClick={(e) => e.stopPropagation()}>
         <div style={S.revealStage}>{s && <HeroView key={s.family} family={s.family} rarity={s.rarity} spin={0.8} />}</div>
         {s && <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{s.nick}</h2>}
         <p style={S.revealSub}>{lastForge.is_discovery ? tr('reveal.discovery') : tr('reveal.forged')}</p>
@@ -429,7 +495,7 @@ function WelcomeModal() {
   if (!firstLaunch) return null
   return (
     <div style={S.modal} onClick={dismissWelcome}>
-      <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
+      <div className="pop-in" style={S.revealCard} onClick={(e) => e.stopPropagation()}>
         <h2>{tr('welcome.title')}</h2>
         <p style={S.revealSub}>{tr('welcome.body')}</p>
         <p style={S.hint}>{tr('welcome.note')}</p>
@@ -497,4 +563,37 @@ const S: Record<string, CSSProperties> = {
   devBtn: { background: '#3a2348', border: '1px solid #6b3a7a', color: '#fff', borderRadius: 6, padding: '4px 8px', fontSize: 12, cursor: 'pointer' },
   fluxIcon: { color: '#ffcf6b' }, // Flux ✦ — warm gold
   shardIcon: { color: '#5ad4ff' }, // Shards ◈ — cool cyan
+
+  // ── Engine / Forge visual boards ──
+  board: { display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 28 },
+  boardIntro: { background: '#14151c', border: '1px solid #23252f', borderRadius: 12, padding: '12px 14px' },
+  boardTitle: { margin: '0 0 6px', fontSize: 16, color: '#e8eaf2' },
+  boardDesc: { margin: 0, fontSize: 13, lineHeight: 1.5, color: '#9aa0b4' },
+  shardBank: { marginTop: 8, fontSize: 13, color: '#cdd2e0', fontWeight: 600 },
+  boardStats: { display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', background: '#14151c', border: '1px solid #23252f', borderRadius: 12, padding: 14 },
+  bigStat: { display: 'flex', flexDirection: 'column', minWidth: 120 },
+  bigStatNum: { fontSize: 28, fontWeight: 800, lineHeight: 1 },
+  bigStatLbl: { fontSize: 12, color: '#9aa0b4', marginTop: 3 },
+  budgetBox: { flex: 1, minWidth: 160 },
+  budgetTop: { display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#9aa0b4', marginBottom: 4 },
+  boardBtns: { display: 'flex', gap: 8 },
+  boardSub: { margin: '6px 2px 0', fontSize: 12, color: '#8a90a8', textTransform: 'uppercase', letterSpacing: 0.6 },
+  chipGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(146px, 1fr))', gap: 8 },
+  deployChip: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, background: '#1a1c26', border: '2px solid', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', color: '#e8eaf2' },
+  benchChip: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, background: '#101119', border: '1px solid #23252f', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', color: '#cdd2e0' },
+  chipNick: { fontSize: 14, fontWeight: 700 },
+  chipProd: { fontSize: 12, color: '#9aa0b4', fontWeight: 600 },
+  chipMeta: { fontSize: 11, color: '#6b7088' },
+  emptyHint: { gridColumn: '1 / -1', fontSize: 13, color: '#6b7088', fontStyle: 'italic', padding: '8px 2px' },
+  relicPanel: { display: 'flex', alignItems: 'center', gap: 12, background: 'linear-gradient(90deg, #1f1a0e, #14151c)', border: '1px solid #6b5a2a', borderRadius: 12, padding: 14 },
+  summonBtn: { background: 'linear-gradient(90deg,#ffce5c,#ff9d5c)', color: '#2a1d00', border: 'none', borderRadius: 8, padding: '10px 14px', fontWeight: 800, cursor: 'pointer', fontSize: 13, whiteSpace: 'nowrap' },
+  recipeGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(232px, 1fr))', gap: 10 },
+  recipeCard: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 10, background: '#14151c', border: '2px solid', borderRadius: 12, padding: 12 },
+  recipeFlow: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 },
+  flowOp: { color: '#6b7088', fontSize: 14, fontWeight: 700 },
+  gemChip: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 56 },
+  gemChipDot: { width: 26, height: 26, borderRadius: '50%', boxShadow: '0 0 10px rgba(0,0,0,0.4)' },
+  gemChipName: { fontSize: 11, color: '#cdd2e0', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 56 },
+  forgeBtn: { background: '#2a2c3a', color: '#fff', border: '1px solid #3a3d4f', borderRadius: 8, padding: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 },
+  discoveredTag: { position: 'absolute', top: 8, right: 10, fontSize: 10, color: '#5fe0c6' },
 }

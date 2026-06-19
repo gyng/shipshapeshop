@@ -1,0 +1,65 @@
+/* Juice — motion + tactile feedback. Imported once in main.tsx. The app uses inline styles for layout;
+   this file owns keyframes + interaction states that inline styles can't express. */
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.86) translateY(6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes float-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
+@keyframes rarity-flash {
+  0% { opacity: 0; transform: scale(0.5); }
+  25% { opacity: 0.9; }
+  100% { opacity: 0; transform: scale(1.7); }
+}
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+@keyframes ready-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 120, 180, 0.0); }
+  50% { box-shadow: 0 0 18px 2px rgba(255, 120, 180, 0.35); }
+}
+
+.pop-in { animation: pop-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.25); }
+.fade-in { animation: fade-in 0.22s ease; }
+.flash {
+  position: absolute; inset: -10%; border-radius: 50%; pointer-events: none;
+  animation: rarity-flash 0.75s ease-out forwards;
+}
+
+/* Global button feel: press + hover. Inline styles still control colour/shape. */
+button { transition: transform 0.08s ease, filter 0.12s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+button:not(:disabled):hover { filter: brightness(1.09); }
+button:not(:disabled):active { transform: scale(0.95); }
+
+/* Card chips (engine/forge/gallery) lift on hover. */
+.chip { transition: transform 0.12s ease, box-shadow 0.15s ease, border-color 0.15s ease; }
+.chip:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4); }
+.chip-on { animation: float-bob 3.2s ease-in-out infinite; }
+
+.ready-pulse { animation: ready-pulse 1.8s ease-in-out infinite; }
+
+/* Floating reward numbers (+xxx). */
+@keyframes float-up {
+  0% { opacity: 0; transform: translate(-50%, 4px) scale(0.7); }
+  18% { opacity: 1; transform: translate(-50%, -10px) scale(1.15); }
+  100% { opacity: 0; transform: translate(-50%, -78px) scale(1.0); }
+}
+.floater {
+  position: absolute;
+  transform: translate(-50%, 0);
+  font-weight: 800;
+  font-size: 20px;
+  letter-spacing: 0.3px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+  animation: float-up 1.5s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+  white-space: nowrap;
+}
+@keyframes big-pop {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.4); }
+  20% { opacity: 1; transform: translate(-50%, -6px) scale(1.4); }
+  70% { opacity: 1; transform: translate(-50%, -30px) scale(1.0); }
+  100% { opacity: 0; transform: translate(-50%, -70px) scale(1.0); }
+}
+.floater-big { font-size: 34px; animation: big-pop 1.7s cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }

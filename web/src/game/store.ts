@@ -1,6 +1,15 @@
 import { create } from 'zustand'
 import init, { Game, shapes_json, recipes_json, core_version } from 'shipshape-core'
 import { sfxPull, sfxReveal, sfxForge, rarityRank } from '../audio'
+import { useFloaters } from '../juice'
+
+const SHARD_C = '#5ad4ff'
+const FLUX_C = '#ffcf6b'
+const RELIC_C = '#ffd76b'
+const floatTopRight = () => (typeof window !== 'undefined' ? window.innerWidth - 130 : 600)
+const floatShards = (n: number) => {
+  if (n > 0) useFloaters.getState().spawn(`+${n} ◈`, { color: SHARD_C, x: floatTopRight(), y: 64 })
+}
 
 // ── Types mirrored from the Rust core (the WASM layer is the source of truth) ──
 export type RarityName = 'Common' | 'Rare' | 'Epic' | 'Ssr' | 'Ur' | 'Relic'
@@ -12,6 +21,7 @@ export interface ShapeRow {
   rarity: RarityName
   genus: number
   euler_cost: number
+  prod: number
 }
 
 export interface View {
@@ -174,6 +184,7 @@ export const useGame = create<Store>((set, get) => ({
       persist()
       sfxReveal(rarityRank(out.rarity))
       set({ lastReveal: [out] })
+      floatShards(out.dupe_shards)
     }
   },
 
@@ -186,6 +197,7 @@ export const useGame = create<Store>((set, get) => ({
       persist()
       sfxReveal(Math.max(...outs.map((o) => rarityRank(o.rarity))))
       set({ lastReveal: outs })
+      floatShards(outs.reduce((a, o) => a + o.dupe_shards, 0))
     }
   },
 
@@ -225,6 +237,7 @@ export const useGame = create<Store>((set, get) => ({
       persist()
       sfxForge()
       set({ lastForge: r })
+      if (r.is_discovery) useFloaters.getState().spawn('Discovery! +100 ◈', { color: SHARD_C, big: true, y: 120 })
     }
   },
   claimRelic: () => {
@@ -234,6 +247,7 @@ export const useGame = create<Store>((set, get) => ({
       get().refresh()
       persist()
       set({ lastForge: { ok: true, out_id: id, is_discovery: true } }) // reuse the reveal toast
+      useFloaters.getState().spawn('RELIC ★', { color: RELIC_C, big: true, y: 120 })
     }
   },
   toggleDev: () => set((s) => ({ devOpen: !s.devOpen })),
@@ -259,7 +273,11 @@ export const useGame = create<Store>((set, get) => ({
   dismissWelcome: () => set({ firstLaunch: false }),
   dismissReveal: () => set({ lastReveal: null }),
   dismissForge: () => set({ lastForge: null }),
-  dismissOffline: () => set({ offline: null }),
+  dismissOffline: () => {
+    const o = get().offline
+    if (o) useFloaters.getState().spawn(`+${Math.round(o.gained_flux)} ✦`, { color: FLUX_C, x: 150, y: 64 })
+    set({ offline: null })
+  },
 }))
 
 export const RARITY_ORDER: RarityName[] = ['Common', 'Rare', 'Epic', 'Ssr', 'Ur', 'Relic']

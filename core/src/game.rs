@@ -526,6 +526,7 @@ pub fn shapes_json() -> String {
         rarity: Rarity,
         genus: u32,
         euler_cost: u32,
+        prod: f64, // base production/hr when deployed (before prestige/set/bond multipliers)
     }
     let rows: Vec<ShapeRow> = SHAPES
         .iter()
@@ -537,6 +538,7 @@ pub fn shapes_json() -> String {
             rarity: s.rarity,
             genus: s.genus,
             euler_cost: s.euler_cost,
+            prod: content::effective_prod(id),
         })
         .collect();
     serde_json::to_string(&rows).unwrap()
