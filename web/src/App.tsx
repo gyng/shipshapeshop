@@ -6,6 +6,7 @@ import { ForgeAltar } from './three/ForgeAltar'
 import { RARITY_COLOR } from './three/Gem'
 import { CODEX } from './content/codex'
 import { SCENES, sceneById } from './content/cosmetics'
+import { KINSHIP } from './content/kinship'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
 import { useMute } from './audio'
@@ -414,6 +415,24 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
               {s.genus > 0 ? `${s.genus} hole${s.genus > 1 ? 's' : ''} → ${s.genus} production lane${s.genus > 1 ? 's' : ''}. ` : 'No holes — free to deploy. '}
               Euler cost {s.euler_cost}.{codex ? ` …it is ${codex.term}.` : ''}
             </p>
+            {KINSHIP[s.family]?.length ? (
+              <div style={S.kinBox}>
+                <div style={S.kinHead}>♥ Kinship</div>
+                {KINSHIP[s.family].map((k, i) => {
+                  const partner = shapes.find((sh) => sh.family === k.with)
+                  const self = k.with === s.family
+                  const united = self || (!!partner && view.owned[partner.id] > 0)
+                  return (
+                    <div key={i} style={S.kinRow}>
+                      <span style={{ color: united ? '#ff9ecf' : '#4a4d5f', width: 12, flexShrink: 0 }}>{united ? '♥' : '○'}</span>
+                      <span style={S.kinType}>{k.type}</span>
+                      <span style={{ color: united ? '#e8eaf2' : '#8a90a8', fontWeight: 700, flexShrink: 0 }}>{partner ? partner.nick : '???'}</span>
+                      <span style={S.kinNote}>— {k.note}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : null}
           </>
         ) : (
           <>
@@ -834,4 +853,9 @@ const S: Record<string, CSSProperties> = {
   settingsBody: { minHeight: 140 },
   settingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #1c1e2a', color: '#cdd2e0', fontSize: 14 },
   attrList: { margin: '0 0 4px', paddingLeft: 18 },
+  kinBox: { marginTop: 6, padding: '8px 10px', background: '#0e0f17', border: '1px solid #23252f', borderRadius: 10, textAlign: 'left' },
+  kinHead: { fontSize: 11, color: '#ff9ecf', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 },
+  kinRow: { display: 'flex', gap: 6, alignItems: 'baseline', fontSize: 12, lineHeight: 1.5 },
+  kinType: { color: '#8a90a8', fontSize: 10, textTransform: 'uppercase', width: 56, flexShrink: 0 },
+  kinNote: { color: '#9aa0b4', overflow: 'hidden', textOverflow: 'ellipsis' },
 }

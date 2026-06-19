@@ -4,7 +4,8 @@ import { Environment, Lightformer, Sparkles, Float, ContactShadows, OrbitControl
 import * as THREE from 'three'
 import { getGeometry } from './geometry'
 import { RARITY_COLOR } from './Gem'
-import type { ShapeRow } from '../game/store'
+import { useGame, type ShapeRow } from '../game/store'
+import { sceneById } from '../content/cosmetics'
 
 // A deployed gem on the floor: a jewel on a glowing ring, lit by its own coloured light, with rising Flux.
 function FloorGem({ family, rarity, pos }: { family: string; rarity: keyof typeof RARITY_COLOR; pos: [number, number, number] }) {
@@ -41,6 +42,8 @@ function FloorGem({ family, rarity, pos }: { family: string; rarity: keyof typeo
 }
 
 export function FactoryFloor({ shapes, loadout }: { shapes: ShapeRow[]; loadout: number[] }) {
+  const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
+  const [backdrop, key, cool, warm] = scene.env
   const n = loadout.length
   const cols = Math.max(1, Math.ceil(Math.sqrt(n)))
   const rows = Math.max(1, Math.ceil(n / cols))
@@ -53,10 +56,10 @@ export function FactoryFloor({ shapes, loadout }: { shapes: ShapeRow[]; loadout:
       <hemisphereLight args={['#cfe0ff', '#181228', 0.7]} />
       <directionalLight position={[3, 7, 4]} intensity={1.8} castShadow shadow-mapSize={[1024, 1024]} />
       <Environment resolution={128}>
-        <Lightformer intensity={2.4} color="#9a7bff" position={[-4, 3, -4]} scale={7} />
-        <Lightformer intensity={2.2} color="#6fe6cf" position={[5, 2, -3]} scale={7} />
-        <Lightformer intensity={1.8} color="#ff8ec0" position={[0, -2, 4]} scale={6} />
-        <Lightformer intensity={1.6} color="#ffffff" position={[0, 5, 2]} scale={5} />
+        <Lightformer intensity={2.4} color={cool} position={[-4, 3, -4]} scale={7} />
+        <Lightformer intensity={2.2} color={warm} position={[5, 2, -3]} scale={7} />
+        <Lightformer intensity={1.8} color={backdrop} position={[0, -2, 4]} scale={6} />
+        <Lightformer intensity={1.8} color={key} position={[0, 5, 2]} scale={5} />
       </Environment>
 
       {/* endless floor: a huge plane that fades into the fog at the horizon + an infinite grid */}

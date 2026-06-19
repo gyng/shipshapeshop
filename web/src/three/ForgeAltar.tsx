@@ -4,7 +4,8 @@ import { Environment, Lightformer, Sparkles, Float, ContactShadows, Grid } from 
 import * as THREE from 'three'
 import { getGeometry } from './geometry'
 import { RARITY_COLOR } from './Gem'
-import type { ShapeRow } from '../game/store'
+import { useGame, type ShapeRow } from '../game/store'
+import { sceneById } from '../content/cosmetics'
 
 // A lit pedestal: dark metal plinth + glowing rim + a coloured point light that illuminates the gem above it.
 function Pedestal({ pos, color, intensity = 3 }: { pos: [number, number, number]; color: string; intensity?: number }) {
@@ -51,6 +52,8 @@ function AltarGem({ shape, pos, scale, show }: { shape?: ShapeRow; pos: [number,
 
 /** A 3D "fusion altar": two input gems on lit pedestals flanking a larger result, with a glowing forge core. */
 export function ForgeAltar({ a, b, out, discovered }: { a?: ShapeRow; b?: ShapeRow; out?: ShapeRow; discovered: boolean }) {
+  const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
+  const [backdrop, key, cool, warm] = scene.env
   const aCol = a ? RARITY_COLOR[a.rarity] : '#5fe0c6'
   const bCol = b ? RARITY_COLOR[b.rarity] : '#b985ff'
   const outCol = discovered && out ? RARITY_COLOR[out.rarity] : '#a98bff'
@@ -62,10 +65,10 @@ export function ForgeAltar({ a, b, out, discovered }: { a?: ShapeRow; b?: ShapeR
       <hemisphereLight args={['#cfd6ff', '#1a1530', 0.6]} />
       <directionalLight position={[3, 6, 4]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} />
       <Environment resolution={128}>
-        <Lightformer intensity={3} color="#ffd98a" position={[0, 3, -3]} scale={7} />
-        <Lightformer intensity={2.2} color="#9a7bff" position={[-5, 1.5, -2]} scale={6} />
-        <Lightformer intensity={2} color="#6fe6cf" position={[5, 1.5, -2]} scale={6} />
-        <Lightformer intensity={1.6} color="#ffffff" position={[0, 4, 3]} scale={5} />
+        <Lightformer intensity={3} color={warm} position={[0, 3, -3]} scale={7} />
+        <Lightformer intensity={2.2} color={backdrop} position={[-5, 1.5, -2]} scale={6} />
+        <Lightformer intensity={2} color={cool} position={[5, 1.5, -2]} scale={6} />
+        <Lightformer intensity={1.6} color={key} position={[0, 4, 3]} scale={5} />
       </Environment>
 
       {/* endless reflective forge floor fading into the fog horizon + an infinite grid */}
