@@ -169,6 +169,9 @@ button:disabled { filter: grayscale(0.6) brightness(0.82); cursor: not-allowed; 
   --lh-tight: 1; --lh-snug: 1.25; --lh-normal: 1.4; --lh-relaxed: 1.5;
   /* display serif (self-hosted): IM Fell English for Latin, New Tegomin for CJK fallback */
   --font-display: 'IM Fell English', 'New Tegomin', Georgia, 'Songti SC', 'Yu Mincho', serif;
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* app-wide family — global experiment points this at the serif; flip to var(--font-body) to revert */
+  --font-app: var(--font-display);
   /* accent edge-light glows */
   --glow-teal: inset 0 -3px 0 -1px var(--c-accent-teal);
   --glow-teal-ring: 0 0 10px var(--c-accent-teal), inset 0 0 0 1px var(--c-accent-teal);
@@ -283,3 +286,7 @@ input:focus, textarea:focus {
   animation: mote-rise var(--md,5s) ease-in-out var(--mdl,0s) infinite; pointer-events: none;
 }
 @media (prefers-reduced-motion: reduce) { .welcome-art, .welcome-mote { animation: none; } }
+
+/* GLOBAL FONT EXPERIMENT — apply the display serif (IM Fell English / New Tegomin) to ALL text for review.
+   Remove this block to revert to the system sans. */
+body, button, input, textarea, select { font-family: var(--font-app); }
