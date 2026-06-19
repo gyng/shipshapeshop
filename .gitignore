@@ -29,3 +29,4 @@ Cargo.lock
 
 # Source title art (large raw PNGs) — optimized WebP derivatives ship in web/public/titles
 assets/*.png
+assets/sticker*.png

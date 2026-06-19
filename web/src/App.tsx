@@ -19,7 +19,7 @@ import { FACET_INFO } from './content/facets'
 import { chatterFor } from './content/chatter'
 import { BANNER_INFO, rotatingBannerId } from './content/banners'
 import { shapeEffect } from './content/effects'
-import { generateMessages, type ChatMsg } from './content/chatlas'
+import { generateMessages, stickerSrc, STICKER_COUNT, type ChatMsg } from './content/chatlas'
 import { useDialogLog } from './dialogLog'
 import { useTitle, titleSrc, TITLE_COUNT } from './titleArt'
 import { curatorRank, RANK_COLOR } from './curatorRank'
@@ -649,8 +649,20 @@ function ChatlasView() {
         {msgs.map((m, i) => (
           <div key={i} className="fade-in" style={S.chatMsg}>
             <span style={{ ...S.chatHandle, color: m.color }}>@{m.handle}</span>
-            <span style={S.chatText}>{m.text}</span>
+            {m.sticker ? <img src={stickerSrc(m.sticker)} alt="sticker" style={S.chatSticker} /> : <span style={S.chatText}>{m.text}</span>}
           </div>
+        ))}
+      </div>
+      <div style={S.stickerBar}>
+        {Array.from({ length: STICKER_COUNT }, (_, i) => i + 1).map((n) => (
+          <button
+            key={n}
+            style={S.stickerPick}
+            title="Send this sticker"
+            onClick={() => setMsgs((m) => [...m.slice(-60), { handle: 'you', color: '#ffffff', text: '', sticker: n }])}
+          >
+            <img src={stickerSrc(n)} alt={`sticker ${n}`} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </button>
         ))}
       </div>
     </div>
@@ -1997,6 +2009,9 @@ const S: Record<string, CSSProperties> = {
   chatMsg: { display: 'flex', flexDirection: 'column', gap: 1, background: '#14151d', borderRadius: 10, padding: '8px 12px' },
   chatHandle: { fontSize: 11, fontWeight: 800 },
   chatText: { fontSize: 13.5, color: '#cdd2e0', lineHeight: 1.45 },
+  chatSticker: { width: 132, height: 'auto', borderRadius: 8, marginTop: 4 },
+  stickerBar: { display: 'flex', gap: 6, overflowX: 'auto', padding: '10px 4px 2px', marginTop: 4 },
+  stickerPick: { flex: '0 0 auto', width: 54, height: 54, padding: 3, background: '#14151d', border: '1px solid #23252f', borderRadius: 10, cursor: 'pointer' },
   subTabs: { display: 'flex', gap: 6, marginTop: 4 },
   subTab: { flex: 1, background: '#14151d', border: '1px solid #23252f', color: '#8a90a8', borderRadius: 8, padding: '7px 10px', cursor: 'pointer', fontSize: 13, fontWeight: 700 },
   subTabOn: { background: '#23263a', color: '#fff', borderColor: '#5fe0c6' },

@@ -7,7 +7,12 @@ export interface ChatMsg {
   handle: string
   color: string
   text: string
+  sticker?: number // 1-based index into the sticker set; when set, render the image instead of text
 }
+
+// Chat stickers (cut from the art sheet into /public/stickers). Players send them; curators occasionally do too.
+export const STICKER_COUNT = 8
+export const stickerSrc = (i: number) => `${import.meta.env.BASE_URL}stickers/sticker${i}.webp`
 
 const CURATORS: { handle: string; color: string }[] = [
   { handle: 'manifold_mae', color: '#5fe0c6' },
@@ -56,6 +61,11 @@ export function generateMessages(shapes: ShapeRow[], ownedIds: number[], n: numb
   const out: ChatMsg[] = []
   for (let i = 0; i < n; i++) {
     const c = CURATORS[Math.floor(Math.random() * CURATORS.length)]
+    // ~14% of the time a curator just drops a sticker
+    if (Math.random() < 0.14) {
+      out.push({ handle: c.handle, color: c.color, text: '', sticker: 1 + Math.floor(Math.random() * STICKER_COUNT) })
+      continue
+    }
     const t = TEMPLATES[Math.floor(Math.random() * TEMPLATES.length)]
     const a = pick()
     const b = pick()
