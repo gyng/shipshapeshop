@@ -6,6 +6,7 @@ import { glyphOf } from './content/glyphs'
 import { RARITY_COLOR } from './three/Gem'
 import { Orrery3D } from './three/Orrery3D'
 import { OrreryBoard } from './OrreryBoard'
+import { useOrreryUi } from './orreryUi'
 
 // Compact multiplier chips for the top overlay — only the multipliers that are actually pulling their weight.
 function compactMults(view: ReturnType<typeof useGame.getState>['view'], tr: (k: string) => string): { label: string; v: number }[] {
@@ -114,6 +115,11 @@ export function OrreryEngine() {
   const tr = useT()
   const [sel, setSel] = useState<number | null>(null)
   const [is3d, setIs3d] = useState(true)
+  const paused = useOrreryUi((s) => s.paused)
+  const togglePause = useOrreryUi((s) => s.togglePause)
+  const showAllLines = useOrreryUi((s) => s.showAllLines)
+  const toggleAllLines = useOrreryUi((s) => s.toggleAllLines)
+  const setHover = useOrreryUi((s) => s.setHover)
   if (!view) return null
   const loadout = view.loadout
   const owned = shapes.filter((s) => view.owned[s.id] > 0)
@@ -138,7 +144,9 @@ export function OrreryEngine() {
       </div>
 
       {/* top-right controls: 2D/3D + leave orrery */}
-      <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 4, display: 'flex', gap: 6 }}>
+      <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 4, display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '70%' }}>
+        <button style={{ ...pillBtn, ...(paused ? { borderColor: 'var(--c-accent-gold)', color: 'var(--c-accent-gold)' } : {}) }} onClick={togglePause}>{paused ? `▶ ${tr('orrery.play')}` : `⏸ ${tr('orrery.pause')}`}</button>
+        <button style={{ ...pillBtn, ...(showAllLines ? { borderColor: 'var(--c-accent-teal)', color: 'var(--c-accent-teal)' } : {}) }} onClick={toggleAllLines}>{tr('orrery.allLines')}</button>
         <button style={pillBtn} onClick={() => setIs3d((v) => !v)}>{is3d ? tr('engine.orrery2d') : tr('engine.orrery3d')}</button>
         <button style={pillBtn} onClick={() => useGame.getState().setUseOrrery(false)}>{tr('engine.orreryOff')}</button>
       </div>
@@ -173,6 +181,8 @@ export function OrreryEngine() {
             <button
               key={id}
               onClick={() => setSel((v) => (v === id ? null : id))}
+              onMouseEnter={() => setHover(id)}
+              onMouseLeave={() => setHover(null)}
               style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '4px 6px', borderRadius: 'var(--r-md)', border: `1px solid ${sel === id ? RARITY_COLOR[s.rarity] : 'var(--c-border)'}`, background: sel === id ? `${RARITY_COLOR[s.rarity]}1c` : 'var(--c-surface-2)', color: 'var(--c-text-secondary)', cursor: 'pointer', textAlign: 'left' }}
             >
               <span style={{ fontSize: 15 }}>{glyphOf(s.family)}</span>

@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import { getGeometry, OPEN_FAMILIES } from './geometry'
 import { RARITY_COLOR } from './Gem'
 import { useGame, type ShapeRow, type OrbitView } from '../game/store'
+import { useOrreryUi } from '../orreryUi'
 import { sceneById } from '../content/cosmetics'
 import { useGfxPreset } from '../gfx'
 
@@ -58,7 +59,8 @@ function HexPad({ q, r, lit }: { q: number; r: number; lit: boolean }) {
 function OrbitGem({
   shape,
   orbit,
-  tickSec,
+  timeRef,
+  frozen,
   dragCell,
   dragging,
   onHover,
@@ -66,7 +68,8 @@ function OrbitGem({
 }: {
   shape: ShapeRow
   orbit: OrbitView
-  tickSec: number
+  timeRef: { current: number }
+  frozen: boolean
   dragCell: [number, number] | null
   dragging: boolean
   onHover: (id: number | null) => void
@@ -76,7 +79,7 @@ function OrbitGem({
   const mesh = useRef<THREE.Mesh>(null)
   const rank = RANK[shape.rarity]
   const col = RARITY_COLOR[shape.rarity]
-  useFrame((state, dt) => {
+  useFrame((_, dt) => {
     if (mesh.current) mesh.current.rotation.y += dt * 0.7
     const g = grp.current
     if (!g) return
@@ -86,7 +89,7 @@ function OrbitGem({
       return
     }
     if (orbit.period === 0 || orbit.path.length === 0) return
-    const t = state.clock.elapsedTime / tickSec
+    const t = frozen ? 0 : timeRef.current
     const base = Math.floor(t)
     const frac = t - base
     const f = frac * frac * (3 - 2 * frac)
@@ -127,18 +130,28 @@ function OrbitGem({
   )
 }
 
-// Draws the hovered shape's full lane as a bright line through its path cells.
-function PathLine({ orbit, color }: { orbit: OrbitView; color: string }) {
-  const points = useMemo(() => {
+// A shape's full lane as a line through its path cells. Solid (hovered) or, with byTime, a subtle gradient
+// that walks teal→violet→gold around the cycle so you can read the *timing* of every lane at a glance.
+function PathLine({ orbit, color, byTime, opacity }: { orbit: OrbitView; color?: string; byTime?: boolean; opacity?: number }) {
+  const obj = useMemo(() => {
     if (orbit.path.length < 2) return null
     const pts = orbit.path.map((c) => { const [x, , z] = axialToWorld(c[0], c[1]); return new THREE.Vector3(x, -0.3, z) })
     pts.push(pts[0].clone())
-    return new THREE.BufferGeometry().setFromPoints(pts)
-  }, [orbit.path])
-  if (!points) return null
-  return (
-    <primitive object={new THREE.Line(points, new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }))} />
-  )
+    const geo = new THREE.BufferGeometry().setFromPoints(pts)
+    if (byTime) {
+      const cols: number[] = []
+      const c = new THREE.Color()
+      pts.forEach((_, i) => {
+        c.setHSL((0.5 + (i / pts.length) * 0.62) % 1, 0.72, 0.6)
+        cols.push(c.r, c.g, c.b)
+      })
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3))
+      return new THREE.Line(geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: opacity ?? 0.4 }))
+    }
+    return new THREE.Line(geo, new THREE.LineBasicMaterial({ color: color ?? '#ffffff', transparent: true, opacity: opacity ?? 0.9 }))
+  }, [orbit.path, color, byTime, opacity])
+  if (!obj) return null
+  return <primitive object={obj} />
 }
 
 function Scene() {
@@ -148,7 +161,10 @@ function Scene() {
   const scene = sceneById(view?.scene ?? 0)
   const [backdrop, key, cool, warm] = scene.env
   const g = useGfxPreset()
-  const [hoverId, setHoverId] = useState<number | null>(null)
+  const paused = useOrreryUi((s) => s.paused)
+  const hoverId = useOrreryUi((s) => s.hoverId)
+  const setHover = useOrreryUi((s) => s.setHover)
+  const showAllLines = useOrreryUi((s) => s.showAllLines)
   const [dragId, setDragId] = useState<number | null>(null)
   const [dragCell, setDragCell] = useState<[number, number] | null>(null)
 
@@ -157,6 +173,13 @@ function Scene() {
   const radius = view?.orrery_radius ?? 4
   const loadout = view?.loadout ?? []
   const tickSec = (view?.orrery_tick_ms ?? 1000) / 1000
+
+  // shared clock in tick units; advances unless paused. A drag freezes everyone at t=0 so you can read the layout.
+  const timeRef = useRef(0)
+  const frozen = dragId !== null
+  useFrame((_, dt) => {
+    if (!paused && dragId === null) timeRef.current += dt / tickSec
+  })
 
   // the hovered shape's path cells (packed) → lit pads
   const litCells = useMemo(() => {
@@ -218,12 +241,15 @@ function Scene() {
         <HexPad key={`${q},${r}`} q={q} r={r} lit={litCells.has(`${q},${r}`)} />
       ))}
 
-      {/* hovered shape's lane */}
+      {/* all lanes (subtle, coloured by time) when toggled on */}
+      {showAllLines && orbits.map((orb, i) => (orb.path.length > 1 ? <PathLine key={`all${loadout[i]}`} orbit={orb} byTime opacity={0.3} /> : null))}
+
+      {/* hovered shape's lane (bright) */}
       {hoverId != null && (() => {
         const slot = loadout.indexOf(hoverId)
         const orb = orbits[slot]
         const sh = shapes[hoverId]
-        return orb && sh ? <PathLine orbit={orb} color={RARITY_COLOR[sh.rarity]} /> : null
+        return orb && sh ? <PathLine orbit={orb} color={RARITY_COLOR[sh.rarity]} opacity={0.95} /> : null
       })()}
 
       {/* gems */}
@@ -235,10 +261,11 @@ function Scene() {
             key={loadout[i]}
             shape={sh}
             orbit={orb}
-            tickSec={tickSec}
+            timeRef={timeRef}
+            frozen={frozen}
             dragCell={dragId === sh.id ? dragCell : null}
             dragging={dragId !== null}
-            onHover={setHoverId}
+            onHover={setHover}
             onDragStart={(id) => { setDragId(id); setDragCell(orb.anchor) }}
           />
         )
@@ -249,14 +276,16 @@ function Scene() {
       <OrbitControls
         makeDefault
         enabled={dragId === null}
-        enablePan={false}
-        enableZoom={false}
-        minPolarAngle={0.4}
-        maxPolarAngle={1.35}
-        autoRotate={dragId === null && hoverId === null}
+        enablePan
+        enableZoom
+        minDistance={3}
+        maxDistance={16}
+        minPolarAngle={0.2}
+        maxPolarAngle={1.45}
+        autoRotate={dragId === null && hoverId === null && !showAllLines}
         autoRotateSpeed={0.4}
-        mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
-        touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.ROTATE }}
+        mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN }}
+        touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
       />
     </>
   )
