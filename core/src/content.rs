@@ -372,6 +372,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::assertions_on_constants)] // intentional: pins a compile-time content invariant
     fn pull_count_is_consistent() {
         assert_eq!(PULL_COUNT, rarity_range(Rarity::Ur).end);
         assert_eq!(rarity_range(Rarity::Relic).start, PULL_COUNT);
@@ -395,8 +396,7 @@ mod tests {
 
     #[test]
     fn effective_prod_scales_with_genus() {
-        for id in 0..COUNT {
-            let s = &SHAPES[id];
+        for (id, s) in SHAPES.iter().enumerate() {
             let expected = s.base_prod * (1.0 + 0.25 * s.genus as f64);
             assert!((effective_prod(id) - expected).abs() < 1e-9, "effective_prod mismatch for {}", s.nick);
         }

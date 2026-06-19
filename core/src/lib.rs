@@ -9,6 +9,7 @@ use wasm_bindgen::prelude::*;
 pub mod content;
 pub mod gacha;
 pub mod game;
+pub mod orrery;
 pub mod rng;
 
 /// Closed-form production over a span: `rate · seconds`.
