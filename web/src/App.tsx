@@ -25,6 +25,7 @@ import { useTitle, titleSrc, TITLE_COUNT } from './titleArt'
 import { curatorRank, RANK_COLOR } from './curatorRank'
 import { useInspector } from './inspector'
 import { useHistory } from './history'
+import { useHelp } from './help'
 import { Numeral } from './ui'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
@@ -221,6 +222,22 @@ function Nudge() {
     <div style={S.nudge}>
       <span style={S.nudgeText}>{tr(`nudge.${id}`)}</span>
       <button style={S.nudgeClose} onClick={() => dismiss(id!)}>✕</button>
+    </div>
+  )
+}
+
+// A dismissible help/intro blurb. Tap × to hide it (persisted); Settings ▸ Gameplay reopens all of them.
+function HelpNote({ id, children, style }: { id: string; children: ReactNode; style?: CSSProperties }) {
+  const dismissed = useHelp((s) => s.dismissed.includes(id))
+  const dismiss = useHelp((s) => s.dismiss)
+  const tr = useT()
+  if (dismissed) return null
+  return (
+    <div style={{ position: 'relative', paddingRight: 20, ...style }}>
+      {children}
+      <button onClick={() => dismiss(id)} title={tr('help.hide')} aria-label={tr('help.hide')} style={S.helpClose}>
+        ×
+      </button>
     </div>
   )
 }
@@ -528,7 +545,7 @@ function GachaView() {
             {tr('pull.ten')} <kbd style={S.kbd}>T</kbd>
           </button>
         </div>
-        <p style={S.hint}>{tr('pull.hint')}</p>
+        <HelpNote id="help.pull"><p style={S.hint}>{tr('pull.hint')}</p></HelpNote>
         {view.upgrades[8] > 0 && (
           <button
             onClick={toggleAutoPull}
@@ -651,7 +668,7 @@ function RoomView() {
     <div style={S.board}>
       <div style={S.boardIntro}>
         <h3 style={S.boardTitle}>{tr('room.title')}</h3>
-        <p style={S.boardDesc}>{tr('room.desc')}</p>
+        <HelpNote id="help.room"><p style={S.boardDesc}>{tr('room.desc')}</p></HelpNote>
       </div>
       <div style={{ ...S.floorWrap, height: 380 }}>
         {roster.length > 0 ? (
@@ -713,7 +730,7 @@ function ChatlasView() {
           <h3 style={S.boardTitle}>{tr('chatlas.title')}</h3>
           <CuratorBadge />
         </div>
-        <p style={S.boardDesc}>{tr('chatlas.desc')}</p>
+        <HelpNote id="help.chatlas"><p style={S.boardDesc}>{tr('chatlas.desc')}</p></HelpNote>
       </div>
       <div ref={ref} style={S.chatFeed}>
         {msgs.map((m, i) => (
@@ -971,7 +988,7 @@ function WorkshopView() {
     <div style={S.board}>
       <div style={S.boardIntro}>
         <h3 style={S.boardTitle}>{tr('workshop.title')}</h3>
-        <p style={S.boardDesc}>{tr('workshop.intro')}</p>
+        <HelpNote id="help.workshop"><p style={S.boardDesc}>{tr('workshop.intro')}</p></HelpNote>
       </div>
       <FacetsPanel />
       <UpgradesPanel />
@@ -1054,7 +1071,7 @@ function EngineView() {
     <div style={S.board}>
       <div style={S.boardIntro}>
         <h3 style={S.boardTitle}>{tr('engine.title')}</h3>
-        <p style={S.boardDesc}>{tr('engine.intro')}</p>
+        <HelpNote id="help.engine"><p style={S.boardDesc}>{tr('engine.intro')}</p></HelpNote>
       </div>
       <div style={S.floorWrap}>
         <FactoryFloor
@@ -1094,10 +1111,12 @@ function EngineView() {
       <ProductionBreakdown />
 
       <h4 style={S.boardSub}>{tr('engine.floorHeading', { w: view.board_w, h: view.board_h, count: view.loadout.length })}</h4>
-      <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>
-        {tr('engine.boardHint')}
-        {sel != null && <b style={{ color: '#5fe0c6' }}>{tr('engine.placingHint', { nick: shapes[sel]?.nick ?? '' })}</b>}
-      </p>
+      <HelpNote id="help.board">
+        <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>
+          {tr('engine.boardHint')}
+          {sel != null && <b style={{ color: '#5fe0c6' }}>{tr('engine.placingHint', { nick: shapes[sel]?.nick ?? '' })}</b>}
+        </p>
+      </HelpNote>
       <BoardGrid sel={sel} setSel={setSel} />
 
       <div style={S.listHead}>
@@ -1473,7 +1492,7 @@ function ForgeView() {
     <div style={S.board}>
       <div style={S.boardIntro}>
         <h3 style={S.boardTitle}>{tr('forge.titleFull')}</h3>
-        <p style={S.boardDesc}>{tr('forge.desc')}</p>
+        <HelpNote id="help.forge"><p style={S.boardDesc}>{tr('forge.desc')}</p></HelpNote>
         <div style={S.shardBank}><span style={S.shardIcon}>◈</span> {tr('forge.shardBank', { shards: view.shards })}</div>
       </div>
 
@@ -1618,6 +1637,7 @@ function WelcomeModal() {
         <p style={S.revealSub}>{tr('welcome.body')}</p>
         <p style={S.hint}>{tr('welcome.note')}</p>
         <button style={S.pullBtn} onClick={begin}>{tr('welcome.begin')}</button>
+        <p style={S.vibecoded}>{tr('welcome.vibecoded')}</p>
       </div>
     </div>
   )
@@ -1631,7 +1651,7 @@ function ShopView() {
     <div style={S.board}>
       <div style={S.boardIntro}>
         <h3 style={S.boardTitle}>{tr('shop.title')}</h3>
-        <p style={S.boardDesc}>{tr('shop.desc')}</p>
+        <HelpNote id="help.shop"><p style={S.boardDesc}>{tr('shop.desc')}</p></HelpNote>
         <div style={S.shardBank}><span style={S.fluxIcon}>✦</span> {fmt(view.flux)} {tr('shop.fluxAvailable')}</div>
       </div>
       <div style={S.recipeGrid}>
@@ -1705,7 +1725,7 @@ function LedgerView() {
           <h3 style={S.boardTitle}>{tr('ledger.title')}</h3>
           <CuratorBadge />
         </div>
-        <p style={S.boardDesc}>{tr('ledger.desc')}</p>
+        <HelpNote id="help.ledger"><p style={S.boardDesc}>{tr('ledger.desc')}</p></HelpNote>
       </div>
       <FluxChart data={fluxHistory} />
       <h4 style={S.boardSub}>{tr('ledger.sectionEconomy')}</h4>
@@ -1932,6 +1952,9 @@ function SettingsModal() {
                 }}
               >
                 {tr('settings.replay')}
+              </button>
+              <button style={{ ...S.smallBtn, marginTop: 10, marginLeft: 8 }} onClick={() => useHelp.getState().reset()}>
+                {tr('help.showAll')}
               </button>
             </>
           )}
@@ -2175,6 +2198,7 @@ const S: Record<string, CSSProperties> = {
   pullBtn: { flex: 1, background: 'linear-gradient(180deg, #ff7ba6 0%, #ff5d8f 38%, #c264e6 78%, #a94fd6 100%)', border: 'none', color: '#fff', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 800, cursor: 'pointer', textShadow: '0 1px 1px rgba(80,0,40,0.5)', boxShadow: 'inset 0 1.5px 0 rgba(255,255,255,0.45), inset 0 -3px 6px rgba(120,0,70,0.45), 0 4px 10px rgba(255,93,143,0.4), 0 2px 4px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,180,210,0.3)' },
   pullBtn10: { flex: 1, background: 'linear-gradient(180deg, #1a1c28, #121420)', border: '1px solid #ff5d8f', color: '#ffd7e4', padding: '14px', borderRadius: 12, fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 12px rgba(255,93,143,0.18), inset 0 -2px 4px rgba(0,0,0,0.5), 0 3px 7px rgba(0,0,0,0.45), 0 0 8px rgba(255,93,143,0.22)' },
   hint: { color: '#8a90a8', fontSize: 12, lineHeight: 1.5 },
+  vibecoded: { margin: '14px 0 0', fontSize: 11, color: '#6b7088', fontStyle: 'italic', lineHeight: 1.5 },
   gallery: { maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 },
   tierHead: { margin: '0 0 8px', fontSize: 15 },
   grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(120px,1fr))', gap: 8 },
@@ -2234,6 +2258,7 @@ const S: Record<string, CSSProperties> = {
   boardIntro: { ...VITRINE, borderRadius: 12, padding: '12px 14px' },
   boardTitle: { margin: '0 0 6px', fontSize: 16, color: '#e8eaf2' },
   boardDesc: { margin: 0, fontSize: 13, lineHeight: 1.5, color: '#9aa0b4' },
+  helpClose: { position: 'absolute', top: -2, right: -4, background: 'none', border: 'none', color: '#6b7088', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4 },
   shardBank: { marginTop: 8, fontSize: 13, color: '#cdd2e0', fontWeight: 600 },
   boardStats: { ...VITRINE, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', borderRadius: 12, padding: 14 },
   bigStat: { display: 'flex', flexDirection: 'column', minWidth: 120 },

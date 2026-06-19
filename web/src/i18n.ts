@@ -95,6 +95,9 @@ const STR: Dict = {
     zh: '若你正读到这里，你便是新任馆长。为护住地板，我把灯都熄了。拉一下绳子——看看会有谁漂上岸来。——前任者的笔记',
   },
   'welcome.note': { en: 'Pull shapes from the Manifold and light the Atlas room by room. Flux keeps gathering while you’re away. At the summit, the fourth dimension is waiting.', ja: '「多様体」から形を引き、アトラスを一室ずつ灯していこう。離れていてもフラックスは貯まり続ける。頂上では、四次元が待っている。', zh: '从「流形」中抽出形状，一间间点亮图志。你离开时，流量也在持续累积。终点处，第四维正等着你。' },
+  'welcome.vibecoded': { en: 'A vibecoded game', ja: 'バイブコーディングなゲーム', zh: '一款凭感觉做的游戏' },
+  'help.hide': { en: 'Hide tip', ja: 'ヒントを隠す', zh: '隐藏提示' },
+  'help.showAll': { en: '↺ Show all tips again', ja: '↺ ヒントをすべて再表示', zh: '↺ 重新显示所有提示' },
 
   'reveal.new': { en: '✦ New shape!', ja: '✦ 新しいかたち！', zh: '✦ 新形状！' },
   'reveal.continue': { en: 'Continue', ja: 'つづける', zh: '继续' },
