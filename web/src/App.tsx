@@ -1964,7 +1964,7 @@ const S: Record<string, CSSProperties> = {
   fluxLabel: { color: '#8a90a8', marginRight: 8, fontSize: 13 },
   fluxValue: { fontSize: 28, fontWeight: 800, color: '#ffe1a3', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 14px rgba(255,207,107,0.35)' },
   rate: { color: '#5fe0c6', marginLeft: 10, fontSize: 13 },
-  hudStats: { display: 'flex', gap: 16, fontSize: 13, color: '#aab', alignItems: 'center' },
+  hudStats: { display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 12, rowGap: 6, fontSize: 13, color: '#aab', alignItems: 'center', minWidth: 0 },
   langSwitch: { display: 'flex', gap: 4 },
   langBtn: { background: 'none', border: '1px solid #2a2c3a', color: '#8a90a8', borderRadius: 6, padding: '2px 7px', fontSize: 11, cursor: 'pointer' },
   langBtnOn: { background: '#28304a', color: '#fff', borderColor: '#5fe0c6' },
