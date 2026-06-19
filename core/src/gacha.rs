@@ -184,6 +184,11 @@ pub fn banner_unit(seed: u64, counter: u64) -> f64 {
     rand_unit(seed, 2, counter)
 }
 
+/// A uniform [0,1) on its own stream for the rare bonus-Relic "lucky find" roll.
+pub fn relic_unit(seed: u64, counter: u64) -> f64 {
+    rand_unit(seed, 3, counter)
+}
+
 /// One simulate-pull: rolls rarity, grants into `coll` (tops steered to a missing shape, low tiers random),
 /// and applies the spark. Used by `simulate_core` and the tests; the real game does its own granting.
 pub fn pull(

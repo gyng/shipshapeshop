@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 use crate::content::{self, COUNT, SHAPES};
-use crate::gacha::{banner_unit, roll_rarity, shape_index, PityState, Rarity};
+use crate::gacha::{banner_unit, relic_unit, roll_rarity, shape_index, PityState, Rarity};
 
 const SCHEMA_VERSION: u32 = 2;
 const PULL_COST: f64 = 100.0;
@@ -18,6 +18,8 @@ const START_EULER_CAP: u32 = 6;
 const START_FLUX: f64 = 350.0; // onboarding: ~3 pulls in hand immediately, no 100-minute wait
 const RELIC_COST: u64 = 500; // shards to summon a Relic (the prestigious dupe-shard sink)
 const BANNER_RATEUP: f64 = 0.5; // on a themed banner, chance the within-tier pick is steered to a featured shape
+const RELIC_DROP_STD: f64 = 0.003; // rare "lucky find": chance any pull turns up a missing Relic (Standard banner)
+const RELIC_DROP_BANNER: f64 = 0.006; // …doubled on a themed banner (more reason to pull the rotating one)
 const MS_PER_HOUR: f64 = 3_600_000.0;
 const FORGE_COST: u64 = 50; // shards to forge
 const BOND_INSPECT_GAIN: u32 = 25; // affinity per inspect (the calm idler's path to bonds)
@@ -529,9 +531,17 @@ impl GameState {
         let roll = roll_rarity(self.master_seed, &mut self.pity);
         let range = content::rarity_range(roll.rarity);
 
-        let id = self.pick_pull_shape(roll.rarity, &range, c_before);
-        let (is_new, dupe_shards) = self.grant(id, roll.rarity);
-        let ridx = match roll.rarity {
+        // Rare "lucky find": a small chance the pull turns up a missing Relic instead of the rolled shape.
+        let relic_chance = if self.current_banner == 0 { RELIC_DROP_STD } else { RELIC_DROP_BANNER };
+        let (id, out_rarity) = match (
+            relic_unit(self.master_seed, c_before) < relic_chance,
+            self.first_missing(content::rarity_range(Rarity::Relic)),
+        ) {
+            (true, Some(rid)) => (rid, Rarity::Relic),
+            _ => (self.pick_pull_shape(roll.rarity, &range, c_before), roll.rarity),
+        };
+        let (is_new, dupe_shards) = self.grant(id, out_rarity);
+        let ridx = match out_rarity {
             Rarity::Common => 0,
             Rarity::Rare => 1,
             Rarity::Epic => 2,
@@ -556,7 +566,7 @@ impl GameState {
         }
 
         PullOutcome {
-            ok: true, shape_id: id as i32, rarity: Some(roll.rarity), is_new,
+            ok: true, shape_id: id as i32, rarity: Some(out_rarity), is_new,
             dupe_shards, spark_shape_id, spark_is_new,
         }
     }
