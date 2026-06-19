@@ -582,16 +582,19 @@ pub fn is_ballast(id: usize) -> bool {
 pub fn orbit_for(def: &ShapeDef, slot: usize) -> crate::orrery::Orbit {
     use crate::orrery::{Orbit, ALLOWED_PERIODS};
     const RING: u32 = 12;
-    let period = ALLOWED_PERIODS[def.euler_cost.min(5) as usize]; // 0..5 → 1,2,3,4,6,12 (always in-set ⇒ lcm ≤ L_CAP)
+    // period from χ-cost but NEVER 1 → every shape actually orbits; drawn from {2,3,4,6,12} whose lcm is 12 ⇒ ≤ L_CAP.
+    let period = ALLOWED_PERIODS[1 + def.euler_cost.min(4) as usize]; // 0..4 → 2,3,4,6,12
     let step = RING / period;
     let retro = is_nonorientable(def.family);
+    // rotate each slot's starting cells around the ring (5 ⟂ 12 ⇒ even spread) + a genus nudge, so shapes don't clump.
+    let rot = (slot as u32 * 5 + def.genus) % RING;
     let path: Vec<u8> = (0..period)
         .map(|i| {
             let k = if retro { (period - i) % period } else { i };
-            (k * step) as u8
+            ((k * step + rot) % RING) as u8
         })
         .collect();
-    let phase = ((slot as u32 + def.genus) % period) as u8;
+    let phase = (slot as u32 % period) as u8;
     Orbit { path, phase }
 }
 

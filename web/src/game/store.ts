@@ -84,6 +84,11 @@ export interface View {
   upgrade_costs: [number, number][]
   upgrade_unlocked: boolean[]
   facet_perk_costs: number[]
+  use_orrery: boolean
+  orrery_ring: number
+  orrery_period: number
+  orrery_tick_ms: number
+  orrery_orbits: { path: number[]; phase: number; period: number }[]
 }
 
 export interface BannerDef {
@@ -209,6 +214,7 @@ interface Store {
   buyUpgrade: (id: number) => void
   buyFacetPerk: (id: number) => void
   setBanner: (id: number) => void
+  setUseOrrery: (on: boolean) => void
   selectScene: (id: number) => void
   fluxHistory: number[]
   milestoneToast: number | null
@@ -534,6 +540,11 @@ export const useGame = create<Store>((set, get) => ({
   },
   setBanner: (id) => {
     game?.set_banner(id)
+    get().refresh()
+    persist()
+  },
+  setUseOrrery: (on) => {
+    game?.set_use_orrery(on, Date.now())
     get().refresh()
     persist()
   },

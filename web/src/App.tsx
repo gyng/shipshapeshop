@@ -26,6 +26,8 @@ import { curatorRank, RANK_COLOR } from './curatorRank'
 import { useInspector } from './inspector'
 import { useHistory } from './history'
 import { useHelp } from './help'
+import { OrreryBoard } from './OrreryBoard'
+import { Orrery3D } from './three/Orrery3D'
 import { Numeral, Tooltip, COLOR } from './ui'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
@@ -1120,6 +1122,7 @@ function EngineView() {
   const { bubble, setBubble, talk } = useChatter()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState<number | null>(null) // shape selected to place/move on the board
+  const [orrery3d, setOrrery3d] = useState(true) // 3D orrery by default; 2D clock-ring is a toggle
   if (!view) return null
   // Tapping a PLACED gem on the floor polishes it: a little Flux (clicker bootstrap) + a line of dialogue.
   const onTap = (sid: number, x: number, y: number) => {
@@ -1141,15 +1144,19 @@ function EngineView() {
         <HelpNote id="help.engine"><p style={S.boardDesc}>{tr('engine.intro')}</p></HelpNote>
       </div>
       <div style={S.floorWrap}>
-        <FactoryFloor
-          shapes={shapes}
-          loadout={view.loadout}
-          boardCells={view.board_cells}
-          boardW={view.board_w}
-          boardH={view.board_h}
-          openSlots={view.euler_used < view.euler_cap ? (view.loadout.length === 0 ? 3 : 2) : 0}
-          onTap={onTap}
-        />
+        {view.use_orrery ? (
+          orrery3d ? <Orrery3D /> : <OrreryBoard />
+        ) : (
+          <FactoryFloor
+            shapes={shapes}
+            loadout={view.loadout}
+            boardCells={view.board_cells}
+            boardW={view.board_w}
+            boardH={view.board_h}
+            openSlots={view.euler_used < view.euler_cap ? (view.loadout.length === 0 ? 3 : 2) : 0}
+            onTap={onTap}
+          />
+        )}
         {view.loadout.length === 0 && <div style={S.floorTag}>{tr('engine.emptyFloor')}</div>}
         {view.loadout.length > 0 && !bubble && <div style={S.floorTag}>{tr('engine.tapToChat')}</div>}
         {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
@@ -1170,21 +1177,31 @@ function EngineView() {
           <div style={S.meterTrack}><div style={{ ...S.meterFill, width: `${Math.min(100, pct * 100)}%`, background: pct > 0.85 ? '#ff5d8f' : '#5fe0c6', color: pct > 0.85 ? '#ff5d8f' : '#5fe0c6' }} /></div>
         </div>
         <div style={S.boardBtns}>
-          <button style={S.smallBtn} onClick={autoArrange}>{tr('engine.autoArrange')}</button>
+          {!view.use_orrery && <button style={S.smallBtn} onClick={autoArrange}>{tr('engine.autoArrange')}</button>}
           <button style={{ ...S.smallBtn, opacity: view.core_complete ? 1 : 0.4 }} disabled={!view.core_complete} onClick={recrystallize}>{tr('engine.recrystallizeBtn')}</button>
+          <button style={{ ...S.smallBtn, ...(view.use_orrery ? { borderColor: 'var(--c-accent-gold)', color: 'var(--c-accent-gold)' } : {}) }} onClick={() => useGame.getState().setUseOrrery(!view.use_orrery)}>{view.use_orrery ? tr('engine.orreryOff') : tr('engine.orreryOn')}</button>
+          {view.use_orrery && <button style={S.smallBtn} onClick={() => setOrrery3d((v) => !v)}>{orrery3d ? tr('engine.orrery2d') : tr('engine.orrery3d')}</button>}
         </div>
       </div>
 
       <ProductionBreakdown />
 
-      <h4 style={S.boardSub}>{tr('engine.floorHeading', { w: view.board_w, h: view.board_h, count: view.loadout.length })}</h4>
-      <HelpNote id="help.board">
-        <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>
-          {tr('engine.boardHint')}
-          {sel != null && <b style={{ color: '#5fe0c6' }}>{tr('engine.placingHint', { nick: shapes[sel]?.nick ?? '' })}</b>}
-        </p>
-      </HelpNote>
-      <BoardGrid sel={sel} setSel={setSel} />
+      {view.use_orrery ? (
+        <HelpNote id="help.orrery">
+          <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>{tr('engine.orreryHint')}</p>
+        </HelpNote>
+      ) : (
+        <>
+          <h4 style={S.boardSub}>{tr('engine.floorHeading', { w: view.board_w, h: view.board_h, count: view.loadout.length })}</h4>
+          <HelpNote id="help.board">
+            <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>
+              {tr('engine.boardHint')}
+              {sel != null && <b style={{ color: '#5fe0c6' }}>{tr('engine.placingHint', { nick: shapes[sel]?.nick ?? '' })}</b>}
+            </p>
+          </HelpNote>
+          <BoardGrid sel={sel} setSel={setSel} />
+        </>
+      )}
 
       <div style={S.listHead}>
         <h4 style={{ ...S.boardSub, margin: 0 }}>{tr('engine.storageHeading', { count: bench.length })}</h4>
