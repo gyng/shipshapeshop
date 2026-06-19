@@ -7,6 +7,7 @@ import { RARITY_COLOR } from './three/Gem'
 import { Orrery3D } from './three/Orrery3D'
 import { OrreryBoard } from './OrreryBoard'
 import { useOrreryUi } from './orreryUi'
+import { OrreryAudioDriver } from './orreryAudio'
 
 // Compact multiplier chips for the top overlay — only the multipliers that are actually pulling their weight.
 function compactMults(view: ReturnType<typeof useGame.getState>['view'], tr: (k: string) => string): { label: string; v: number }[] {
@@ -129,6 +130,7 @@ export function OrreryEngine() {
   const pillBtn: React.CSSProperties = { fontSize: 'var(--fs-eyebrow)', padding: '3px 8px', borderRadius: 'var(--r-pill)', border: '1px solid var(--c-border-raised)', background: 'var(--c-surface-3)', color: 'var(--c-text-secondary)', cursor: 'pointer' }
   return (
     <div className="orrery-wrap">
+      <OrreryAudioDriver />
       <div className="orrery-canvas">{is3d ? <Orrery3D /> : <OrreryBoard />}</div>
 
       {/* TOP — rate + compact multipliers */}

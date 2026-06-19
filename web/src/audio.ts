@@ -33,6 +33,11 @@ function ac(): AudioContext {
   return ctx
 }
 
+/** The shared lazily-created AudioContext (orrery audio layers onto the same context). */
+export function sharedAudioContext(): AudioContext {
+  return ac()
+}
+
 function tone(freq: number, dur: number, delay = 0, type: OscillatorType = 'sine', gain = 0.1) {
   if (useMute.getState().muted) return
   try {
