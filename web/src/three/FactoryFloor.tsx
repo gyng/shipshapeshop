@@ -6,8 +6,7 @@ import { getGeometry } from './geometry'
 import { RARITY_COLOR } from './Gem'
 import type { ShapeRow } from '../game/store'
 
-// A single deployed gem on the floor — jewel material (no transmission → cheap + flicker-free for many at once),
-// gently spinning + bobbing, with a column of rising gold "Flux" sparkles.
+// A deployed gem on the floor: a jewel on a glowing ring, lit by its own coloured light, with rising Flux.
 function FloorGem({ family, rarity, pos }: { family: string; rarity: keyof typeof RARITY_COLOR; pos: [number, number, number] }) {
   const ref = useRef<THREE.Mesh>(null)
   useFrame((_, dt) => {
@@ -16,22 +15,27 @@ function FloorGem({ family, rarity, pos }: { family: string; rarity: keyof typeo
   const col = RARITY_COLOR[rarity]
   return (
     <group position={pos}>
+      {/* glow ring on the floor under the gem */}
+      <mesh position={[0, -0.4, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.26, 0.42, 40]} />
+        <meshBasicMaterial color={col} transparent opacity={0.55} toneMapped={false} side={THREE.DoubleSide} />
+      </mesh>
+      <pointLight position={[0, 0.4, 0]} color={col} intensity={2.2} distance={2.6} decay={1.6} />
       <Float speed={2.2} rotationIntensity={0} floatIntensity={0.7} floatingRange={[0, 0.16]}>
         <mesh ref={ref} geometry={getGeometry(family)} scale={0.4} castShadow>
           <meshPhysicalMaterial
             color={col}
-            metalness={0.35}
-            roughness={0.12}
+            metalness={0.3}
+            roughness={0.08}
             clearcoat={1}
-            clearcoatRoughness={0.1}
+            clearcoatRoughness={0.08}
             emissive={col}
-            emissiveIntensity={0.4}
-            envMapIntensity={1.2}
+            emissiveIntensity={0.5}
+            envMapIntensity={1.6}
           />
         </mesh>
       </Float>
-      {/* Flux rising from the gem */}
-      <Sparkles count={9} scale={[0.5, 1.6, 0.5]} position={[0, 0.7, 0]} size={2.4} speed={0.6} noise={0.4} color="#ffcf6b" />
+      <Sparkles count={10} scale={[0.5, 1.7, 0.5]} position={[0, 0.8, 0]} size={2.6} speed={0.7} noise={0.5} color="#ffcf6b" />
     </group>
   )
 }
@@ -40,24 +44,26 @@ export function FactoryFloor({ shapes, loadout }: { shapes: ShapeRow[]; loadout:
   const n = loadout.length
   const cols = Math.max(1, Math.ceil(Math.sqrt(n)))
   const rows = Math.max(1, Math.ceil(n / cols))
-  const spacing = 1.15
+  const spacing = 1.2
   return (
-    <Canvas dpr={[1, 1.6]} shadows camera={{ position: [0, 2.8, 5.4], fov: 42 }}>
-      <color attach="background" args={['#0a0b12']} />
-      <ambientLight intensity={0.35} />
-      <directionalLight position={[3, 6, 4]} intensity={1.1} castShadow shadow-mapSize={[1024, 1024]} />
+    <Canvas dpr={[1, 1.8]} shadows camera={{ position: [0, 2.9, 5.6], fov: 42 }}>
+      <color attach="background" args={['#0a0b14']} />
+      <ambientLight intensity={0.6} />
+      <hemisphereLight args={['#cfe0ff', '#181228', 0.7]} />
+      <directionalLight position={[3, 7, 4]} intensity={1.8} castShadow shadow-mapSize={[1024, 1024]} />
       <Environment resolution={128}>
-        <Lightformer intensity={1.2} color="#8a6bff" position={[-4, 3, -4]} scale={6} />
-        <Lightformer intensity={1.0} color="#5fe0c6" position={[5, 2, -3]} scale={6} />
-        <Lightformer intensity={0.8} color="#ff7ab0" position={[0, -3, 4]} scale={6} />
+        <Lightformer intensity={2.4} color="#9a7bff" position={[-4, 3, -4]} scale={7} />
+        <Lightformer intensity={2.2} color="#6fe6cf" position={[5, 2, -3]} scale={7} />
+        <Lightformer intensity={1.8} color="#ff8ec0" position={[0, -2, 4]} scale={6} />
+        <Lightformer intensity={1.6} color="#ffffff" position={[0, 5, 2]} scale={5} />
       </Environment>
 
       {/* floor + grid */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.42, 0]} receiveShadow>
-        <planeGeometry args={[16, 16]} />
-        <meshStandardMaterial color="#0c0d16" metalness={0.55} roughness={0.45} />
+        <planeGeometry args={[18, 18]} />
+        <meshStandardMaterial color="#0d0e1a" metalness={0.6} roughness={0.4} />
       </mesh>
-      <gridHelper args={[16, 32, '#34374a', '#1a1c26']} position={[0, -0.41, 0]} />
+      <gridHelper args={[18, 36, '#3a3f55', '#1c1e2a']} position={[0, -0.41, 0]} />
 
       {loadout.map((id, i) => {
         const s = shapes[id]
@@ -69,14 +75,13 @@ export function FactoryFloor({ shapes, loadout }: { shapes: ShapeRow[]; loadout:
         return <FloorGem key={id} family={s.family} rarity={s.rarity} pos={[x, 0, z]} />
       })}
 
-      <ContactShadows position={[0, -0.4, 0]} opacity={0.55} scale={14} blur={2.4} far={4} />
-      {/* ambient flux drifting through the whole floor */}
-      <Sparkles count={50} scale={[10, 4, 10]} position={[0, 1.4, 0]} size={1.4} speed={0.25} color="#ffcf6b" />
+      <ContactShadows position={[0, -0.41, 0]} opacity={0.55} scale={16} blur={2.6} far={4} />
+      <Sparkles count={60} scale={[12, 5, 12]} position={[0, 1.8, 0]} size={1.6} speed={0.3} color="#ffcf6b" />
       <OrbitControls
         makeDefault
         enablePan={false}
         enableZoom={false}
-        minPolarAngle={0.6}
+        minPolarAngle={0.5}
         maxPolarAngle={1.35}
         autoRotate
         autoRotateSpeed={0.5}
