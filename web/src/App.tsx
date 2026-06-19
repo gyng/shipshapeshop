@@ -14,6 +14,7 @@ import { fontOf } from './content/fonts'
 import { useGfx, type Quality } from './gfx'
 import { UPGRADE_INFO } from './content/upgrades'
 import { MILESTONE_INFO } from './content/milestones'
+import { FACET_INFO } from './content/facets'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
 import { useMute, sfxUpgrade } from './audio'
@@ -204,6 +205,7 @@ function Hud() {
         <span title="Shards — from duplicate pulls; spent in the Forge & Shop"><span style={S.shardIcon}>◈</span> {view.shards} {tr('hud.shards')}</span>
         <span title="Core shapes discovered (Relics are a bonus tier)">{tr('hud.collection')} {view.distinct_owned}/41</span>
         <span title="Viewport dimension — Recrystallize in the Engine to ascend (New Game+)">{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
+        {view.facets > 0 && <span title="Facets — prestige meta-currency; spend in the Engine">🌌 {view.facets}</span>}
         <button onClick={toggleMute} style={S.langBtn} aria-label="toggle sound" title="Toggle sound">{muted ? '🔇' : '🔊'}</button>
         <button onClick={() => openSettings(true)} style={S.langBtn} aria-label="settings" title="Settings, scenes & credits">⚙</button>
         {DEV_MODE && <button onClick={toggleDev} style={S.langBtn} aria-label="dev tools" title="Dev tools (compiled out at release)">🛠</button>}
@@ -302,6 +304,55 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
         )
       })}
     </div>
+  )
+}
+
+// Facets — the prestige meta-tree, bought with Facets earned by recrystallizing. Persists across all NG+.
+function FacetsPanel() {
+  const { view, facetDefs, buyFacetPerk } = useGame()
+  const [popped, setPopped] = useState<string | null>(null)
+  if (!view || (view.ng_cycle === 0 && view.facets === 0)) return null // hidden until the first ascent
+  const onBuy = (e: { currentTarget: HTMLElement }, i: number, key: string) => {
+    const before = useGame.getState().view?.facet_perks[i] ?? 0
+    buyFacetPerk(i)
+    const after = useGame.getState().view?.facet_perks[i] ?? before
+    if (after <= before) return
+    sfxUpgrade(3 + after)
+    const info = FACET_INFO[key] ?? { icon: '🌌', name: key }
+    const r = e.currentTarget.getBoundingClientRect()
+    const cx = r.left + r.width / 2
+    const cy = r.top + 4
+    for (let k = 0; k < 9; k++) useFloaters.getState().spawn(info.icon, { x: cx, y: cy, color: '#b388ff', big: true })
+    useFloaters.getState().spawn(`${info.name} ↑`, { x: cx, y: cy - 26, color: '#d8b4ff', big: true })
+    setPopped(key)
+    setTimeout(() => setPopped(null), 460)
+  }
+  return (
+    <>
+      <h4 style={S.boardSub}>🌌 Facets — {view.facets} banked · prestige perks (permanent)</h4>
+      <div style={S.recipeGrid}>
+        {facetDefs.map((f, i) => {
+          const lvl = view.facet_perks[i] ?? 0
+          const maxed = lvl >= f.max_level
+          const cost = Math.floor(f.cost * Math.pow(1.6, lvl))
+          const can = !maxed && view.facets >= cost
+          const info = FACET_INFO[f.key] ?? { name: f.key, desc: '', icon: '🌌' }
+          return (
+            <div key={f.key} className={popped === f.key ? 'chip upgrade-pop' : 'chip'} style={{ ...S.recipeCard, borderColor: lvl > 0 ? '#b388ff' : '#2a2440' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ fontSize: 18 }}>{info.icon}</span>
+                <strong style={{ color: '#e8eaf2' }}>{info.name}</strong>
+                {f.max_level > 1 && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a90a8' }}>Lv {lvl}/{f.max_level}</span>}
+              </div>
+              <p style={{ ...S.boardDesc, margin: 0, fontSize: 12 }}>{info.desc}</p>
+              <button style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={(e) => onBuy(e, i, f.key)}>
+                {maxed ? 'Maxed ✓' : `Buy · ${cost} 🌌`}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </>
   )
 }
 
@@ -417,6 +468,7 @@ function EngineView() {
         </div>
       </div>
 
+      <FacetsPanel />
       <UpgradesPanel />
 
       <h4 style={S.boardSub}>On the floor — {deployed.length}</h4>

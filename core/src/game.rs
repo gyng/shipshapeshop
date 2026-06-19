@@ -74,6 +74,10 @@ pub struct GameState {
     pub upgrades: Vec<u32>, // level per content::UPGRADES id
     #[serde(default)]
     pub milestones_done: Vec<bool>, // latched milestone achievements (len MILESTONE_COUNT)
+    #[serde(default)]
+    pub facets: u64, // prestige meta-currency (from recrystallizing)
+    #[serde(default)]
+    pub facet_perks: Vec<u32>, // level per content::FACET_PERKS id
 }
 
 #[derive(Serialize)]
@@ -137,6 +141,8 @@ pub struct GameStateView {
     pub active_synergies: u32,
     pub upgrades: Vec<u32>,
     pub milestones_done: Vec<bool>,
+    pub facets: u64,
+    pub facet_perks: Vec<u32>,
 }
 
 impl GameState {
@@ -165,6 +171,8 @@ impl GameState {
             pulls_by_rarity: vec![0; 5],
             upgrades: vec![0; content::UPGRADE_COUNT],
             milestones_done: vec![false; content::MILESTONE_COUNT],
+            facets: 0,
+            facet_perks: vec![0; content::FACET_PERK_COUNT],
         }
     }
 
@@ -178,6 +186,7 @@ impl GameState {
             * self.synergy_mult()
             * self.genus_resonance_mult()
             * self.milestone_mult()
+            * self.facet_meta_mult()
     }
 
     /// Family set bonus (M7): completing the 5 Platonic solids grants a permanent global multiplier.
@@ -203,7 +212,7 @@ impl GameState {
     }
     /// Floor space including the expand_floor upgrade (#0: +2 / level).
     pub fn effective_euler_cap(&self) -> u32 {
-        self.euler_cap + 2 * self.upgrade_level(0)
+        self.euler_cap + 2 * self.upgrade_level(0) + self.facet_level(1) // resonant_floor
     }
     fn affinity_mult(&self) -> f64 {
         if self.upgrade_level(6) > 0 { 1.5 } else { 1.0 } // affinity_bloom
@@ -266,6 +275,36 @@ impl GameState {
             }
         }
         m
+    }
+
+    pub fn facet_level(&self, id: usize) -> u32 {
+        self.facet_perks.get(id).copied().unwrap_or(0)
+    }
+    fn facet_meta_mult(&self) -> f64 {
+        1.0 + 0.05 * self.facet_level(0) as f64 // meta_production — permanent global %
+    }
+    fn prestige_base(&self) -> f64 {
+        1.6 + 0.1 * self.facet_level(4) as f64 // ascendant — compounds per ascent
+    }
+    pub fn buy_facet_perk(&mut self, id: usize) -> bool {
+        if id >= content::FACET_PERK_COUNT {
+            return false;
+        }
+        let level = self.facet_level(id);
+        if level >= content::FACET_PERKS[id].max_level {
+            return false;
+        }
+        let cost = content::facet_perk_cost(id, level);
+        if self.facets < cost {
+            return false;
+        }
+        self.facets -= cost;
+        self.facet_perks[id] += 1;
+        if id == 4 {
+            // ascendant raises the prestige base — recompute the live multiplier now
+            self.prestige_mult = self.prestige_base().powi(self.ng_cycle as i32);
+        }
+        true
     }
 
     pub fn bond_level(&self, id: usize) -> u32 {
@@ -371,8 +410,9 @@ impl GameState {
         if was_new {
             (true, 0)
         } else {
-            let base = shard_value(r);
-            let s = if self.upgrade_level(4) > 0 { (base as f64 * 1.5).floor() as u64 } else { base }; // shard_dividend (#4)
+            let mut mult = if self.upgrade_level(4) > 0 { 1.5 } else { 1.0 }; // shard_dividend (#4)
+            mult *= 1.0 + 0.15 * self.facet_level(3) as f64; // collectors_eye
+            let s = (shard_value(r) as f64 * mult).floor() as u64;
             self.shards += s;
             self.lifetime_shards += s;
             (false, s)
@@ -512,10 +552,11 @@ impl GameState {
         }
         self.ng_cycle += 1;
         self.viewport_dim += 1;
-        self.prestige_mult = 1.6f64.powi(self.ng_cycle as i32);
+        self.prestige_mult = self.prestige_base().powi(self.ng_cycle as i32); // ascendant raises the base
         self.euler_cap = START_EULER_CAP + self.ng_cycle; // +1 budget headroom per ascent
         self.loadout.clear();
-        self.flux = 500.0 * self.ng_cycle as f64; // faded upgrade head-start
+        self.flux = 500.0 * self.ng_cycle as f64 + 600.0 * self.facet_level(2) as f64; // crystalline_start head-start
+        self.facets += 3 + self.ng_cycle as u64; // Facets — the prestige meta-currency
         true
     }
 
@@ -590,6 +631,9 @@ impl GameState {
         if state.milestones_done.len() != content::MILESTONE_COUNT {
             state.milestones_done.resize(content::MILESTONE_COUNT, false);
         }
+        if state.facet_perks.len() != content::FACET_PERK_COUNT {
+            state.facet_perks.resize(content::FACET_PERK_COUNT, 0);
+        }
         state.loadout.retain(|&id| id < COUNT && state.owned[id] > 0);
         state.schema_version = SCHEMA_VERSION;
         Ok(state)
@@ -631,6 +675,8 @@ impl GameState {
             active_synergies: self.synergy_count(),
             upgrades: self.upgrades.clone(),
             milestones_done: self.milestones_done.clone(),
+            facets: self.facets,
+            facet_perks: self.facet_perks.clone(),
         }
     }
 }
@@ -717,6 +763,9 @@ impl Game {
     }
     pub fn buy_upgrade(&mut self, id: usize) -> bool {
         self.state.buy_upgrade(id)
+    }
+    pub fn buy_facet_perk(&mut self, id: usize) -> bool {
+        self.state.buy_facet_perk(id)
     }
     pub fn select_scene(&mut self, id: u32) -> bool {
         self.state.select_scene(id)
@@ -817,6 +866,22 @@ pub fn milestones_json() -> String {
     let rows: Vec<MilestoneRow> = content::MILESTONES
         .iter()
         .map(|m| MilestoneRow { key: m.key, bonus: m.bonus })
+        .collect();
+    serde_json::to_string(&rows).unwrap()
+}
+
+/// The Facet-perk table for the web layer (key + base cost + max level).
+#[wasm_bindgen]
+pub fn facets_json() -> String {
+    #[derive(Serialize)]
+    struct FacetRow {
+        key: &'static str,
+        cost: u64,
+        max_level: u32,
+    }
+    let rows: Vec<FacetRow> = content::FACET_PERKS
+        .iter()
+        .map(|f| FacetRow { key: f.key, cost: f.cost, max_level: f.max_level })
         .collect();
     serde_json::to_string(&rows).unwrap()
 }
@@ -1017,6 +1082,27 @@ mod tests {
         }
         g.tick(2000.0);
         assert!(g.milestones_done[0], "milestone stays latched");
+    }
+
+    #[test]
+    fn recrystallize_grants_facets_and_perks_apply() {
+        let mut g = GameState::new(1, 0.0);
+        for i in 0..content::PULL_COUNT {
+            g.owned[i] = 1;
+        }
+        assert!(g.recrystallize());
+        assert!(g.facets >= 4, "ascending grants Facets, got {}", g.facets);
+        // buy resonant_floor (#1) → base Euler cap grows
+        let cap = g.effective_euler_cap();
+        g.facets = 100;
+        assert!(g.buy_facet_perk(1));
+        assert_eq!(g.effective_euler_cap(), cap + 1);
+        // meta_production (#0) lifts the rate multiplier
+        let before = g.milestone_mult(); // sanity unrelated; check facet_meta via rate
+        let r0 = g.rate_per_hr();
+        assert!(g.buy_facet_perk(0));
+        assert!(g.rate_per_hr() > r0);
+        let _ = before;
     }
 
     #[test]

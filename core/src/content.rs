@@ -167,6 +167,25 @@ pub fn upgrade_cost(id: usize, level: u32) -> (f64, u64) {
     ((d.flux_cost * mult).floor(), (d.shard_cost as f64 * mult).floor() as u64)
 }
 
+/// Facet perks — the PRESTIGE meta-tree. Recrystallizing grants Facets (a meta-currency); these perks are
+/// bought with Facets and persist across every New Game+ forever. Effects keyed by index in game.rs.
+pub struct FacetPerk {
+    pub key: &'static str,
+    pub cost: u64,
+    pub max_level: u32,
+}
+pub const FACET_PERKS: [FacetPerk; 5] = [
+    FacetPerk { key: "meta_production", cost: 2, max_level: 5 },   // 0: +5% global production / level (forever)
+    FacetPerk { key: "resonant_floor", cost: 3, max_level: 4 },    // 1: +1 base Euler cap / level
+    FacetPerk { key: "crystalline_start", cost: 2, max_level: 5 }, // 2: +600 Flux head-start each ascent / level
+    FacetPerk { key: "collectors_eye", cost: 3, max_level: 3 },    // 3: +15% dupe shards / level
+    FacetPerk { key: "ascendant", cost: 5, max_level: 3 },         // 4: +0.1 to the prestige base / level (compounds NG+)
+];
+pub const FACET_PERK_COUNT: usize = FACET_PERKS.len();
+pub fn facet_perk_cost(id: usize, level: u32) -> u64 {
+    (FACET_PERKS[id].cost as f64 * 1.6_f64.powi(level as i32)).floor() as u64
+}
+
 /// Milestones — once achieved they latch permanently and each adds a small global production bonus (the
 /// classic idle "achievement multiplier"). Conditions live in game.rs (by index). The checklist itself is
 /// the dopamine; the bonus is the cherry.
