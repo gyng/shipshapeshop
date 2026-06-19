@@ -1176,6 +1176,33 @@ mod tests {
         assert!(GameState::from_json(&json).is_err());
     }
 
+    // App-update guarantee: a save written by an OLDER build (fewer shapes/upgrades/etc.) must still load —
+    // from_json resizes every per-content vec to the current counts. Simulate that by truncating the arrays.
+    #[test]
+    fn loads_save_from_a_smaller_older_build() {
+        let mut g = GameState::new(7, 0.0);
+        g.flux = 999.0;
+        g.owned[0] = 3;
+        let mut v: serde_json::Value = serde_json::from_str(&g.to_json()).unwrap();
+        // emulate a pre-content-addition save: shorter arrays + a known shape owned at the front
+        v["owned"] = serde_json::json!([3, 1, 0]);
+        v["bonds"] = serde_json::json!([5, 0]);
+        v["upgrades"] = serde_json::json!([1]);
+        v["milestones_done"] = serde_json::json!([true]);
+        v["facet_perks"] = serde_json::json!([]);
+        v["discovered"] = serde_json::json!([]);
+        let back = GameState::from_json(&v.to_string()).expect("older save still loads");
+        assert_eq!(back.owned.len(), COUNT);
+        assert_eq!(back.bonds.len(), COUNT);
+        assert_eq!(back.upgrades.len(), content::UPGRADE_COUNT);
+        assert_eq!(back.milestones_done.len(), content::MILESTONE_COUNT);
+        assert_eq!(back.facet_perks.len(), content::FACET_PERK_COUNT);
+        assert_eq!(back.discovered.len(), content::RECIPES.len());
+        assert_eq!(back.owned[0], 3); // preserved
+        assert_eq!(back.bonds[0], 5);
+        assert!((back.flux - 999.0).abs() < 1e-9);
+    }
+
     #[test]
     fn recrystallize_requires_core_complete_then_ascends() {
         let mut g = GameState::new(1, 0.0);
