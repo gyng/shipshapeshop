@@ -63,3 +63,12 @@ button:not(:disabled):active { transform: scale(0.95); }
   100% { opacity: 0; transform: translate(-50%, -70px) scale(1.0); }
 }
 .floater-big { font-size: 34px; animation: big-pop 1.7s cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
+
+/* Pull view: stacked on mobile (3D on top); a vertical split with the 3D on the right on desktop. */
+.gacha-split { display: flex; flex-direction: column; gap: 16px; max-width: 520px; margin: 0 auto; }
+.gacha-controls { display: flex; flex-direction: column; gap: 12px; }
+@media (min-width: 880px) {
+  .gacha-split { flex-direction: row; align-items: center; max-width: 1000px; }
+  .gacha-split > .gacha-stage { order: 2; flex: 1.25; }
+  .gacha-split > .gacha-controls { order: 1; flex: 1; justify-content: center; }
+}
