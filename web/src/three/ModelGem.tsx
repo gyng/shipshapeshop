@@ -12,6 +12,7 @@ type ModelCfg = { url: string; kind: 'ply' | 'obj'; rot?: [number, number, numbe
 // placeholders in geometry.ts). Princeton "Suggestive Contours" .ply scans + Keenan Crane's Spot .obj.
 export const MODEL_FILES: Record<string, ModelCfg> = {
   stanford_bunny: { url: '/models/bunny.ply', kind: 'ply', rot: [0, Math.PI, 0] },
+  benchy: { url: '/models/benchy.ply', kind: 'ply', rot: [-Math.PI / 2, 0, 0] },
   cow: { url: '/models/cow.obj', kind: 'obj', rot: [0, Math.PI / 2, 0] },
   spot: { url: '/models/spot.obj', kind: 'obj', rot: [0, Math.PI, 0] },
   armadillo: { url: '/models/armadillo.ply', kind: 'ply', rot: [0, 0, 0] },

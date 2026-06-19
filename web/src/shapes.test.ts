@@ -22,7 +22,7 @@ const FAMILIES = [
 
 // Relic families backed by a real downloaded mesh (loaded on demand by ModelGem).
 const MODEL_FILES_ON_DISK = [
-  'bunny.ply', 'cow.obj', 'spot.obj', 'armadillo.ply', 'lucy.ply', 'dragon.ply', 'heptoroid.ply', 'csaszar.obj',
+  'bunny.ply', 'cow.obj', 'spot.obj', 'armadillo.ply', 'lucy.ply', 'dragon.ply', 'heptoroid.ply', 'csaszar.obj', 'benchy.ply',
 ]
 
 describe('shape content validation', () => {

@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useGame, RARITY_ORDER, type ShapeRow } from './game/store'
 import { HeroView } from './three/HeroView'
+import { FactoryFloor } from './three/FactoryFloor'
+import { ForgeAltar } from './three/ForgeAltar'
 import { RARITY_COLOR } from './three/Gem'
 import { CODEX } from './content/codex'
 import { useT, useLangStore, LANGS } from './i18n'
@@ -253,6 +255,13 @@ function EngineView() {
           Each shape takes <b>floor space</b> (round shapes are free; exotic many-holed ones cost more but pay far more).
         </p>
       </div>
+      <div style={S.floorWrap}>
+        {view.loadout.length > 0 ? (
+          <FactoryFloor shapes={shapes} loadout={view.loadout} />
+        ) : (
+          <div style={S.floorEmpty}>🏭 Your factory floor is empty — deploy shapes below to see them spinning here, producing Flux.</div>
+        )}
+      </div>
       <div style={S.boardStats}>
         <div style={S.bigStat}>
           <span style={{ ...S.bigStatNum, color: '#ffcf6b' }}>+{fmt(view.rate_per_hr)}</span>
@@ -421,6 +430,12 @@ function ForgeView() {
   const { recipes, view, shapes, forge, claimRelic } = useGame()
   if (!view) return null
   const canRelic = view.shards >= view.relic_cost && view.relics_owned < view.relic_count
+  // Feature a recipe in the 3D altar: prefer one you can forge, else any with both parts, else the first.
+  const featIdx = (() => {
+    const forgeable = recipes.findIndex((r) => view.owned[r.a] > 0 && view.owned[r.b] > 0)
+    return forgeable >= 0 ? forgeable : 0
+  })()
+  const feat = recipes[featIdx]
   return (
     <div style={S.board}>
       <div style={S.boardIntro}>
@@ -431,6 +446,10 @@ function ForgeView() {
           Shards come from duplicate pulls.
         </p>
         <div style={S.shardBank}><span style={S.shardIcon}>◈</span> {view.shards} shards in the bank</div>
+      </div>
+
+      <div style={S.floorWrap}>
+        {feat && <ForgeAltar a={shapes[feat.a]} b={shapes[feat.b]} out={shapes[feat.out]} discovered={view.discovered[featIdx]} />}
       </div>
 
       <div style={S.relicPanel}>
@@ -577,6 +596,8 @@ const S: Record<string, CSSProperties> = {
   budgetBox: { flex: 1, minWidth: 160 },
   budgetTop: { display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#9aa0b4', marginBottom: 4 },
   boardBtns: { display: 'flex', gap: 8 },
+  floorWrap: { height: 300, borderRadius: 14, overflow: 'hidden', border: '1px solid #23252f', background: '#0a0b12' },
+  floorEmpty: { display: 'grid', placeItems: 'center', height: '100%', padding: 24, textAlign: 'center', color: '#6b7088', fontSize: 14, lineHeight: 1.5 },
   boardSub: { margin: '6px 2px 0', fontSize: 12, color: '#8a90a8', textTransform: 'uppercase', letterSpacing: 0.6 },
   chipGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(146px, 1fr))', gap: 8 },
   deployChip: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, background: '#1a1c26', border: '2px solid', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', textAlign: 'left', color: '#e8eaf2' },
