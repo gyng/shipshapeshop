@@ -16,7 +16,7 @@ import { UPGRADE_INFO } from './content/upgrades'
 import { MILESTONE_INFO } from './content/milestones'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
-import { useMute } from './audio'
+import { useMute, sfxUpgrade } from './audio'
 import { DEV_MODE } from './devmode'
 import { Floaters, useFloaters } from './juice'
 
@@ -298,7 +298,25 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
 // The Workshop — permanent, rule-changing upgrades bought with banked Flux (+ some Shards).
 function UpgradesPanel() {
   const { view, upgradeDefs, buyUpgrade } = useGame()
+  const [popped, setPopped] = useState<string | null>(null)
   if (!view) return null
+  // Juice scaled to the upgrade's cost/level: sound climbs, an icon burst + a "Name ↑" pop fire from the button.
+  const onBuy = (e: { currentTarget: HTMLElement }, i: number, key: string, flux: number) => {
+    const before = useGame.getState().view?.upgrades[i] ?? 0
+    buyUpgrade(i)
+    const after = useGame.getState().view?.upgrades[i] ?? before
+    if (after <= before) return
+    const tier = flux > 6000 ? 3 : flux > 3000 ? 2 : 1
+    sfxUpgrade(tier + Math.min(2, after))
+    const info = UPGRADE_INFO[key] ?? { icon: '⚙', name: key }
+    const r = e.currentTarget.getBoundingClientRect()
+    const cx = r.left + r.width / 2
+    const cy = r.top + 4
+    for (let k = 0; k < tier * 5; k++) useFloaters.getState().spawn(info.icon, { x: cx, y: cy, color: '#5fe0c6', big: tier === 3 })
+    useFloaters.getState().spawn(`${info.name} ↑`, { x: cx, y: cy - 26, color: '#9ef0ff', big: true })
+    setPopped(key)
+    setTimeout(() => setPopped(null), 460)
+  }
   return (
     <>
       <h4 style={S.boardSub}>🔧 Workshop — permanent upgrades</h4>
@@ -312,14 +330,14 @@ function UpgradesPanel() {
           const can = !maxed && view.flux >= flux && view.shards >= shards
           const info = UPGRADE_INFO[u.key] ?? { name: u.key, desc: '', icon: '⚙' }
           return (
-            <div key={u.key} className="chip" style={{ ...S.recipeCard, borderColor: lvl > 0 ? '#5fe0c6' : '#23252f' }}>
+            <div key={u.key} className={popped === u.key ? 'chip upgrade-pop' : 'chip'} style={{ ...S.recipeCard, borderColor: lvl > 0 ? '#5fe0c6' : '#23252f' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
                 <span style={{ fontSize: 18 }}>{info.icon}</span>
                 <strong style={{ color: '#e8eaf2' }}>{info.name}</strong>
                 {u.max_level > 1 && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a90a8' }}>Lv {lvl}/{u.max_level}</span>}
               </div>
               <p style={{ ...S.boardDesc, margin: 0, fontSize: 12 }}>{info.desc}</p>
-              <button style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={() => buyUpgrade(i)}>
+              <button style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={(e) => onBuy(e, i, u.key, flux)}>
                 {maxed ? 'Maxed ✓' : (
                   <>Buy · {fmt(flux)} <span style={S.fluxIcon}>✦</span>{shards > 0 ? <> + {shards} <span style={S.shardIcon}>◈</span></> : null}</>
                 )}

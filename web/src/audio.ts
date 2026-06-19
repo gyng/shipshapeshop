@@ -72,6 +72,16 @@ export function sfxForge() {
   tone(330, 0.3, 0.06, 'sine', 0.08)
 }
 
+// A rising arpeggio that gets taller/brighter the bigger the upgrade (intensity ~1..6).
+export function sfxUpgrade(intensity: number) {
+  const base = 330
+  const notes = Math.max(2, Math.min(5, intensity))
+  for (let i = 0; i < notes; i++) {
+    tone(base * Math.pow(1.18, i), 0.12, i * 0.05, 'triangle', 0.11)
+  }
+  tone(base * Math.pow(1.18, notes), 0.34, notes * 0.05, 'sine', 0.1) // resolve note
+}
+
 const RANK: Record<string, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4 }
 export function rarityRank(r: string | null): number {
   return r ? (RANK[r] ?? 0) : 0
