@@ -131,7 +131,7 @@ export function App() {
         {TABS.map((t, i) => (
           <button key={t} onClick={() => setTab(t)} title={`Shortcut: ${i + 1}`} aria-current={tab === t ? 'page' : undefined} style={{ ...S.navBtn, ...(t === 'engine' ? S.navBtnImportant : {}), ...(tab === t ? S.navBtnActive : {}) }}>
             <TabIcon tab={t} />
-            <span>{t === 'gacha' ? tr('nav.pull') : t === 'room' ? 'Room' : t === 'chatlas' ? 'Chatlas' : t === 'workshop' ? 'Workshop' : t === 'shop' ? 'Shop' : t === 'ledger' ? 'Ledger' : tr(`nav.${t}`)}</span>
+            <span>{tr(t === 'gacha' ? 'nav.pull' : `nav.${t}`)}</span>
           </button>
         ))}
       </nav>
@@ -474,8 +474,8 @@ function GachaView() {
           </button>
         )}
         <div style={S.subTabs}>
-          <button style={{ ...S.subTab, ...(sub === 'goals' ? S.subTabOn : {}) }} onClick={() => setSub('goals')}>🎯 Goals</button>
-          <button style={{ ...S.subTab, ...(sub === 'history' ? S.subTabOn : {}) }} onClick={() => setSub('history')}>🕘 Pull history</button>
+          <button style={{ ...S.subTab, ...(sub === 'goals' ? S.subTabOn : {}) }} onClick={() => setSub('goals')}>{tr('pull.goals')}</button>
+          <button style={{ ...S.subTab, ...(sub === 'history' ? S.subTabOn : {}) }} onClick={() => setSub('history')}>{tr('pull.history')}</button>
         </div>
         {sub === 'goals' ? <Objectives /> : <PullHistory />}
       </div>
@@ -504,9 +504,10 @@ function PullHistory() {
 // Session events feed (forges, relics, prestige…), shown at the foot of the Ledger.
 function EventLog() {
   const events = useHistory((s) => s.events)
+  const tr = useT()
   return (
     <>
-      <h4 style={S.boardSub}>Recent events</h4>
+      <h4 style={S.boardSub}>{tr('ledger.events')}</h4>
       {events.length === 0 ? (
         <p style={S.hint}>Forge a shape, summon a relic, or recrystallize and it’ll show up here this session.</p>
       ) : (
@@ -601,6 +602,7 @@ function RoomView() {
 // The player's Curator Rank badge (F → … → SS → ?). Derived from collection progress; display-only.
 function CuratorBadge({ compact = false }: { compact?: boolean }) {
   const view = useGame((s) => s.view)
+  const tr = useT()
   if (!view) return null
   const { rank, score, next, toNext } = curatorRank(view)
   const col = RANK_COLOR[rank] ?? '#8a90a8'
@@ -612,7 +614,7 @@ function CuratorBadge({ compact = false }: { compact?: boolean }) {
       <span style={{ ...S.rankLetter, color: col, borderColor: col, boxShadow: `0 0 12px ${col}55` }}>{rank}</span>
       {!compact && (
         <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
-          <span style={{ fontSize: 10.5, color: '#8a90a8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Curator Rank</span>
+          <span style={{ fontSize: 10.5, color: '#8a90a8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{tr('rank.label')}</span>
           <span style={{ fontSize: 12, color: '#cdd2e0' }}>{next ? `${toNext} pts → ${next}` : 'Apex reached'}</span>
         </span>
       )}
@@ -891,11 +893,12 @@ function ProductionBreakdown() {
 // The Workshop is now its own tab: permanent Flux/Shard upgrades + the Facets prestige tree.
 function WorkshopView() {
   const view = useGame((s) => s.view)
+  const tr = useT()
   if (!view) return null
   return (
     <div style={S.board}>
       <div style={S.boardIntro}>
-        <h3 style={S.boardTitle}>🔧 Workshop</h3>
+        <h3 style={S.boardTitle}>{tr('workshop.title')}</h3>
         <p style={S.boardDesc}>Spend banked <b style={S.fluxIcon}>✦ Flux</b> (and shards) on permanent, rule-changing upgrades. Complete the core and <b>Recrystallize</b> (in the Engine) to earn <b>🌌 Facets</b> for a deeper prestige tree.</p>
       </div>
       <FacetsPanel />
@@ -1606,6 +1609,7 @@ function FluxChart({ data }: { data: number[] }) {
 
 function LedgerView() {
   const { view, fluxHistory, milestoneDefs } = useGame()
+  const tr = useT()
   if (!view) return null
   const playMin = Math.max(0, (view.last_seen_ms - view.created_ms) / 60000)
   const playStr = playMin >= 60 ? (playMin / 60).toFixed(1) + 'h' : Math.floor(playMin) + 'm'
@@ -1661,7 +1665,7 @@ function LedgerView() {
         const topPulls = (view.pulls_by_rarity[3] ?? 0) + (view.pulls_by_rarity[4] ?? 0)
         return (
           <>
-            <h4 style={S.boardSub}>Luck &amp; pity</h4>
+            <h4 style={S.boardSub}>{tr('ledger.luck')}</h4>
             <div style={S.statGrid}>
               {stat('SSR+ pulls', fmt(topPulls))}
               {stat('SSR+ rate', view.total_pulls ? ((topPulls / view.total_pulls) * 100).toFixed(1) + '%' : '—')}

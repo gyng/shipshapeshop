@@ -35,6 +35,11 @@ const STR: Dict = {
   'nav.gallery': { en: 'Gallery', ja: '図鑑', zh: '图鉴' },
   'nav.engine': { en: 'Engine', ja: '工房', zh: '引擎' },
   'nav.forge': { en: 'Forge', ja: '鍛冶', zh: '熔炉' },
+  'nav.room': { en: 'Room', ja: 'ルーム', zh: '房间' },
+  'nav.chatlas': { en: 'Chatlas', ja: 'チャトラス', zh: '图谱聊' },
+  'nav.workshop': { en: 'Workshop', ja: 'ワークショップ', zh: '工坊' },
+  'nav.shop': { en: 'Shop', ja: 'ショップ', zh: '商店' },
+  'nav.ledger': { en: 'Ledger', ja: '台帳', zh: '账本' },
 
   'hud.flux': { en: 'Flux', ja: 'フラックス', zh: '流量' },
   'hud.shards': { en: 'shards', ja: '欠片', zh: '碎片' },
@@ -138,6 +143,14 @@ const STR: Dict = {
     ja: '『次の目標』パネルが目指す先を示す。のんびり癒しでも、数字を最適化でも——あなた次第。楽しんで！',
     zh: '『下一目标』面板会指引方向。悠闲治愈，或钻研数字优化——全凭你。玩得开心！',
   },
+  // Newer feature labels (trivial UI track). JA/ZH provided for the simple structural strings; richer copy
+  // stays English-first until a translator does the transcreation pass (AGENTS.md §10).
+  'pull.goals': { en: '🎯 Goals', ja: '🎯 目標', zh: '🎯 目标' },
+  'pull.history': { en: '🕘 Pull history', ja: '🕘 ガチャ履歴', zh: '🕘 抽取记录' },
+  'ledger.luck': { en: 'Luck & pity', ja: '運と天井', zh: '运气与保底' },
+  'ledger.events': { en: 'Recent events', ja: '最近の出来事', zh: '近期事件' },
+  'rank.label': { en: 'Curator Rank', ja: 'キュレーターランク', zh: '策展人等级' },
+  'workshop.title': { en: '🔧 Workshop', ja: '🔧 ワークショップ', zh: '🔧 工坊' },
 }
 
 export function useT(): (key: string) => string {
