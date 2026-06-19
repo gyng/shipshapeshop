@@ -184,8 +184,11 @@ Crafting is **optional and progressively disclosed** — it never gates the casu
   **180→900/hr** as deployed shapes bring genus-lanes online → Phase C cap **900/hr**. Run-avg ~600/hr.
   The hard 900/hr cap keeps the closed-form offline math from ever running away. *(Smooth the B→C ramp to
   900 to avoid the 720→900 step.)*
-- **Offline cap: a generous 12h** of bankable accrual (≈10.8k Flux). Ethics rule — no coercive check-in;
-  a once-a-day player still finishes inside the 1–2-day band.
+- **Offline cap: a generous full-day 24h** of bankable accrual. Ethics rule — no coercive check-in; the cap
+  only ever helps an *absent* player (it never speeds active play, which ticks in the foreground), so it is
+  set generously. An engaged idler (app open / frequent checks) finishes in ~1–2 days; even a once-a-day
+  player who fully closes the app completes in ~4 days (that floor is set by the number of daily visits to
+  collect ~169 pulls, not by the cap). Verified by `cargo run --bin simulate`.
 - **Pity (recalibrated for a SHORT free game — Genshin's 90-pity is wrong here):** per-pull base **C 50 /
   R 30 / E 14 / SSR 5 / UR 1 %** (top = SSR+ = 6%). SSR+ **soft pity from pull 20**:
   `p(n)=0.06+(n−20)·0.094`; **hard pity 30**. **Epic floor:** guaranteed Epic+ every 10 pulls. Within a top

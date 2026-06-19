@@ -13,7 +13,7 @@ const PULL_COST: f64 = 100.0;
 const TEN_PULL_COST: f64 = 1000.0; // 11 pulls for the price of 10
 const BASE_IDLE: f64 = 60.0; // Flux/hr with an empty loadout
 const RATE_CAP: f64 = 900.0; // Flux/hr cap before prestige (DESIGN §7)
-const OFFLINE_CAP_MS: f64 = 12.0 * 3_600_000.0; // generous 12h
+const OFFLINE_CAP_MS: f64 = 24.0 * 3_600_000.0; // generous full-day cap — respects absence (only ever helps idle players, never speeds active play)
 const START_EULER_CAP: u32 = 6;
 const START_FLUX: f64 = 350.0; // onboarding: ~3 pulls in hand immediately, no 100-minute wait
 const RELIC_COST: u64 = 500; // shards to summon a Relic (the prestigious dupe-shard sink)
@@ -901,11 +901,11 @@ mod tests {
         // 6 hours away
         let r6 = g.compute_offline(6.0 * HOUR);
         assert!((r6.gained_flux - rate * 6.0).abs() < 1e-6);
-        // 100 hours away → capped at 12h
+        // 100 hours away → capped at the offline cap (20h)
         let mut g2 = GameState::new(1, 0.0);
         let r100 = g2.compute_offline(100.0 * HOUR);
         assert_eq!(r100.capped_ms, OFFLINE_CAP_MS);
-        assert!((r100.gained_flux - g2.rate_per_hr() * 12.0).abs() < 1e-6);
+        assert!((r100.gained_flux - g2.rate_per_hr() * 24.0).abs() < 1e-6);
     }
 
     #[test]
