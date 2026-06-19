@@ -55,8 +55,8 @@ function useFluxDisplay(): number {
   return disp
 }
 
-type Tab = 'gacha' | 'room' | 'chatlas' | 'gallery' | 'engine' | 'forge' | 'shop' | 'ledger'
-const TABS: Tab[] = ['gacha', 'room', 'chatlas', 'gallery', 'engine', 'forge', 'shop', 'ledger']
+type Tab = 'engine' | 'workshop' | 'gacha' | 'room' | 'chatlas' | 'gallery' | 'forge' | 'shop' | 'ledger'
+const TABS: Tab[] = ['engine', 'workshop', 'gacha', 'room', 'chatlas', 'gallery', 'forge', 'shop', 'ledger']
 
 // Proper line icons per tab (inherit currentColor, so active/inactive nav colour applies). No emoji.
 function TabIcon({ tab }: { tab: Tab }) {
@@ -66,6 +66,7 @@ function TabIcon({ tab }: { tab: Tab }) {
     chatlas: <><path d="M4 5.5h16v9H10l-4.5 4v-4H4z" /><path d="M8 9h8M8 11.5h5" /></>, // speech bubble + lines
     gallery: <><rect x="3.5" y="3.5" width="7.3" height="7.3" rx="1.3" /><rect x="13.2" y="3.5" width="7.3" height="7.3" rx="1.3" /><rect x="3.5" y="13.2" width="7.3" height="7.3" rx="1.3" /><rect x="13.2" y="13.2" width="7.3" height="7.3" rx="1.3" /></>, // grid
     engine: <><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v3.3M12 18.2v3.3M2.5 12h3.3M18.2 12h3.3M5.2 5.2l2.3 2.3M16.5 16.5l2.3 2.3M18.8 5.2l-2.3 2.3M7.5 16.5l-2.3 2.3" /></>, // gear
+    workshop: <path d="M15 4.5a4 4 0 01-5 5L5 14.5 4 18l3.5-1 5-5a4 4 0 005-5l-2.4 2.4-2.1-.5-.5-2.1z" />, // wrench
     forge: <><path d="M4 20l7.5-7.5" /><path d="M11.5 5.5l7 7-3 3-7-7z" /></>, // hammer
     shop: <><path d="M5 8h14l-1.2 12.5H6.2z" /><path d="M8.8 8V6.2a3.2 3.2 0 016.4 0V8" /></>, // shopping bag
     ledger: <><path d="M4 20.5h16" /><path d="M6.5 20.5V11M11 20.5V5M15.5 20.5v-6M20 20.5V8" /></>, // bar chart
@@ -107,7 +108,7 @@ export function App() {
         else if (g.lastForge) g.dismissForge()
         else if (g.offline) g.dismissOffline()
         else setInspect(null)
-      } else if (k >= '1' && k <= '8') {
+      } else if (k >= '1' && k <= '9') {
         setTab(TABS[Number(k) - 1])
       }
     }
@@ -123,9 +124,9 @@ export function App() {
       <Hud />
       <nav style={S.nav}>
         {TABS.map((t, i) => (
-          <button key={t} onClick={() => setTab(t)} title={`Shortcut: ${i + 1}`} aria-current={tab === t ? 'page' : undefined} style={{ ...S.navBtn, ...(tab === t ? S.navBtnActive : {}) }}>
+          <button key={t} onClick={() => setTab(t)} title={`Shortcut: ${i + 1}`} aria-current={tab === t ? 'page' : undefined} style={{ ...S.navBtn, ...(t === 'engine' ? S.navBtnImportant : {}), ...(tab === t ? S.navBtnActive : {}) }}>
             <TabIcon tab={t} />
-            <span>{t === 'gacha' ? tr('nav.pull') : t === 'room' ? 'Room' : t === 'chatlas' ? 'Chatlas' : t === 'shop' ? 'Shop' : t === 'ledger' ? 'Ledger' : tr(`nav.${t}`)}</span>
+            <span>{t === 'gacha' ? tr('nav.pull') : t === 'room' ? 'Room' : t === 'chatlas' ? 'Chatlas' : t === 'workshop' ? 'Workshop' : t === 'shop' ? 'Shop' : t === 'ledger' ? 'Ledger' : tr(`nav.${t}`)}</span>
           </button>
         ))}
       </nav>
@@ -136,6 +137,7 @@ export function App() {
           {tab === 'chatlas' && <ChatlasView />}
           {tab === 'gallery' && <GalleryView onInspect={setInspect} />}
           {tab === 'engine' && <EngineView />}
+          {tab === 'workshop' && <WorkshopView />}
           {tab === 'forge' && <ForgeView />}
           {tab === 'shop' && <ShopView />}
           {tab === 'ledger' && <LedgerView />}
@@ -750,6 +752,22 @@ function ProductionBreakdown() {
   )
 }
 
+// The Workshop is now its own tab: permanent Flux/Shard upgrades + the Facets prestige tree.
+function WorkshopView() {
+  const view = useGame((s) => s.view)
+  if (!view) return null
+  return (
+    <div style={S.board}>
+      <div style={S.boardIntro}>
+        <h3 style={S.boardTitle}>🔧 Workshop</h3>
+        <p style={S.boardDesc}>Spend banked <b style={S.fluxIcon}>✦ Flux</b> (and shards) on permanent, rule-changing upgrades. Complete the core and <b>Recrystallize</b> (in the Engine) to earn <b>🌌 Facets</b> for a deeper prestige tree.</p>
+      </div>
+      <FacetsPanel />
+      <UpgradesPanel />
+    </div>
+  )
+}
+
 function EngineView() {
   const { shapes, view, deploy, undeploy, autoArrange, recrystallize } = useGame()
   const { bubble, setBubble, talk } = useChatter()
@@ -803,8 +821,6 @@ function EngineView() {
       </div>
 
       <ProductionBreakdown />
-      <FacetsPanel />
-      <UpgradesPanel />
 
       <h4 style={S.boardSub}>On the floor — {deployed.length}</h4>
       <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>💡 Arrangement matters: place kin pairs <b>side by side</b> for synergy, and slot <b>knots between</b> producers (each lifts its neighbours ~+20%). ★ duplicates strengthen every effect. <b>Auto-arrange</b> now solves this for you.</p>
@@ -1728,6 +1744,7 @@ const S: Record<string, CSSProperties> = {
   nav: { display: 'flex', gap: 4, padding: '8px 16px', borderBottom: '1px solid #1c1e2a', overflowX: 'auto' },
   navBtn: { background: 'none', border: 'none', color: '#8a90a8', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' },
   navBtnActive: { background: '#23263a', color: '#fff', boxShadow: 'inset 0 -2px 0 #5fe0c6' },
+  navBtnImportant: { color: '#bff0e6', background: 'rgba(95,224,198,0.10)', boxShadow: 'inset 0 0 0 1px rgba(95,224,198,0.45)', fontWeight: 700 },
   main: { flex: 1, padding: 16, overflow: 'auto' },
   gacha: { maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 },
   stageWrap: { position: 'relative', height: 340, borderRadius: 16, overflow: 'hidden', background: '#0a0a12' },
