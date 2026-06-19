@@ -1,0 +1,62 @@
+import { useRef } from 'react'
+import { Canvas, useFrame } from '@react-three/fiber'
+import { Environment, Lightformer, Float, ContactShadows } from '@react-three/drei'
+import * as THREE from 'three'
+import { getGeometry } from './geometry'
+import { RARITY_COLOR } from './Gem'
+import { useGame, type ShapeRow } from '../game/store'
+import { sceneById } from '../content/cosmetics'
+
+// Both characters share ONE scene (so they read as together). Jewel material (no transmission) keeps two gems
+// cheap + flicker-free. The speaker is scaled up, brighter, and leans toward the other.
+function SceneGem({ shape, side, speaking }: { shape: ShapeRow; side: -1 | 1; speaking: boolean }) {
+  const ref = useRef<THREE.Mesh>(null)
+  useFrame((_, dt) => {
+    if (ref.current) ref.current.rotation.y += dt * 0.5
+  })
+  const col = RARITY_COLOR[shape.rarity]
+  // active character steps toward the centre + forward (toward camera); the listener recedes and dims
+  const x = side * (speaking ? 1.25 : 1.75)
+  const z = speaking ? 1.0 : -0.5
+  return (
+    <>
+      <Float speed={2} rotationIntensity={0} floatIntensity={speaking ? 0.9 : 0.35} floatingRange={[0, 0.16]}>
+        <mesh ref={ref} geometry={getGeometry(shape.family)} position={[x, 0, z]} scale={speaking ? 1.08 : 0.7}>
+          <meshPhysicalMaterial
+            color={col}
+            metalness={0.3}
+            roughness={0.08}
+            clearcoat={1}
+            clearcoatRoughness={0.08}
+            emissive={col}
+            emissiveIntensity={speaking ? 0.65 : 0.18}
+            envMapIntensity={speaking ? 1.8 : 1.0}
+          />
+        </mesh>
+      </Float>
+      {/* a soft key light on the speaker that the listener doesn't get */}
+      {speaking && <pointLight position={[x, 0.6, 2.2]} color={col} intensity={6} distance={6} decay={1.4} />}
+    </>
+  )
+}
+
+export function ShipScene({ a, b, speakerA }: { a?: ShapeRow; b?: ShapeRow; speakerA: boolean }) {
+  const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
+  const [backdrop, key, cool, warm] = scene.env
+  return (
+    <Canvas dpr={[1, 1.8]} shadows camera={{ position: [0, 0.4, 5], fov: 42 }}>
+      <color attach="background" args={['#0b0c16']} />
+      <ambientLight intensity={0.6} />
+      <directionalLight position={[2, 5, 4]} intensity={1.4} castShadow shadow-mapSize={[1024, 1024]} />
+      <Environment resolution={128}>
+        <Lightformer intensity={2.6} color={cool} position={[-4, 2, -3]} scale={6} />
+        <Lightformer intensity={2.4} color={warm} position={[4, 2, -3]} scale={6} />
+        <Lightformer intensity={1.8} color={backdrop} position={[0, -2, 4]} scale={6} />
+        <Lightformer intensity={1.8} color={key} position={[0, 4, 2]} scale={5} />
+      </Environment>
+      {a && <SceneGem shape={a} side={-1} speaking={speakerA} />}
+      {b && <SceneGem shape={b} side={1} speaking={!speakerA} />}
+      <ContactShadows position={[0, -1.1, 0]} opacity={0.5} scale={8} blur={2.4} far={3} />
+    </Canvas>
+  )
+}

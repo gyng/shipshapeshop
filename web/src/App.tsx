@@ -3,6 +3,7 @@ import { useGame, RARITY_ORDER, type ShapeRow } from './game/store'
 import { HeroView } from './three/HeroView'
 import { FactoryFloor } from './three/FactoryFloor'
 import { ForgeAltar } from './three/ForgeAltar'
+import { ShipScene } from './three/ShipScene'
 import { RARITY_COLOR } from './three/Gem'
 import { CODEX } from './content/codex'
 import { SCENES, sceneById } from './content/cosmetics'
@@ -851,15 +852,12 @@ function ShipCutscene() {
     <div style={S.modal} onClick={advance}>
       <div className="pop-in" style={S.shipCard} onClick={(e) => e.stopPropagation()}>
         <div style={S.shipHead}>♥ {a?.nick} &amp; {b?.nick}</div>
-        <div style={S.shipGems}>
-          <div style={{ ...S.shipModel, opacity: speakerA ? 1 : 0.55, transform: speakerA ? 'scale(1.06)' : 'scale(0.92)', boxShadow: speakerA ? `0 0 28px ${aCol}66` : 'none' }}>
-            {a && <HeroView key={`a${a.family}`} family={a.family} rarity={a.rarity} controls={false} spin={0.7} />}
-            <div style={S.shipModelName}>{a?.nick}</div>
-          </div>
-          <span style={S.shipHeart}>♥</span>
-          <div style={{ ...S.shipModel, opacity: speakerA ? 0.55 : 1, transform: speakerA ? 'scale(0.92)' : 'scale(1.06)', boxShadow: speakerA ? 'none' : `0 0 28px ${bCol}66` }}>
-            {b && <HeroView key={`b${b.family}`} family={b.family} rarity={b.rarity} controls={false} spin={0.7} />}
-            <div style={S.shipModelName}>{b?.nick}</div>
+        <div style={S.shipStage}>
+          <ShipScene a={a} b={b} speakerA={speakerA} />
+          <div style={S.shipNames}>
+            <span style={{ color: speakerA ? aCol : '#7b8198', fontWeight: 700, transition: 'color .2s' }}>{a?.nick}</span>
+            <span style={{ color: '#ff5d8f' }}>♥</span>
+            <span style={{ color: speakerA ? '#7b8198' : bCol, fontWeight: 700, transition: 'color .2s' }}>{b?.nick}</span>
           </div>
         </div>
         <div style={S.shipLineBox}>
@@ -1034,6 +1032,8 @@ const S: Record<string, CSSProperties> = {
   kbd: { fontSize: 10, background: 'rgba(0,0,0,0.32)', border: '1px solid rgba(255,255,255,0.28)', borderRadius: 4, padding: '0 5px', marginLeft: 5, fontFamily: 'ui-monospace, monospace' },
   shipModel: { position: 'relative', width: 132, height: 132, borderRadius: 12, overflow: 'hidden', transition: 'all 0.25s ease' },
   shipModelName: { position: 'absolute', left: 0, right: 0, bottom: 4, textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#fff', textShadow: '0 1px 4px #000', pointerEvents: 'none' },
+  shipStage: { position: 'relative', height: 210, borderRadius: 12, overflow: 'hidden', border: '1px solid #2a2c3a', marginBottom: 14 },
+  shipNames: { position: 'absolute', left: 0, right: 0, bottom: 8, display: 'flex', justifyContent: 'center', gap: 14, fontSize: 13, textShadow: '0 1px 6px #000', pointerEvents: 'none' },
   kbRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid #1c1e2a' },
   kbDesc: { color: '#9aa0b4', fontSize: 12.5 },
   kbd2: { fontFamily: 'ui-monospace, monospace', fontSize: 12, background: '#0c0d15', border: '1px solid #3a3d4f', borderRadius: 5, padding: '2px 7px', color: '#e8eaf2' },
