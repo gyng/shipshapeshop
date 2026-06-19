@@ -173,6 +173,21 @@ pub fn is_ballast(id: usize) -> bool {
     SHAPES[id].euler_cost == 0
 }
 
+/// Bespoke "signature" SELF bonuses for iconic shapes — layered on top of their archetype, star-scaled.
+/// (id, self-production bonus, inspector label). The truly special globals (Sphere anchor, Hopf link) are
+/// handled separately in game.rs::signature_global_mult.
+pub const SIGNATURE: &[(usize, f64, &str)] = &[
+    (18, 0.30, "Flagship Klein — the overdrive runs deepest here"),
+    (26, 0.50, "Genus-7 powerhouse — seven handle-lanes roaring at once"),
+    (16, 0.20, "The first knot — it sets the standard others follow"),
+    (30, 0.25, "Strange attractor — chaotic, relentless throughput"),
+    (51, 0.30, "Infinite surface, finite swagger"),
+    (40, 0.25, "The Mazur trick — something from very nearly nothing"),
+];
+pub fn signature(id: usize) -> Option<(f64, &'static str)> {
+    SIGNATURE.iter().find(|&&(i, _, _)| i == id).map(|&(_, b, l)| (b, l))
+}
+
 /// Connected-sum forge recipes (M6): gluing two shapes makes a third, by the real topology
 /// (Mö # Mö = Klein; torus # torus = genus-2; …). Inputs unordered; the output is granted on craft.
 pub struct Recipe {

@@ -160,6 +160,7 @@ pub struct GameStateView {
     pub mult_facet: f64,
     pub mult_ballast: f64,
     pub mult_crossdim: f64,
+    pub mult_signature: f64,
 }
 
 impl GameState {
@@ -209,6 +210,9 @@ impl GameState {
                 if content::is_nonorientable(s.family) {
                     p *= 1.0 + 0.30 * (1.0 + 0.15 * star); // overdrive
                 }
+                if let Some((bonus, _)) = content::signature(id) {
+                    p *= 1.0 + bonus * (1.0 + 0.15 * star); // bespoke signature self-bonus
+                }
                 p
             })
             .collect();
@@ -246,6 +250,19 @@ impl GameState {
         1.0 + bonus.min(0.6)
     }
 
+    /// Two special "signature" globals: the Sphere is an Anchor (steadies the whole team — it's the identity
+    /// element of connected sum), and the Hopf link entangles the entire floor at once (a global knot).
+    fn signature_global_mult(&self) -> f64 {
+        let mut m = 1.0;
+        if self.loadout.contains(&0) {
+            m *= 1.0 + 0.06 * (1.0 + 0.15 * self.star_level(0) as f64); // Sphere — Anchor
+        }
+        if self.loadout.contains(&39) {
+            m *= 1.0 + 0.08 * (1.0 + 0.15 * self.star_level(39) as f64); // Hopf link — global entanglement
+        }
+        m
+    }
+
     pub fn rate_per_hr(&self) -> f64 {
         let cap = RATE_CAP + 300.0 * self.upgrade_level(7) as f64; // overflow_cap (#7)
         (BASE_IDLE + self.deployed_production()).min(cap)
@@ -258,6 +275,7 @@ impl GameState {
             * self.facet_meta_mult()
             * self.ballast_mult()
             * self.crossdim_mult()
+            * self.signature_global_mult()
     }
 
     /// Family set bonus (M7): completing the 5 Platonic solids grants a permanent global multiplier.
@@ -622,6 +640,35 @@ impl GameState {
                 used += c;
             }
         }
+        self.optimize_order();
+    }
+
+    /// Reorder the chosen loadout to maximise the ACTUAL rate — solving the adjacency puzzle (kin pairs
+    /// side-by-side, knots between producers). Deterministic 2-opt: keep any pair-swap that raises the rate.
+    fn optimize_order(&mut self) {
+        let n = self.loadout.len();
+        if n < 3 {
+            return;
+        }
+        let mut best = self.rate_per_hr();
+        let mut improved = true;
+        let mut guard = 0;
+        while improved && guard < 12 {
+            improved = false;
+            guard += 1;
+            for i in 0..n {
+                for j in (i + 1)..n {
+                    self.loadout.swap(i, j);
+                    let r = self.rate_per_hr();
+                    if r > best + 1e-9 {
+                        best = r;
+                        improved = true;
+                    } else {
+                        self.loadout.swap(i, j); // revert
+                    }
+                }
+            }
+        }
     }
 
     /// Core completion ignores Relics — they're a bonus tier, not required for the summit.
@@ -797,6 +844,7 @@ impl GameState {
             mult_facet: self.facet_meta_mult(),
             mult_ballast: self.ballast_mult(),
             mult_crossdim: self.crossdim_mult(),
+            mult_signature: self.signature_global_mult(),
         }
     }
 }
@@ -1266,6 +1314,18 @@ mod tests {
         g.owned[filler] = 1;
         g.loadout = vec![a, filler, b];
         assert_eq!(g.synergy_count(), 0, "non-adjacent kin pair gives no synergy");
+    }
+
+    #[test]
+    fn auto_arrange_orders_for_synergy() {
+        let mut g = GameState::new(1, 0.0);
+        let (a, b) = content::SYNERGY_PAIRS[0];
+        g.owned[a] = 1;
+        g.owned[b] = 1;
+        g.owned[0] = 1; // a free filler that would separate the pair under a naive sort
+        g.auto_arrange();
+        assert!(g.loadout.contains(&a) && g.loadout.contains(&b));
+        assert!(g.synergy_count() >= 1, "auto-arrange should place the kin pair adjacent");
     }
 
     #[test]
