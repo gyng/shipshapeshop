@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useGame, RARITY_ORDER, type ShapeRow } from './game/store'
 import { HeroView } from './three/HeroView'
 import { FactoryFloor } from './three/FactoryFloor'
@@ -441,7 +441,32 @@ function GachaView() {
   )
 }
 
+// Pick the room's cast for a given 30-min window: the secretary (always) + a deterministic, seeded selection
+// of owned shapes. Seeded by the epoch so the cast is STABLE within the window and rotates at each boundary.
+function rosterForEpoch(ownedIds: number[], secretaryId: number | null, epoch: number, n: number): number[] {
+  let seed = (epoch * 2654435761) >>> 0
+  const rand = () => {
+    seed = (seed + 0x6d2b79f5) >>> 0
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+  const pool = ownedIds.filter((id) => id !== secretaryId)
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    ;[pool[i], pool[j]] = [pool[j], pool[i]]
+  }
+  const out: number[] = []
+  if (secretaryId != null && ownedIds.includes(secretaryId)) out.push(secretaryId)
+  for (const id of pool) {
+    if (out.length >= n) break
+    out.push(id)
+  }
+  return out
+}
+
 // The lobby ("My Room"): your shapes roam a cozy floor; tap to chat + a tiny bond boost. Scene re-skins it.
+// The cast is fixed per 30-min real-time window (rotates at the top of each), so shapes don't churn as you play.
 function RoomView() {
   const shapes = useGame((s) => s.shapes)
   const view = useGame((s) => s.view)
@@ -449,16 +474,14 @@ function RoomView() {
   const secretaryId = useGame((s) => s.secretaryId)
   const { bubble, setBubble, talk } = useChatter()
   const cooldown = useRef<Record<number, number>>({})
-  const ids: number[] = []
-  if (view) {
-    const push = (id: number) => {
-      if (id != null && view.owned[id] > 0 && !ids.includes(id)) ids.push(id)
-    }
-    if (secretaryId != null) push(secretaryId)
-    view.loadout.forEach(push)
-    shapes.forEach((s) => push(s.id))
-  }
-  const roster = ids.slice(0, 7).map((id) => shapes[id]).filter(Boolean) as ShapeRow[]
+  const epoch = Math.floor(Date.now() / 1_800_000) // 30-minute real-time window
+  const ownedIds = view ? shapes.filter((s) => view.owned[s.id] > 0).map((s) => s.id) : []
+  const roster = useMemo(
+    () => rosterForEpoch(ownedIds, secretaryId, epoch, 7).map((id) => shapes[id]).filter(Boolean) as ShapeRow[],
+    // snapshot per window (+ when the secretary changes, or the first shape is ever owned) — NOT every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [epoch, secretaryId, ownedIds.length === 0],
+  )
   useIdleChatter(() => {
     if (roster.length && view) {
       const s = roster[Math.floor(Math.random() * roster.length)]
