@@ -22,6 +22,7 @@ import { shapeEffect } from './content/effects'
 import { generateMessages, type ChatMsg } from './content/chatlas'
 import { useDialogLog } from './dialogLog'
 import { useTitle, titleSrc, TITLE_COUNT } from './titleArt'
+import { curatorRank, RANK_COLOR } from './curatorRank'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
@@ -538,6 +539,28 @@ function RoomView() {
   )
 }
 
+// The player's Curator Rank badge (F → … → SS → ?). Derived from collection progress; display-only.
+function CuratorBadge({ compact = false }: { compact?: boolean }) {
+  const view = useGame((s) => s.view)
+  if (!view) return null
+  const { rank, score, next, toNext } = curatorRank(view)
+  const col = RANK_COLOR[rank] ?? '#8a90a8'
+  return (
+    <div
+      style={S.rankBadge}
+      title={`Curator score ${score}${next ? ` · ${toNext} to rank ${next}` : ' · apex rank'} — from collection, relics, recipes, maxed bonds & prestige.`}
+    >
+      <span style={{ ...S.rankLetter, color: col, borderColor: col, boxShadow: `0 0 12px ${col}55` }}>{rank}</span>
+      {!compact && (
+        <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
+          <span style={{ fontSize: 10.5, color: '#8a90a8', textTransform: 'uppercase', letterSpacing: 0.5 }}>Curator Rank</span>
+          <span style={{ fontSize: 12, color: '#cdd2e0' }}>{next ? `${toNext} pts → ${next}` : 'Apex reached'}</span>
+        </span>
+      )}
+    </div>
+  )
+}
+
 // Chatlas — the curators' procgen group chat. New lines drift in over time + auto-scroll (a living feed).
 function ChatlasView() {
   const shapes = useGame((s) => s.shapes)
@@ -557,7 +580,10 @@ function ChatlasView() {
   return (
     <div style={S.board}>
       <div style={S.boardIntro}>
-        <h3 style={S.boardTitle}>💬 Chatlas</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <h3 style={S.boardTitle}>💬 Chatlas</h3>
+          <CuratorBadge />
+        </div>
         <p style={S.boardDesc}>The curators’ group chat — hot takes, shipping gossip, and 3am flux-watching from collectors across the Manifold. Procedurally generated, entirely in good fun.</p>
       </div>
       <div ref={ref} style={S.chatFeed}>
@@ -1447,7 +1473,10 @@ function LedgerView() {
   return (
     <div style={S.board}>
       <div style={S.boardIntro}>
-        <h3 style={S.boardTitle}>📊 Ledger — your run in numbers</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <h3 style={S.boardTitle}>📊 Ledger — your run in numbers</h3>
+          <CuratorBadge />
+        </div>
         <p style={S.boardDesc}>Everything the Atlas has tallied. Flux over the last couple of minutes:</p>
       </div>
       <FluxChart data={fluxHistory} />
@@ -1472,6 +1501,9 @@ function LedgerView() {
         {stat('Floor space', view.euler_used + '/' + view.euler_cap)}
         {stat('Platonic set', view.platonic_set ? '✓ complete' : '—')}
         {stat('Scenes', view.cosmetics.length + 1 + '/' + SCENES.length)}
+        {stat('Recipes', view.discovered.filter(Boolean).length + '/' + view.discovered.length)}
+        {stat('Bonds maxed', String(view.bond_levels.filter((b) => b >= 5).length))}
+        {stat('Kin synergies', String(view.active_synergies))}
       </div>
       <h4 style={S.boardSub}>Pulls by rarity</h4>
       <div style={S.statGrid}>
@@ -1482,6 +1514,20 @@ function LedgerView() {
           </div>
         ))}
       </div>
+      {(() => {
+        const topPulls = (view.pulls_by_rarity[3] ?? 0) + (view.pulls_by_rarity[4] ?? 0)
+        return (
+          <>
+            <h4 style={S.boardSub}>Luck &amp; pity</h4>
+            <div style={S.statGrid}>
+              {stat('SSR+ pulls', fmt(topPulls))}
+              {stat('SSR+ rate', view.total_pulls ? ((topPulls / view.total_pulls) * 100).toFixed(1) + '%' : '—')}
+              {stat('Pity to SSR+', view.pity_since_top + '/30')}
+              {stat('Resonance', view.resonance + '/40')}
+            </div>
+          </>
+        )
+      })()}
 
       {(() => {
         const done = view.milestones_done
@@ -1890,6 +1936,8 @@ const S: Record<string, CSSProperties> = {
   chatMsg: { display: 'flex', flexDirection: 'column', gap: 1, background: '#14151d', borderRadius: 10, padding: '8px 12px' },
   chatHandle: { fontSize: 11, fontWeight: 800 },
   chatText: { fontSize: 13.5, color: '#cdd2e0', lineHeight: 1.45 },
+  rankBadge: { display: 'inline-flex', alignItems: 'center', gap: 8, background: '#14151d', border: '1px solid #23252f', borderRadius: 12, padding: '6px 12px 6px 8px' },
+  rankLetter: { fontSize: 19, fontWeight: 900, border: '2px solid', borderRadius: 9, minWidth: 34, height: 34, padding: '0 4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   multGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 6, marginBottom: 10 },
   multRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#14151d', border: '1px solid #23252f', borderRadius: 8, padding: '6px 10px' },
   engine: { maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 },
