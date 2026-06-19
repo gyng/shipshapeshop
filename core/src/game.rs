@@ -3,6 +3,7 @@
 //! exposes JSON to TypeScript.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use wasm_bindgen::prelude::*;
 
 use crate::content::{self, COUNT, SHAPES};
@@ -47,6 +48,30 @@ fn shard_value(r: Rarity) -> u64 {
         Rarity::Ur => 60,
         Rarity::Relic => 120,
     }
+}
+
+/// A player's override of a shape's orbit: PHASE (timing) + DIRECTION (retro flips traversal). The period stays
+/// topology-seeded, so the system lcm — and thus O(1) offline — is unaffected.
+#[derive(Clone, Copy, Default, Serialize, Deserialize)]
+pub struct OrbitTune {
+    pub phase: u8,
+    pub retro: bool,
+}
+
+/// Apply a player tune to a topology-seeded orbit. PATH LENGTH (period) is never changed — only the phase and
+/// the traversal direction — so `system_period`/lcm and the O(1) offline math are untouched.
+fn apply_tune(mut o: orrery::Orbit, tune: Option<&OrbitTune>) -> orrery::Orbit {
+    if let Some(t) = tune {
+        let p = o.path.len();
+        if p > 0 {
+            o.phase = (t.phase as usize % p) as u8;
+            if t.retro {
+                // reverse traversal while keeping path[0] fixed: new[i] = old[(p - i) % p]
+                o.path = (0..p).map(|i| o.path[(p - i) % p]).collect();
+            }
+        }
+    }
+    o
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -96,6 +121,8 @@ pub struct GameState {
     pub current_banner: u32, // selected gacha banner (0 = Standard); rate-up steering only
     #[serde(default)]
     pub use_orrery: bool, // opt-in periodic-orbit engine; false ⇒ the static-board path is byte-identical
+    #[serde(default)]
+    pub orbit_tune: BTreeMap<u16, OrbitTune>, // per-shape orbit overrides (phase + direction); period stays seeded
 }
 
 #[derive(Serialize)]
@@ -129,6 +156,8 @@ pub struct OrbitView {
     pub path: Vec<u8>,
     pub phase: u8,
     pub period: u8,
+    pub retro: bool, // direction flipped from the topology default (player tune)
+    pub tuned: bool, // the player has overridden this orbit
 }
 
 #[derive(Serialize)]
@@ -230,6 +259,7 @@ impl GameState {
             facet_perks: vec![0; content::FACET_PERK_COUNT],
             current_banner: 0,
             use_orrery: false,
+            orbit_tune: BTreeMap::new(),
         }
     }
 
@@ -345,6 +375,14 @@ impl GameState {
     }
 
     // ── Orrery engine (active only when `use_orrery`) ──────────────────────────────────────────────
+    /// A loadout shape's orbit: the topology default, with any player tune (phase/direction) applied on top.
+    fn tuned_orbit(&self, id: usize, slot: usize) -> orrery::Orbit {
+        apply_tune(
+            content::orbit_for(&SHAPES[id], slot),
+            self.orbit_tune.get(&(id as u16)),
+        )
+    }
+
     /// Build the orbit arrangement from the current loadout (placement `shape` = loadout slot index, so the
     /// base-rate / pair-bonus tables below index by slot).
     fn orrery_state(&self) -> OrreryState {
@@ -355,7 +393,7 @@ impl GameState {
                 .enumerate()
                 .map(|(i, &id)| Placement {
                     shape: i as u16,
-                    orbit: content::orbit_for(&SHAPES[id], i),
+                    orbit: self.tuned_orbit(id, i),
                 })
                 .collect(),
         }
@@ -1233,11 +1271,14 @@ impl GameState {
                 .iter()
                 .enumerate()
                 .map(|(i, &id)| {
-                    let o = content::orbit_for(&SHAPES[id], i);
+                    let o = self.tuned_orbit(id, i);
+                    let tune = self.orbit_tune.get(&(id as u16));
                     OrbitView {
                         path: o.path.clone(),
                         phase: o.phase,
                         period: o.period() as u8,
+                        retro: tune.map(|t| t.retro).unwrap_or(false),
+                        tuned: tune.is_some(),
                     }
                 })
                 .collect(),
@@ -1357,6 +1398,19 @@ impl Game {
     pub fn set_use_orrery(&mut self, on: bool, now_ms: f64) {
         self.state.tick(now_ms);
         self.state.use_orrery = on;
+    }
+    /// Tune a deployed shape's orbit — `phase` (timing) + `retro` (flip direction). Period stays topology-seeded
+    /// (lcm/O(1) unaffected). Banks production at `now_ms` first so the re-phase is seamless.
+    pub fn tune_orbit(&mut self, shape_id: u16, phase: u8, retro: bool, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state
+            .orbit_tune
+            .insert(shape_id, OrbitTune { phase, retro });
+    }
+    /// Clear a shape's orbit tune (back to the topology default).
+    pub fn reset_orbit(&mut self, shape_id: u16, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.orbit_tune.remove(&shape_id);
     }
 }
 
@@ -1586,6 +1640,81 @@ mod tests {
                                                                       // orrery prefix is deterministic
         g.use_orrery = true;
         assert_eq!(g.orrery_prefix(), g.orrery_prefix());
+    }
+
+    #[test]
+    fn orrery_tuning_preserves_period_and_offline_o1() {
+        let mut g = GameState::new(7, 0.0);
+        for id in 0..6 {
+            g.owned[id] = 1;
+        }
+        g.auto_arrange();
+        g.use_orrery = true;
+        g.last_seen_ms = 0.0;
+        let period_before = g.orrery_state().system_period();
+        let base = g.clone().compute_offline(90_000.0);
+
+        // tune the first deployed shape: new phase + flipped direction
+        let id = g.loadout[0] as u16;
+        g.orbit_tune.insert(
+            id,
+            OrbitTune {
+                phase: 3,
+                retro: true,
+            },
+        );
+
+        // period (⇒ lcm ⇒ O(1) offline) is unchanged by tuning
+        assert_eq!(g.orrery_state().system_period(), period_before);
+        assert!(g.orrery_state().checked_system_period().is_some());
+        assert!(g.orrery_state().system_period() <= orrery::L_CAP);
+
+        // offline still bit-stable across calls, seconds AND weeks (closed form, no per-tick loop)
+        let s1 = g.clone().compute_offline(90_000.0);
+        let s2 = g.clone().compute_offline(90_000.0);
+        assert_eq!(s1.gained_flux.to_bits(), s2.gained_flux.to_bits());
+        let weeks = g.clone().compute_offline(14.0 * 24.0 * 3_600_000.0);
+        assert_eq!(weeks.capped_ms, OFFLINE_CAP_MS);
+        assert!(weeks.gained_flux.is_finite() && weeks.gained_flux > 0.0);
+
+        // reset → bit-identical to the pre-tune default
+        g.orbit_tune.remove(&id);
+        let after = g.clone().compute_offline(90_000.0);
+        assert_eq!(after.gained_flux.to_bits(), base.gained_flux.to_bits());
+    }
+
+    #[test]
+    fn orrery_tune_changes_phase_not_period() {
+        let mut g = GameState::new(3, 0.0);
+        for id in 0..6 {
+            g.owned[id] = 1;
+        }
+        g.auto_arrange();
+        let id = g.loadout[0];
+        let base = g.tuned_orbit(id, 0);
+        let new_phase = (base.phase + 1) % base.period() as u8;
+        g.orbit_tune.insert(
+            id as u16,
+            OrbitTune {
+                phase: new_phase,
+                retro: false,
+            },
+        );
+        let tuned = g.tuned_orbit(id, 0);
+        assert_eq!(base.period(), tuned.period()); // period preserved (lcm safe)
+        assert_eq!(tuned.phase, new_phase); // phase actually moved
+        assert_ne!(base.phase, tuned.phase);
+    }
+
+    #[test]
+    fn orrery_oldsave_without_tune_field_loads() {
+        // A pre-orbit_tune save must still deserialize (serde default → empty map).
+        let g = GameState::new(9, 0.0);
+        let mut json: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&g).unwrap()).unwrap();
+        json.as_object_mut().unwrap().remove("orbit_tune");
+        let restored: GameState = serde_json::from_value(json).unwrap();
+        assert!(restored.orbit_tune.is_empty());
     }
 
     #[test]

@@ -29,8 +29,11 @@ function OrbitGem({ shape, orbit, ring, tickSec }: { shape: ShapeRow; orbit: Orb
     const base = Math.floor(t)
     const frac = t - base
     const f = frac * frac * (3 - 2 * frac) // smoothstep: settle into each cell
-    const a0 = cellAngle(orbit.path[(orbit.phase + base) % orbit.period])
-    let d = cellAngle(orbit.path[(orbit.phase + base + 1) % orbit.period]) - a0
+    const c0 = orbit.path[(orbit.phase + base) % orbit.period]
+    const c1 = orbit.path[(orbit.phase + base + 1) % orbit.period]
+    if (c0 == null || c1 == null) return
+    const a0 = cellAngle(c0)
+    let d = cellAngle(c1) - a0
     if (d > Math.PI) d -= Math.PI * 2
     if (d < -Math.PI) d += Math.PI * 2
     const a = a0 + d * f

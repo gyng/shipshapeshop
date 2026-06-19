@@ -290,3 +290,24 @@ input:focus, textarea:focus {
 /* GLOBAL FONT EXPERIMENT — apply the display serif (IM Fell English / New Tegomin) to ALL text for review.
    Remove this block to revert to the system sans. */
 body, button, input, textarea, select { font-family: var(--font-app); }
+
+/* ─────────────────────────────────────────────────────────────
+   ORRERY ENGINE — full-bleed canvas with floating overlay panels.
+   Desktop: library left, active right, mults top, timeline bottom.
+   Mobile: library + active drop to two half-width panels at the bottom.
+   ───────────────────────────────────────────────────────────── */
+.orrery-wrap { position: relative; width: 100%; height: min(74vh, 660px); border-radius: var(--r-3xl); overflow: hidden; border: 1px solid var(--c-border); background: var(--c-bg-stage); }
+.orrery-canvas { position: absolute; inset: 0; }
+.orrery-panel { background: rgba(13,14,22,0.78); backdrop-filter: blur(6px); border: 1px solid var(--c-border); border-radius: var(--r-2xl); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 24px rgba(0,0,0,0.45); }
+.orrery-top { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 80%; z-index: 3; pointer-events: none; }
+.orrery-left, .orrery-right { position: absolute; top: 50px; bottom: 64px; width: 168px; overflow-y: auto; z-index: 3; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.orrery-left { left: 8px; }
+.orrery-right { right: 8px; }
+.orrery-bottom { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3; padding: 6px 10px; }
+@media (max-width: 760px) {
+  .orrery-wrap { height: min(82vh, 600px); }
+  .orrery-left, .orrery-right { top: auto; bottom: 56px; width: calc(50% - 12px); max-height: 40%; }
+  .orrery-left { left: 8px; }
+  .orrery-right { right: 8px; }
+  .orrery-top { max-width: 96%; }
+}

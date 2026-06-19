@@ -88,7 +88,7 @@ export interface View {
   orrery_ring: number
   orrery_period: number
   orrery_tick_ms: number
-  orrery_orbits: { path: number[]; phase: number; period: number }[]
+  orrery_orbits: { path: number[]; phase: number; period: number; retro: boolean; tuned: boolean }[]
 }
 
 export interface BannerDef {
@@ -215,6 +215,8 @@ interface Store {
   buyFacetPerk: (id: number) => void
   setBanner: (id: number) => void
   setUseOrrery: (on: boolean) => void
+  tuneOrbit: (id: number, phase: number, retro: boolean) => void
+  resetOrbit: (id: number) => void
   selectScene: (id: number) => void
   fluxHistory: number[]
   milestoneToast: number | null
@@ -545,6 +547,16 @@ export const useGame = create<Store>((set, get) => ({
   },
   setUseOrrery: (on) => {
     game?.set_use_orrery(on, Date.now())
+    get().refresh()
+    persist()
+  },
+  tuneOrbit: (id, phase, retro) => {
+    game?.tune_orbit(id, phase, retro, Date.now())
+    get().refresh()
+    persist()
+  },
+  resetOrbit: (id) => {
+    game?.reset_orbit(id, Date.now())
     get().refresh()
     persist()
   },

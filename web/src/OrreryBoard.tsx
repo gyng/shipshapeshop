@@ -44,9 +44,13 @@ export function OrreryBoard() {
         if (!g || !orb || orb.period === 0) continue
         const c0 = orb.path[(orb.phase + base) % orb.period]
         const c1 = orb.path[(orb.phase + base + 1) % orb.period]
+        if (c0 == null || c1 == null) continue
         const [x0, y0] = cellPos(c0)
         const [x1, y1] = cellPos(c1)
-        g.setAttribute('transform', `translate(${(x0 + (x1 - x0) * frac).toFixed(2)} ${(y0 + (y1 - y0) * frac).toFixed(2)})`)
+        const x = x0 + (x1 - x0) * frac
+        const y = y0 + (y1 - y0) * frac
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue
+        g.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)})`)
       }
       if (base !== lastTick.current) {
         lastTick.current = base
