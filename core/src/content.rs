@@ -117,6 +117,62 @@ pub fn effective_prod(id: usize) -> f64 {
     s.base_prod * (1.0 + 0.25 * s.genus as f64)
 }
 
+// ── Star levels (★1–★5) — duplicate copies "ascend" a shape, scaling its ShapeEffect magnitude. ──
+// Derived purely from `owned[id]` (copies), so there's no new save state to migrate. Cheap for commons,
+// brutal for URs (the post-NG+ mastery long-tail). Incremental dupes per star × a per-rarity scalar.
+const STAR_INCR: [u32; 5] = [1, 2, 3, 4, 5]; // extra copies needed for ★1, ★2, … ★5 (before the rarity scalar)
+fn star_scalar(r: Rarity) -> u32 {
+    match r {
+        Rarity::Common | Rarity::Rare | Rarity::Epic => 1,
+        Rarity::Ssr => 2,
+        Rarity::Relic => 2,
+        Rarity::Ur => 3,
+    }
+}
+/// Star level (0–5) for a shape given how many DUPLICATE copies are owned (owned-1).
+pub fn stars_from_dupes(r: Rarity, dupes: u32) -> u32 {
+    let scalar = star_scalar(r);
+    let mut need = 0u32;
+    for star in 1..=5u32 {
+        need += STAR_INCR[(star - 1) as usize] * scalar;
+        if dupes < need {
+            return star - 1;
+        }
+    }
+    5
+}
+/// Duplicates needed to reach the NEXT star (None if already ★5) — for the inspector progress bar.
+pub fn dupes_to_next_star(r: Rarity, dupes: u32) -> Option<(u32, u32)> {
+    let scalar = star_scalar(r);
+    let mut need = 0u32;
+    for star in 1..=5u32 {
+        let prev = need;
+        need += STAR_INCR[(star - 1) as usize] * scalar;
+        if dupes < need {
+            return Some((dupes - prev, need - prev)); // (have, needed) toward this star
+        }
+    }
+    None
+}
+
+// ── ShapeEffect archetypes (keyed to real topology) — the "each character is unique" layer. ──
+/// Non-orientable surfaces → Orientability Overdrive (a flat production boost; the oscillation is cosmetic).
+pub fn is_nonorientable(family: &str) -> bool {
+    matches!(family, "mobius" | "klein_bottle" | "rp2" | "boys_surface" | "cross_cap" | "klein_quartic")
+}
+/// Knots & links → Entanglement (boost loadout-adjacent neighbours — makes ORDER matter).
+pub fn is_knot(family: &str) -> bool {
+    matches!(family, "trefoil" | "figure8_knot" | "torus_knot_2_5" | "torus_knot_2_7" | "borromean" | "seifert" | "hopf")
+}
+/// 4D polytopes → Cross-Dimension (a global bonus, inert until the viewport reaches 4D in New Game+).
+pub fn is_polytope_4d(family: &str) -> bool {
+    matches!(family, "tesseract" | "cell_16" | "cell_24" | "cell_120" | "cell_600")
+}
+/// χ=2 free-to-deploy anchors (Sphere/Platonics) → Euler Ballast (a small steady team bonus).
+pub fn is_ballast(id: usize) -> bool {
+    SHAPES[id].euler_cost == 0
+}
+
 /// Connected-sum forge recipes (M6): gluing two shapes makes a third, by the real topology
 /// (Mö # Mö = Klein; torus # torus = genus-2; …). Inputs unordered; the output is granted on craft.
 pub struct Recipe {
@@ -245,6 +301,18 @@ pub const SYNERGY_PAIRS: [(usize, usize); 8] = [
 mod tests {
     use super::*;
     use std::collections::HashSet;
+
+    #[test]
+    fn stars_ramp_and_cap() {
+        // 0 dupes = ★0; commons reach ★5 fast, URs slowly; never exceeds ★5.
+        assert_eq!(stars_from_dupes(Rarity::Common, 0), 0);
+        assert_eq!(stars_from_dupes(Rarity::Common, 1), 1); // 1 dupe → ★1 (scalar 1)
+        assert_eq!(stars_from_dupes(Rarity::Common, 15), 5); // 1+2+3+4+5 = 15 → ★5
+        assert_eq!(stars_from_dupes(Rarity::Common, 999), 5); // hard cap
+        assert_eq!(stars_from_dupes(Rarity::Ur, 1), 0); // UR ★1 needs 3 dupes (scalar 3)
+        assert_eq!(stars_from_dupes(Rarity::Ur, 3), 1);
+        assert!(stars_from_dupes(Rarity::Ur, 44) < 5 && stars_from_dupes(Rarity::Ur, 45) == 5); // ★5 = 45 dupes
+    }
 
     const TIERS: [Rarity; 6] = [
         Rarity::Common,

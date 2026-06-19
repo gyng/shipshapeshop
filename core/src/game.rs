@@ -147,6 +147,7 @@ pub struct GameStateView {
     pub facets: u64,
     pub facet_perks: Vec<u32>,
     pub current_banner: u32,
+    pub star_levels: Vec<u32>,
 }
 
 impl GameState {
@@ -181,10 +182,61 @@ impl GameState {
         }
     }
 
+    /// Total production from the deployed loadout, with per-shape ShapeEffects: Handle-Lane (genus × star),
+    /// Orientability Overdrive (non-orientable flat boost), and Knot Entanglement (a knot lifts its loadout
+    /// neighbours — so ORDER matters). All constant-rate, so the closed-form O(1) offline integral is intact.
+    fn deployed_production(&self) -> f64 {
+        let n = self.loadout.len();
+        let mut prod: Vec<f64> = self
+            .loadout
+            .iter()
+            .map(|&id| {
+                let s = &SHAPES[id];
+                let star = self.star_level(id) as f64;
+                let mut p = s.base_prod * (1.0 + 0.25 * s.genus as f64 * (1.0 + 0.12 * star)); // handle-lane
+                if content::is_nonorientable(s.family) {
+                    p *= 1.0 + 0.30 * (1.0 + 0.15 * star); // overdrive
+                }
+                p
+            })
+            .collect();
+        for (i, &id) in self.loadout.iter().enumerate() {
+            if content::is_knot(SHAPES[id].family) {
+                let amt = 0.20 * (1.0 + 0.15 * self.star_level(id) as f64);
+                if i > 0 {
+                    prod[i - 1] *= 1.0 + amt;
+                }
+                if i + 1 < n {
+                    prod[i + 1] *= 1.0 + amt;
+                }
+            }
+        }
+        prod.iter().sum()
+    }
+
+    /// Euler Ballast: each deployed χ=2 anchor steadies the floor (+3%, capped at 6).
+    fn ballast_mult(&self) -> f64 {
+        let n = self.loadout.iter().filter(|&&id| content::is_ballast(id)).count();
+        1.0 + 0.03 * n.min(6) as f64
+    }
+
+    /// Cross-Dimension: 4D polytopes pay off only once the viewport reaches 4D (NG+); +6%/polytope (star-scaled), capped.
+    fn crossdim_mult(&self) -> f64 {
+        if self.viewport_dim < 4 {
+            return 1.0;
+        }
+        let mut bonus = 0.0;
+        for &id in &self.loadout {
+            if content::is_polytope_4d(SHAPES[id].family) {
+                bonus += 0.06 * (1.0 + 0.15 * self.star_level(id) as f64);
+            }
+        }
+        1.0 + bonus.min(0.6)
+    }
+
     pub fn rate_per_hr(&self) -> f64 {
-        let sum: f64 = self.loadout.iter().map(|&id| content::effective_prod(id)).sum();
         let cap = RATE_CAP + 300.0 * self.upgrade_level(7) as f64; // overflow_cap (#7)
-        (BASE_IDLE + sum).min(cap)
+        (BASE_IDLE + self.deployed_production()).min(cap)
             * self.prestige_mult
             * self.set_bonus_mult()
             * self.bond_mult()
@@ -192,6 +244,8 @@ impl GameState {
             * self.genus_resonance_mult()
             * self.milestone_mult()
             * self.facet_meta_mult()
+            * self.ballast_mult()
+            * self.crossdim_mult()
     }
 
     /// Family set bonus (M7): completing the 5 Platonic solids grants a permanent global multiplier.
@@ -202,10 +256,15 @@ impl GameState {
 
     /// Kin synergy: each kin pair with BOTH partners deployed adds a production multiplier (the shipping payoff).
     pub fn synergy_count(&self) -> u32 {
-        content::SYNERGY_PAIRS
-            .iter()
-            .filter(|(a, b)| self.loadout.contains(a) && self.loadout.contains(b))
-            .count() as u32
+        // ADJACENT kin pairs in the loadout (order matters — the packing-puzzle combo, not "both deployed").
+        let mut n = 0u32;
+        for w in self.loadout.windows(2) {
+            let (a, b) = (w[0], w[1]);
+            if content::SYNERGY_PAIRS.iter().any(|&(x, y)| (x == a && y == b) || (x == b && y == a)) {
+                n += 1;
+            }
+        }
+        n
     }
     pub fn synergy_mult(&self) -> f64 {
         let per_pair = SYNERGY_BONUS * if self.upgrade_level(2) > 0 { 2.0 } else { 1.0 }; // twin_bond
@@ -214,6 +273,13 @@ impl GameState {
 
     pub fn upgrade_level(&self, id: usize) -> u32 {
         self.upgrades.get(id).copied().unwrap_or(0)
+    }
+    /// Star level (0–5) of a shape — derived from how many duplicate copies are owned.
+    pub fn star_level(&self, id: usize) -> u32 {
+        if id >= COUNT {
+            return 0;
+        }
+        content::stars_from_dupes(SHAPES[id].rarity, self.owned[id].saturating_sub(1))
     }
     /// Floor space including the expand_floor upgrade (#0: +2 / level).
     pub fn effective_euler_cap(&self) -> u32 {
@@ -701,6 +767,7 @@ impl GameState {
             facets: self.facets,
             facet_perks: self.facet_perks.clone(),
             current_banner: self.current_banner,
+            star_levels: (0..COUNT).map(|i| self.star_level(i)).collect(),
         }
     }
 }
@@ -1156,6 +1223,32 @@ mod tests {
         g.flux = 0.0;
         assert!(!g.buy_upgrade(0));
         assert_eq!(g.upgrade_level(0), 0);
+    }
+
+    #[test]
+    fn synergy_requires_adjacency() {
+        let mut g = GameState::new(1, 0.0);
+        let (a, b) = content::SYNERGY_PAIRS[0];
+        g.owned[a] = 1;
+        g.owned[b] = 1;
+        g.loadout = vec![a, b];
+        assert_eq!(g.synergy_count(), 1, "adjacent kin pair counts");
+        let filler = (0..COUNT).find(|&i| i != a && i != b).unwrap();
+        g.owned[filler] = 1;
+        g.loadout = vec![a, filler, b];
+        assert_eq!(g.synergy_count(), 0, "non-adjacent kin pair gives no synergy");
+    }
+
+    #[test]
+    fn stars_scale_deployed_production() {
+        let mut g = GameState::new(1, 0.0);
+        let id = 10; // torus (genus 1) — handle-lane scales with stars
+        g.owned[id] = 1;
+        g.loadout = vec![id];
+        let base = g.rate_per_hr();
+        g.owned[id] = 100; // many dupes → ★5
+        assert!(g.star_level(id) > 0);
+        assert!(g.rate_per_hr() > base, "stars increase production");
     }
 
     #[test]
