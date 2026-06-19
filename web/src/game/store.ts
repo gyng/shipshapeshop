@@ -85,10 +85,22 @@ export interface View {
   upgrade_unlocked: boolean[]
   facet_perk_costs: number[]
   use_orrery: boolean
-  orrery_ring: number
+  orrery_radius: number
+  orrery_cells: [number, number][]
   orrery_period: number
   orrery_tick_ms: number
-  orrery_orbits: { path: number[]; phase: number; period: number; retro: boolean; tuned: boolean }[]
+  orrery_orbits: OrbitView[]
+}
+
+// One deployed shape's orbit on the hex grid (parallel to loadout). `path` is the full one-period sequence
+// of absolute hex cells [q,r]; `anchor` is its (unique) home cell.
+export interface OrbitView {
+  anchor: [number, number]
+  path: [number, number][]
+  phase: number
+  period: number
+  axis: number
+  tuned: boolean
 }
 
 export interface BannerDef {
@@ -215,7 +227,9 @@ interface Store {
   buyFacetPerk: (id: number) => void
   setBanner: (id: number) => void
   setUseOrrery: (on: boolean) => void
-  tuneOrbit: (id: number, phase: number, retro: boolean) => void
+  setAnchor: (id: number, q: number, r: number) => void
+  rotateLane: (id: number) => void
+  setPhase: (id: number, phase: number) => void
   resetOrbit: (id: number) => void
   selectScene: (id: number) => void
   fluxHistory: number[]
@@ -550,8 +564,18 @@ export const useGame = create<Store>((set, get) => ({
     get().refresh()
     persist()
   },
-  tuneOrbit: (id, phase, retro) => {
-    game?.tune_orbit(id, phase, retro, Date.now())
+  setAnchor: (id, q, r) => {
+    game?.set_anchor(id, q, r, Date.now())
+    get().refresh()
+    persist()
+  },
+  rotateLane: (id) => {
+    game?.rotate_lane(id, Date.now())
+    get().refresh()
+    persist()
+  },
+  setPhase: (id, phase) => {
+    game?.set_phase(id, phase, Date.now())
     get().refresh()
     persist()
   },

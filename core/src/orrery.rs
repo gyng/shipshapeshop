@@ -17,11 +17,14 @@ pub const L_CAP: u32 = 12;
 /// extra shapes still earn their *base* flux — only the pairwise meeting bonus is capped.
 pub const MAX_PER_CELL: usize = 3;
 
-/// A closed orbit: the cell ids visited in order, one step per tick. Direction (pro/retrograde) is folded
-/// into the order of `path` at construction, so the sim only ever steps forward. `path` must be non-empty.
+/// A packed hex cell key (axial `(q,r)` → one integer) — see [`pack`]. Cells equal ⇒ shapes can meet there.
+pub type Cell = i32;
+
+/// A closed orbit: the (packed hex) cells visited in order, one step per tick. Direction is folded into the
+/// order of `path` at construction, so the sim only ever steps forward. `path` must be non-empty.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Orbit {
-    pub path: Vec<u8>,
+    pub path: Vec<Cell>,
     /// Starting offset into `path`.
     pub phase: u8,
 }
@@ -32,10 +35,55 @@ impl Orbit {
         self.path.len() as u32
     }
     /// Cell occupied at tick `t` (wraps every `period` ticks).
-    pub fn cell_at(&self, t: u32) -> u8 {
+    pub fn cell_at(&self, t: u32) -> Cell {
         let p = self.path.len();
         self.path[(self.phase as usize + t as usize) % p]
     }
+}
+
+// ── Hex grid helpers (axial coords) ────────────────────────────────────────────
+/// The six axial unit directions. Index = "axis"/rotation (0..6) a lane can point along.
+pub const HEX_DIRS: [(i32, i32); 6] = [(1, 0), (1, -1), (0, -1), (-1, 0), (-1, 1), (0, 1)];
+
+/// Pack an axial `(q,r)` into a single [`Cell`] key (each coord fits comfortably in 16 bits).
+pub fn pack(q: i32, r: i32) -> Cell {
+    (q << 16) | (r & 0xFFFF)
+}
+/// Inverse of [`pack`].
+pub fn unpack(c: Cell) -> (i32, i32) {
+    let r = (c & 0xFFFF) as i16 as i32; // sign-extend low 16 bits
+    let q = c >> 16;
+    (q, r)
+}
+/// Axial hex distance from the origin.
+pub fn hex_dist(q: i32, r: i32) -> i32 {
+    (q.abs() + r.abs() + (q + r).abs()) / 2
+}
+/// All cells within `radius` of the origin, in a deterministic order (the anchor region).
+pub fn hex_region(radius: i32) -> Vec<(i32, i32)> {
+    let mut out = Vec::new();
+    for q in -radius..=radius {
+        for r in -radius..=radius {
+            if hex_dist(q, r) <= radius {
+                out.push((q, r));
+            }
+        }
+    }
+    out
+}
+/// A straight back-and-forth lane of `len` cells from `anchor` along `axis`: `anchor`, +1·d, …, +(len-1)·d,
+/// then back. Period = `2(len-1)` for `len ≥ 2` (len 1 ⇒ a stationary single cell). Returned as packed cells.
+pub fn lane_path(anchor: (i32, i32), axis: usize, len: u32) -> Vec<Cell> {
+    let (dq, dr) = HEX_DIRS[axis % 6];
+    let l = len.max(1) as i32;
+    let mut offsets: Vec<i32> = (0..l).collect(); // out: 0,1,…,len-1
+    for k in (1..l - 1).rev() {
+        offsets.push(k); // back: len-2,…,1  (omit endpoints to avoid dwelling)
+    }
+    offsets
+        .into_iter()
+        .map(|k| pack(anchor.0 + dq * k, anchor.1 + dr * k))
+        .collect()
 }
 
 /// One shape riding one orbit. `shape` indexes the caller's base-rate / pitch tables.
@@ -102,7 +150,7 @@ impl OrreryState {
     /// Grouped by cell id then by placement index, so the result is fully deterministic.
     pub fn meetings_at(&self, t: u32) -> Vec<Vec<usize>> {
         use std::collections::BTreeMap;
-        let mut by_cell: BTreeMap<u8, Vec<usize>> = BTreeMap::new();
+        let mut by_cell: BTreeMap<Cell, Vec<usize>> = BTreeMap::new();
         for (i, p) in self.placements.iter().enumerate() {
             by_cell.entry(p.orbit.cell_at(t)).or_default().push(i);
         }
@@ -201,7 +249,7 @@ mod tests {
         let mut placements = Vec::new();
         for _ in 0..n {
             let period = ALLOWED_PERIODS[r.below(ALLOWED_PERIODS.len() as u64) as usize];
-            let path: Vec<u8> = (0..period).map(|_| r.below(cells as u64) as u8).collect();
+            let path: Vec<Cell> = (0..period).map(|_| r.below(cells as u64) as Cell).collect();
             let phase = r.below(period as u64) as u8;
             let shape = r.below(n_shapes as u64) as u16;
             placements.push(Placement {
@@ -280,7 +328,7 @@ mod tests {
                             .map(|&per| Placement {
                                 shape: 0,
                                 orbit: Orbit {
-                                    path: vec![0u8; per as usize],
+                                    path: vec![0i32; per as usize],
                                     phase: 0,
                                 },
                             })
@@ -296,7 +344,7 @@ mod tests {
             placements: vec![Placement {
                 shape: 0,
                 orbit: Orbit {
-                    path: vec![0u8; 5],
+                    path: vec![0i32; 5],
                     phase: 0,
                 },
             }],
@@ -371,5 +419,43 @@ mod tests {
         let prefix = state.period_prefix(&base, &pair);
         assert_eq!(state.system_period(), 2);
         assert_eq!(*prefix.last().unwrap(), 40 + pair(0, 1));
+    }
+
+    #[test]
+    fn pack_roundtrip() {
+        for q in -50..50 {
+            for r in -50..50 {
+                assert_eq!(unpack(pack(q, r)), (q, r));
+            }
+        }
+    }
+
+    #[test]
+    fn lane_is_straight_and_periodic() {
+        // length-4 lane along each axis → period 6, every cell collinear with the anchor on that axis.
+        for (axis, &(dq, dr)) in HEX_DIRS.iter().enumerate() {
+            let anchor = (2, -1);
+            let path = lane_path(anchor, axis, 4);
+            assert_eq!(path.len(), 6, "period = 2*(len-1)");
+            for &c in &path {
+                let (q, r) = unpack(c);
+                let (eq, er) = (q - anchor.0, r - anchor.1); // offset from anchor
+                let k = if dq != 0 { eq / dq } else { er / dr };
+                assert_eq!((eq, er), (dq * k, dr * k), "axis {axis}: cell off the lane");
+                assert!(
+                    (0..4).contains(&k),
+                    "axis {axis}: step {k} out of lane range"
+                );
+            }
+            assert_eq!(unpack(path[0]), anchor);
+            assert_eq!(unpack(path[3]), (anchor.0 + dq * 3, anchor.1 + dr * 3));
+        }
+    }
+
+    #[test]
+    fn hex_region_within_radius() {
+        let cells = hex_region(3);
+        assert!(cells.iter().all(|&(q, r)| hex_dist(q, r) <= 3));
+        assert_eq!(cells.len(), 37); // 1 + 3*R*(R+1) for R=3
     }
 }

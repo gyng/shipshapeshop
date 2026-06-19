@@ -35,7 +35,7 @@ const PLATONIC_SET_MULT: f64 = 0.15; // +15% global for completing the Platonic 
 const SYNERGY_BONUS: f64 = 0.08; // +8% per deployed kin pair (duals/soulmates)
 const AFFINITY_PER_HR_DEPLOYED: f64 = 30.0; // passive bond gain while deployed
                                             // ── Orrery (periodic-orbit engine, behind `use_orrery`; see ORRERY_PLAN.md) ──
-const ORRERY_RING: u32 = 12; // cells in the clock ring (every allowed period divides it)
+const ORRERY_RADIUS: i32 = 4; // hex grid radius (61 anchor cells — far more than any loadout)
 const ORRERY_TICK_SECONDS: f64 = 1.0; // one orbital step per real second → a period (≤12) cycles in ≤12s
 const ORRERY_SCALE: f64 = 1_000_000.0; // fixed-point scale: per-tick flux is small, so store µ-units in u64
 
@@ -50,28 +50,16 @@ fn shard_value(r: Rarity) -> u64 {
     }
 }
 
-/// A player's override of a shape's orbit: PHASE (timing) + DIRECTION (retro flips traversal). The period stays
-/// topology-seeded, so the system lcm — and thus O(1) offline — is unaffected.
+/// A deployed shape's lane placement on the hex grid: its ANCHOR cell `(q,r)` (unique across shapes — drag to
+/// move; collisions swap), the AXIS its straight lane points along (0..6), and its PHASE (timing). The lane
+/// LENGTH/period is topology-seeded (`content::lane_len`), so the system lcm — and thus O(1) offline — is
+/// unaffected by any tuning. Materialised per deployed shape while the Orrery is active.
 #[derive(Clone, Copy, Default, Serialize, Deserialize)]
 pub struct OrbitTune {
+    pub q: i8,
+    pub r: i8,
+    pub axis: u8,
     pub phase: u8,
-    pub retro: bool,
-}
-
-/// Apply a player tune to a topology-seeded orbit. PATH LENGTH (period) is never changed — only the phase and
-/// the traversal direction — so `system_period`/lcm and the O(1) offline math are untouched.
-fn apply_tune(mut o: orrery::Orbit, tune: Option<&OrbitTune>) -> orrery::Orbit {
-    if let Some(t) = tune {
-        let p = o.path.len();
-        if p > 0 {
-            o.phase = (t.phase as usize % p) as u8;
-            if t.retro {
-                // reverse traversal while keeping path[0] fixed: new[i] = old[(p - i) % p]
-                o.path = (0..p).map(|i| o.path[(p - i) % p]).collect();
-            }
-        }
-    }
-    o
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -150,14 +138,16 @@ pub struct OfflineReport {
     pub gained_flux: f64,
 }
 
-/// One shape's orbit, for the UI to animate (cell at tick t = path[(phase + t) % period]).
+/// One shape's lane, for the UI to render + animate on the hex floor. `path` is the absolute hex cells (axial
+/// `[q,r]`) visited in order, one per tick; cell at tick t = path[(phase + t) % period].
 #[derive(Serialize)]
 pub struct OrbitView {
-    pub path: Vec<u8>,
+    pub anchor: (i32, i32),    // the draggable anchor cell (axial q,r)
+    pub path: Vec<(i32, i32)>, // absolute hex cells over one period
     pub phase: u8,
     pub period: u8,
-    pub retro: bool, // direction flipped from the topology default (player tune)
-    pub tuned: bool, // the player has overridden this orbit
+    pub axis: u8,    // hex direction the lane points (0..6)
+    pub tuned: bool, // the player has placed/tuned this lane
 }
 
 #[derive(Serialize)]
@@ -220,7 +210,8 @@ pub struct GameStateView {
     pub facet_perk_costs: Vec<u64>,     // NEXT-level Facet cost per perk
     // ── Orrery (engine v2; UI tweens the orbit motion from these) ──
     pub use_orrery: bool,
-    pub orrery_ring: u32,              // cells in the clock ring
+    pub orrery_radius: i32,            // hex grid radius
+    pub orrery_cells: Vec<(i32, i32)>, // all anchor cells in the region (axial q,r) — the floor
     pub orrery_period: u32,            // system period L (ticks per full cycle)
     pub orrery_tick_ms: f64,           // real ms per orbital step
     pub orrery_orbits: Vec<OrbitView>, // parallel to loadout
@@ -376,11 +367,33 @@ impl GameState {
 
     // ── Orrery engine (active only when `use_orrery`) ──────────────────────────────────────────────
     /// A loadout shape's orbit: the topology default, with any player tune (phase/direction) applied on top.
+    /// A loadout shape's lane parameters: `(anchor (q,r), axis, phase)` — the player's tune if present, else a
+    /// deterministic topology default (slot-spread anchor) so the off-mode view still has something to draw.
+    fn lane_params(&self, id: usize, slot: usize) -> ((i32, i32), usize, u8) {
+        let def = &SHAPES[id];
+        match self.orbit_tune.get(&(id as u16)) {
+            Some(t) => ((t.q as i32, t.r as i32), t.axis as usize, t.phase),
+            None => {
+                let region = orrery::hex_region(ORRERY_RADIUS);
+                let a = region[slot % region.len()];
+                (
+                    a,
+                    content::default_axis(def) as usize,
+                    content::default_phase(def, slot),
+                )
+            }
+        }
+    }
+
+    /// A loadout shape's lane as an orbit (absolute hex path from its anchor along its axis; period from topology).
     fn tuned_orbit(&self, id: usize, slot: usize) -> orrery::Orbit {
-        apply_tune(
-            content::orbit_for(&SHAPES[id], slot),
-            self.orbit_tune.get(&(id as u16)),
-        )
+        let (anchor, axis, phase) = self.lane_params(id, slot);
+        let path = orrery::lane_path(anchor, axis, content::lane_len(&SHAPES[id]));
+        let p = path.len().max(1);
+        orrery::Orbit {
+            path,
+            phase: (phase as usize % p) as u8,
+        }
     }
 
     /// Build the orbit arrangement from the current loadout (placement `shape` = loadout slot index, so the
@@ -929,7 +942,103 @@ impl GameState {
         };
         self.loadout.push(id);
         self.board_cells.push(cell);
+        if self.use_orrery {
+            self.assign_anchor(id);
+        }
         true
+    }
+
+    // ── Orrery anchor placement (hex grid) ─────────────────────────────────────
+    /// First anchor cell (region order) not occupied by another shape's tune.
+    fn first_free_hex(&self) -> (i32, i32) {
+        let used: std::collections::HashSet<(i8, i8)> =
+            self.orbit_tune.values().map(|t| (t.q, t.r)).collect();
+        orrery::hex_region(ORRERY_RADIUS)
+            .into_iter()
+            .find(|&(q, r)| !used.contains(&(q as i8, r as i8)))
+            .unwrap_or((0, 0))
+    }
+    /// Materialise a deployed shape's lane tune (free anchor + topology default axis/phase) if it has none.
+    fn assign_anchor(&mut self, id: usize) {
+        if self.orbit_tune.contains_key(&(id as u16)) {
+            return;
+        }
+        let (q, r) = self.first_free_hex();
+        let slot = self.loadout.iter().position(|&x| x == id).unwrap_or(0);
+        let def = &SHAPES[id];
+        self.orbit_tune.insert(
+            id as u16,
+            OrbitTune {
+                q: q as i8,
+                r: r as i8,
+                axis: content::default_axis(def),
+                phase: content::default_phase(def, slot),
+            },
+        );
+    }
+    /// Ensure every deployed shape has an anchor (called when the Orrery is switched on).
+    fn ensure_anchors(&mut self) {
+        for id in self.loadout.clone() {
+            self.assign_anchor(id);
+        }
+    }
+    /// Drag a shape's anchor to `(q,r)`. Out-of-region is rejected; an occupied target SWAPS the two shapes'
+    /// anchors (anchors stay unique). Returns false if `id` isn't deployed or the target is off-grid.
+    fn move_anchor(&mut self, id: usize, q: i32, r: i32) -> bool {
+        if !self.loadout.contains(&id) || orrery::hex_dist(q, r) > ORRERY_RADIUS {
+            return false;
+        }
+        self.assign_anchor(id);
+        let (tq, tr) = (q as i8, r as i8);
+        let key = id as u16;
+        let my_old = {
+            let t = &self.orbit_tune[&key];
+            (t.q, t.r)
+        };
+        if (tq, tr) == my_old {
+            return true;
+        }
+        let occupant = self
+            .orbit_tune
+            .iter()
+            .find(|(&k, t)| k != key && t.q == tq && t.r == tr)
+            .map(|(&k, _)| k);
+        if let Some(o) = occupant {
+            let t = self.orbit_tune.get_mut(&o).unwrap();
+            t.q = my_old.0;
+            t.r = my_old.1;
+        }
+        let t = self.orbit_tune.get_mut(&key).unwrap();
+        t.q = tq;
+        t.r = tr;
+        true
+    }
+    /// Rotate a shape's lane to the next of the 6 hex axes.
+    fn cycle_axis(&mut self, id: usize) {
+        if !self.loadout.contains(&id) {
+            return;
+        }
+        self.assign_anchor(id);
+        let t = self.orbit_tune.get_mut(&(id as u16)).unwrap();
+        t.axis = (t.axis + 1) % 6;
+    }
+    /// Set a shape's lane phase (timing).
+    fn set_lane_phase(&mut self, id: usize, phase: u8) {
+        if !self.loadout.contains(&id) {
+            return;
+        }
+        self.assign_anchor(id);
+        self.orbit_tune.get_mut(&(id as u16)).unwrap().phase = phase;
+    }
+    /// Reset a shape's axis + phase to the topology default (keeps its anchor).
+    fn reset_lane(&mut self, id: usize) {
+        if let Some(slot) = self.loadout.iter().position(|&x| x == id) {
+            let def = &SHAPES[id];
+            if let Some(t) = self.orbit_tune.get_mut(&(id as u16)) {
+                t.axis = content::default_axis(def);
+                t.phase = content::default_phase(def, slot);
+            }
+        }
     }
     /// Manual puzzle move: put `id` at `cell` (auto-deploying it if needed). If the cell is taken, the two
     /// shapes swap cells. Returns false if the move is impossible.
@@ -960,6 +1069,7 @@ impl GameState {
             if i < self.board_cells.len() {
                 self.board_cells.remove(i);
             }
+            self.orbit_tune.remove(&(id as u16));
             true
         } else {
             false
@@ -1263,7 +1373,8 @@ impl GameState {
                 .map(|i| content::facet_perk_cost(i, self.facet_level(i)))
                 .collect(),
             use_orrery: self.use_orrery,
-            orrery_ring: ORRERY_RING,
+            orrery_radius: ORRERY_RADIUS,
+            orrery_cells: orrery::hex_region(ORRERY_RADIUS),
             orrery_period: self.orrery_state().system_period(),
             orrery_tick_ms: ORRERY_TICK_SECONDS * 1000.0,
             orrery_orbits: self
@@ -1271,14 +1382,15 @@ impl GameState {
                 .iter()
                 .enumerate()
                 .map(|(i, &id)| {
+                    let (anchor, axis, _) = self.lane_params(id, i);
                     let o = self.tuned_orbit(id, i);
-                    let tune = self.orbit_tune.get(&(id as u16));
                     OrbitView {
-                        path: o.path.clone(),
+                        anchor,
+                        path: o.path.iter().map(|&c| orrery::unpack(c)).collect(),
                         phase: o.phase,
                         period: o.period() as u8,
-                        retro: tune.map(|t| t.retro).unwrap_or(false),
-                        tuned: tune.is_some(),
+                        axis: axis as u8,
+                        tuned: self.orbit_tune.contains_key(&(id as u16)),
                     }
                 })
                 .collect(),
@@ -1398,19 +1510,30 @@ impl Game {
     pub fn set_use_orrery(&mut self, on: bool, now_ms: f64) {
         self.state.tick(now_ms);
         self.state.use_orrery = on;
+        if on {
+            self.state.ensure_anchors();
+        }
     }
-    /// Tune a deployed shape's orbit — `phase` (timing) + `retro` (flip direction). Period stays topology-seeded
-    /// (lcm/O(1) unaffected). Banks production at `now_ms` first so the re-phase is seamless.
-    pub fn tune_orbit(&mut self, shape_id: u16, phase: u8, retro: bool, now_ms: f64) {
+    /// Drag a deployed shape's anchor to hex cell `(q,r)` — swaps with the occupant if taken; off-grid is a
+    /// no-op. Period is untouched (O(1) preserved). Banks production at `now_ms` first.
+    pub fn set_anchor(&mut self, shape_id: u16, q: i32, r: i32, now_ms: f64) {
         self.state.tick(now_ms);
-        self.state
-            .orbit_tune
-            .insert(shape_id, OrbitTune { phase, retro });
+        self.state.move_anchor(shape_id as usize, q, r);
     }
-    /// Clear a shape's orbit tune (back to the topology default).
+    /// Rotate a deployed shape's straight lane to the next of the 6 hex axes.
+    pub fn rotate_lane(&mut self, shape_id: u16, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.cycle_axis(shape_id as usize);
+    }
+    /// Set a deployed shape's lane phase (timing).
+    pub fn set_phase(&mut self, shape_id: u16, phase: u8, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.set_lane_phase(shape_id as usize, phase);
+    }
+    /// Reset a shape's lane axis + phase to the topology default (keeps its anchor).
     pub fn reset_orbit(&mut self, shape_id: u16, now_ms: f64) {
         self.state.tick(now_ms);
-        self.state.orbit_tune.remove(&shape_id);
+        self.state.reset_lane(shape_id as usize);
     }
 }
 
@@ -1577,21 +1700,29 @@ mod tests {
 
     #[test]
     fn orrery_every_shapedef_orbit_valid() {
-        // Every shape seeds a period in the allowed set ⇒ any loadout's lcm ≤ L_CAP (offline stays O(1)).
+        // Every shape's lane period is in the allowed set ⇒ any loadout's lcm ≤ L_CAP (offline stays O(1)).
+        let region = orrery::hex_region(ORRERY_RADIUS);
         for (id, def) in SHAPES.iter().enumerate() {
-            let o = content::orbit_for(def, id);
+            let per = content::lane_period(def);
             assert!(
-                orrery::ALLOWED_PERIODS.contains(&o.period()),
-                "shape {id} got period {}",
-                o.period()
+                orrery::ALLOWED_PERIODS.contains(&per),
+                "shape {id} got lane period {per}"
             );
         }
-        // Even the entire catalogue deployed at once respects the cap.
+        // Even the entire catalogue, each on its own anchor, respects the cap.
         let st = OrreryState {
             placements: (0..COUNT)
-                .map(|id| Placement {
-                    shape: id as u16,
-                    orbit: content::orbit_for(&SHAPES[id], id),
+                .map(|id| {
+                    let anchor = region[id % region.len()];
+                    let path = orrery::lane_path(
+                        anchor,
+                        content::default_axis(&SHAPES[id]) as usize,
+                        content::lane_len(&SHAPES[id]),
+                    );
+                    Placement {
+                        shape: id as u16,
+                        orbit: orrery::Orbit { path, phase: 0 },
+                    }
                 })
                 .collect(),
         };
@@ -1650,19 +1781,15 @@ mod tests {
         }
         g.auto_arrange();
         g.use_orrery = true;
+        g.ensure_anchors(); // materialise the topology-default lanes
         g.last_seen_ms = 0.0;
         let period_before = g.orrery_state().system_period();
         let base = g.clone().compute_offline(90_000.0);
 
-        // tune the first deployed shape: new phase + flipped direction
-        let id = g.loadout[0] as u16;
-        g.orbit_tune.insert(
-            id,
-            OrbitTune {
-                phase: 3,
-                retro: true,
-            },
-        );
+        // tune the first deployed shape: rotate its lane + re-phase (NOT the anchor)
+        let id = g.loadout[0];
+        g.cycle_axis(id);
+        g.set_lane_phase(id, 3);
 
         // period (⇒ lcm ⇒ O(1) offline) is unchanged by tuning
         assert_eq!(g.orrery_state().system_period(), period_before);
@@ -1677,8 +1804,8 @@ mod tests {
         assert_eq!(weeks.capped_ms, OFFLINE_CAP_MS);
         assert!(weeks.gained_flux.is_finite() && weeks.gained_flux > 0.0);
 
-        // reset → bit-identical to the pre-tune default
-        g.orbit_tune.remove(&id);
+        // reset axis+phase → bit-identical to the pre-tune default
+        g.reset_lane(id);
         let after = g.clone().compute_offline(90_000.0);
         assert_eq!(after.gained_flux.to_bits(), base.gained_flux.to_bits());
     }
@@ -1690,20 +1817,59 @@ mod tests {
             g.owned[id] = 1;
         }
         g.auto_arrange();
+        g.use_orrery = true;
+        g.ensure_anchors();
         let id = g.loadout[0];
         let base = g.tuned_orbit(id, 0);
         let new_phase = (base.phase + 1) % base.period() as u8;
-        g.orbit_tune.insert(
-            id as u16,
-            OrbitTune {
-                phase: new_phase,
-                retro: false,
-            },
-        );
+        g.set_lane_phase(id, new_phase);
         let tuned = g.tuned_orbit(id, 0);
         assert_eq!(base.period(), tuned.period()); // period preserved (lcm safe)
         assert_eq!(tuned.phase, new_phase); // phase actually moved
         assert_ne!(base.phase, tuned.phase);
+    }
+
+    #[test]
+    fn orrery_anchors_unique_and_swap() {
+        let mut g = GameState::new(5, 0.0);
+        for id in 0..6 {
+            g.owned[id] = 1;
+        }
+        g.use_orrery = true;
+        g.auto_arrange();
+        g.ensure_anchors();
+        // every deployed shape has a distinct anchor
+        let anchors: Vec<(i8, i8)> = g.orbit_tune.values().map(|t| (t.q, t.r)).collect();
+        let uniq: std::collections::HashSet<(i8, i8)> = anchors.iter().copied().collect();
+        assert_eq!(anchors.len(), uniq.len(), "anchors must be unique");
+        // drag A onto B's cell → they swap (still unique)
+        let (a, b) = (g.loadout[0], g.loadout[1]);
+        let a_old = {
+            let t = &g.orbit_tune[&(a as u16)];
+            (t.q, t.r)
+        };
+        let b_old = {
+            let t = &g.orbit_tune[&(b as u16)];
+            (t.q, t.r)
+        };
+        assert!(g.move_anchor(a, b_old.0 as i32, b_old.1 as i32));
+        assert_eq!(
+            {
+                let t = &g.orbit_tune[&(a as u16)];
+                (t.q, t.r)
+            },
+            b_old
+        );
+        assert_eq!(
+            {
+                let t = &g.orbit_tune[&(b as u16)];
+                (t.q, t.r)
+            },
+            a_old
+        );
+        let uniq2: std::collections::HashSet<(i8, i8)> =
+            g.orbit_tune.values().map(|t| (t.q, t.r)).collect();
+        assert_eq!(uniq2.len(), g.orbit_tune.len());
     }
 
     #[test]

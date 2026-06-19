@@ -30,11 +30,13 @@ function OrreryTimeline() {
   const orbits = view.orrery_orbits
   const meetTicks: boolean[] = []
   for (let t = 0; t < L; t++) {
-    const byCell = new Map<number, number>()
+    const byCell = new Map<string, number>()
     for (const o of orbits) {
-      if (o.period === 0) continue
+      if (o.period === 0 || o.path.length === 0) continue
       const c = o.path[(o.phase + t) % o.period]
-      byCell.set(c, (byCell.get(c) ?? 0) + 1)
+      if (!c) continue
+      const k = `${c[0]},${c[1]}`
+      byCell.set(k, (byCell.get(k) ?? 0) + 1)
     }
     meetTicks.push([...byCell.values()].some((n) => n >= 2))
   }
@@ -62,7 +64,8 @@ function OrbitDetail({ id, onClose }: { id: number; onClose: () => void }) {
   const view = useGame((s) => s.view)
   const shapes = useGame((s) => s.shapes)
   const undeploy = useGame((s) => s.undeploy)
-  const tuneOrbit = useGame((s) => s.tuneOrbit)
+  const setPhase = useGame((s) => s.setPhase)
+  const rotateLane = useGame((s) => s.rotateLane)
   const resetOrbit = useGame((s) => s.resetOrbit)
   const tr = useT()
   const sh = shapes[id]
@@ -70,7 +73,7 @@ function OrbitDetail({ id, onClose }: { id: number; onClose: () => void }) {
   const slot = view.loadout.indexOf(id)
   const orb = view.orrery_orbits[slot]
   if (!orb) return null
-  const stepPhase = (d: number) => tuneOrbit(id, (((orb.phase + d) % orb.period) + orb.period) % orb.period, orb.retro)
+  const stepPhase = (d: number) => setPhase(id, (((orb.phase + d) % orb.period) + orb.period) % orb.period)
   const mini: React.CSSProperties = { fontSize: 13, lineHeight: 1, width: 24, height: 22, borderRadius: 'var(--r-sm)', border: '1px solid var(--c-border-raised)', background: 'var(--c-surface-4)', color: 'var(--c-text)', cursor: 'pointer' }
   return (
     <div style={{ borderTop: '1px solid var(--c-border)', marginTop: 6, paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -79,7 +82,8 @@ function OrbitDetail({ id, onClose }: { id: number; onClose: () => void }) {
         <b style={{ color: RARITY_COLOR[sh.rarity], flex: 1, fontSize: 13 }}>{sh.nick}</b>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--c-text-faint)', cursor: 'pointer' }}>×</button>
       </div>
-      <div style={{ fontSize: 10, color: 'var(--c-text-faint)' }}>{tr('orrery.period')} {orb.period}{orb.tuned ? ' · ✎' : ''}</div>
+      <div style={{ fontSize: 10, color: 'var(--c-text-faint)' }}>{tr('orrery.period')} {orb.period} · {tr('orrery.anchor')} {orb.anchor[0]},{orb.anchor[1]}{orb.tuned ? ' · ✎' : ''}</div>
+      <div style={{ fontSize: 10, color: 'var(--c-text-faint)' }}>{tr('orrery.dragHint')}</div>
       {/* phase (timing) */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
         <span style={{ fontSize: 11, color: 'var(--c-text-dim)', flex: 1 }}>{tr('orrery.phase')}</span>
@@ -87,9 +91,9 @@ function OrbitDetail({ id, onClose }: { id: number; onClose: () => void }) {
         <span style={{ fontSize: 12, minWidth: 16, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{orb.phase}</span>
         <button style={mini} onClick={() => stepPhase(1)}>+</button>
       </div>
-      {/* direction (rotation) */}
-      <button onClick={() => tuneOrbit(id, orb.phase, !orb.retro)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 'var(--r-md)', border: '1px solid var(--c-border-raised)', background: 'var(--c-surface-3)', color: 'var(--c-text-secondary)', cursor: 'pointer' }}>
-        {orb.retro ? `↺ ${tr('orrery.retro')}` : `↻ ${tr('orrery.prograde')}`}
+      {/* rotate lane (which hex axis) */}
+      <button onClick={() => rotateLane(id)} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 'var(--r-md)', border: '1px solid var(--c-border-raised)', background: 'var(--c-surface-3)', color: 'var(--c-text-secondary)', cursor: 'pointer' }}>
+        ↻ {tr('orrery.rotate')} <span style={{ color: 'var(--c-text-faint)' }}>· {tr('orrery.axis')} {orb.axis + 1}/6</span>
       </button>
       <div style={{ display: 'flex', gap: 5 }}>
         {orb.tuned && (

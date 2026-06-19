@@ -573,29 +573,33 @@ pub fn is_ballast(id: usize) -> bool {
     SHAPES[id].euler_cost == 0
 }
 
-/// Topology → orbit seeding for the Orrery (see ORRERY_PLAN.md). Shapes ride a 12-cell "clock" ring; every
-/// allowed period divides 12, so a shape cleanly steps `12/period` cells per tick (period 12 = the
-/// second-hand, period 1 = stationary) and `lcm` of any loadout is ≤ `L_CAP` by construction.
-/// - **χ (via `euler_cost`)** → orbital tempo (`period`): the Euler budget now buys speed.
-/// - **orientability** → direction: non-orientable shapes run *retrograde* (the overdrive flip, made literal).
-/// - **genus** → a phase offset (more handles → staggered start), so meetings are arrangeable.
-pub fn orbit_for(def: &ShapeDef, slot: usize) -> crate::orrery::Orbit {
-    use crate::orrery::{Orbit, ALLOWED_PERIODS};
-    const RING: u32 = 12;
-    // period from χ-cost but NEVER 1 → every shape actually orbits; drawn from {2,3,4,6,12} whose lcm is 12 ⇒ ≤ L_CAP.
-    let period = ALLOWED_PERIODS[1 + def.euler_cost.min(4) as usize]; // 0..4 → 2,3,4,6,12
-    let step = RING / period;
-    let retro = is_nonorientable(def.family);
-    // rotate each slot's starting cells around the ring (5 ⟂ 12 ⇒ even spread) + a genus nudge, so shapes don't clump.
-    let rot = (slot as u32 * 5 + def.genus) % RING;
-    let path: Vec<u8> = (0..period)
-        .map(|i| {
-            let k = if retro { (period - i) % period } else { i };
-            ((k * step + rot) % RING) as u8
-        })
-        .collect();
-    let phase = (slot as u32 % period) as u8;
-    Orbit { path, phase }
+// ── Orrery lane seeding (the hex-grid model; see ORRERY_PLAN.md §1) ──────────────
+// Each deployed shape patrols a straight back-and-forth LANE from its anchor. Topology seeds the lane's
+// length (→ period), its default direction (hex axis) and default phase; the player tunes anchor + axis +
+// phase. The absolute path is built in game.rs via orrery::lane_path(anchor, axis, lane_len).
+
+/// Lane length L for a shape: χ-cost → L ∈ {2,3,4,7} ⇒ period 2(L-1) ∈ {2,4,6,12}. The lcm of any subset of
+/// those periods is 12 ≤ L_CAP, so the whole-system period stays bounded and offline catch-up stays O(1).
+pub fn lane_len(def: &ShapeDef) -> u32 {
+    const LENS: [u32; 4] = [2, 3, 4, 7];
+    LENS[def.euler_cost.min(3) as usize]
+}
+
+/// Lane period = 2(L-1) — the number of ticks for one out-and-back patrol.
+pub fn lane_period(def: &ShapeDef) -> u32 {
+    2 * (lane_len(def) - 1)
+}
+
+/// Default lane direction (hex axis 0..5): genus picks the axis; a non-orientable shape points the opposite
+/// way (the "overdrive flip", now literal in the grid).
+pub fn default_axis(def: &ShapeDef) -> u8 {
+    ((def.genus + if is_nonorientable(def.family) { 3 } else { 0 }) % 6) as u8
+}
+
+/// Default phase (timing), spread by deploy slot so freshly-placed shapes don't all start in lockstep.
+pub fn default_phase(def: &ShapeDef, slot: usize) -> u8 {
+    let period = lane_period(def).max(1);
+    ((slot as u32 * 2 + def.genus) % period) as u8
 }
 
 /// Bespoke "signature" SELF bonuses for iconic shapes — layered on top of their archetype, star-scaled.
