@@ -23,6 +23,7 @@ import { generateMessages, type ChatMsg } from './content/chatlas'
 import { useDialogLog } from './dialogLog'
 import { useTitle, titleSrc, TITLE_COUNT } from './titleArt'
 import { curatorRank, RANK_COLOR } from './curatorRank'
+import { useInspector } from './inspector'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
@@ -86,7 +87,8 @@ export function App() {
     void boot()
   }, [boot])
   const [tab, setTab] = useState<Tab>('gacha')
-  const [inspect, setInspect] = useState<number | null>(null)
+  const inspect = useInspector((s) => s.id)
+  const setInspect = useInspector((s) => s.set)
   const sceneId = useGame((s) => s.view?.scene ?? 0)
   const tr = useT()
 
@@ -431,6 +433,17 @@ function GachaView() {
             ) : null}
           </div>
         )}
+        {shape &&
+          (() => {
+            const e = shapeEffect(shape.family, shape.genus, shape.euler_cost)
+            return (
+              <button style={S.effectPreview} onClick={() => useInspector.getState().set(focusId)} title={`${e.name} — ${e.desc}\nTap for full details`}>
+                <span>{e.icon}</span>
+                <span style={{ fontWeight: 700 }}>{e.name}</span>
+                <span style={{ color: '#8a90a8' }}>· details ▸</span>
+              </button>
+            )
+          })()}
         {shape && owned && !isBannerPreview && <button className="ready-pulse" style={S.talkBtn} onClick={() => talk(shape, bond)} title="Tap to chat">💬</button>}
         {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
       </div>
@@ -1906,6 +1919,7 @@ const S: Record<string, CSSProperties> = {
   focusName: { position: 'absolute', bottom: 10, left: 0, right: 0, textAlign: 'center', fontSize: 18, fontWeight: 600, pointerEvents: 'none' },
   focusFam: { color: '#8a90a8', fontStyle: 'normal', fontWeight: 400, fontSize: 13 },
   secretaryTag: { color: '#ffd76b', fontSize: 12, fontWeight: 700 },
+  effectPreview: { position: 'absolute', top: 10, left: 10, display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(16,17,25,0.82)', border: '1px solid #2a2c3a', borderRadius: 999, padding: '6px 12px', fontSize: 12, color: '#cdd2e0', cursor: 'pointer', backdropFilter: 'blur(4px)', maxWidth: 'calc(100% - 20px)' },
   bannerRow: { display: 'flex', gap: 8, marginBottom: 4 },
   bannerCard: { flex: 1, textAlign: 'left', background: '#14151d', border: '1px solid #23252f', borderRadius: 10, padding: '8px 10px', cursor: 'pointer', color: '#cdd2e0' },
   bannerCardOn: { borderColor: '#5fe0c6', background: '#16201f', boxShadow: 'inset 0 -2px 0 #5fe0c6' },
