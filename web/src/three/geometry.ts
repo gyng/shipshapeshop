@@ -37,6 +37,24 @@ function kleinFig8(twist: number): ParamFn {
   }
 }
 
+// The iconic "bottle" immersion of the Klein bottle (the recognisable neck-through-side form), not the
+// figure-8 band. Paul Bourke's standard parametrisation; normalise() rescales from its native ~16-unit size.
+const kleinBottle: ParamFn = (u, v, t) => {
+  const a = u * TAU
+  const b = v * TAU
+  const r = 4 * (1 - Math.cos(a) / 2)
+  let x: number
+  let y: number
+  if (a < Math.PI) {
+    x = 6 * Math.cos(a) * (1 + Math.sin(a)) + r * Math.cos(a) * Math.cos(b)
+    y = 16 * Math.sin(a) + r * Math.sin(a) * Math.cos(b)
+  } else {
+    x = 6 * Math.cos(a) * (1 + Math.sin(a)) + r * Math.cos(b + Math.PI)
+    y = 16 * Math.sin(a)
+  }
+  t.set(x, y, r * Math.sin(b))
+}
+
 const catenoid: ParamFn = (u, v, t) => {
   const a = (v - 0.5) * 3
   const b = u * TAU
@@ -72,7 +90,8 @@ function mergedTori(count: number, spread: number): THREE.BufferGeometry {
   return mergeGeometries(parts)!
 }
 
-// Borromean-style: three interlocked rings on different planes.
+// Borromean rings: three interlocked rings on mutually-perpendicular planes (remove any one and the other
+// two fall apart — but visually, three clean rings).
 function linkedRings(): THREE.BufferGeometry {
   const parts: THREE.BufferGeometry[] = []
   const planes: [number, number, number][] = [
@@ -88,6 +107,32 @@ function linkedRings(): THREE.BufferGeometry {
     parts.push(g)
   }
   return mergeGeometries(parts)!
+}
+
+// Hopf fibration: a bundle of mutually-linked fibre circles (each offset from the axis and swept around it),
+// visually distinct from the three perpendicular Borromean rings.
+function hopfFibration(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = []
+  const n = 7
+  for (let i = 0; i < n; i++) {
+    const g = new THREE.TorusGeometry(0.62, 0.085, 12, 48)
+    g.rotateX(Math.PI / 2)
+    g.translate(0.5, 0, 0)
+    g.rotateZ((i / n) * TAU)
+    parts.push(g)
+  }
+  return mergeGeometries(parts)!
+}
+
+// Stylised 3DBenchy: hull + cabin + funnel (a recognisable little boat, not a plain box).
+function benchyBoat(): THREE.BufferGeometry {
+  const hull = new THREE.BoxGeometry(1.9, 0.55, 0.95)
+  hull.translate(0, -0.1, 0)
+  const cabin = new THREE.BoxGeometry(0.75, 0.5, 0.62)
+  cabin.translate(-0.25, 0.42, 0)
+  const funnel = new THREE.CylinderGeometry(0.13, 0.13, 0.42, 16)
+  funnel.translate(0.18, 0.5, 0)
+  return mergeGeometries([hull, cabin, funnel])!
 }
 
 function build(family: string): THREE.BufferGeometry {
@@ -113,7 +158,7 @@ function build(family: string): THREE.BufferGeometry {
     case 'trefoil': return new THREE.TorusKnotGeometry(0.7, 0.24, 128, 20, 2, 3)
     case 'figure8_knot': return new THREE.TorusKnotGeometry(0.7, 0.22, 160, 20, 3, 2)
     case 'torus_knot_2_5': return new THREE.TorusKnotGeometry(0.7, 0.2, 160, 20, 2, 5)
-    case 'klein_bottle': return parametric(kleinFig8(1), 100, 40)
+    case 'klein_bottle': return parametric(kleinBottle, 110, 40)
     case 'rp2': return parametric(kleinFig8(2), 100, 40)
     case 'boys_surface': return parametric(kleinFig8(3), 120, 40)
     case 'cross_cap': return parametric(kleinFig8(0.5), 100, 40)
@@ -132,19 +177,20 @@ function build(family: string): THREE.BufferGeometry {
     case 'cell_24': return new THREE.IcosahedronGeometry(1.05, 0)
     case 'cell_120': return new THREE.DodecahedronGeometry(1.05)
     case 'cell_600': return new THREE.IcosahedronGeometry(1.1, 1)
-    case 'hopf': return linkedRings()
+    case 'hopf': return hopfFibration()
     case 'mazur': return new THREE.SphereGeometry(1, 40, 28) // the "monster" is secretly a ball
     // ── Relics (Reference Wing). These are GALLERY-THUMBNAIL placeholders only; the hero view loads the real
     // meshes via ModelGem (Princeton .ply scans + Spot's .obj). The Utah Teapot is exact everywhere.
     case 'utah_teapot': return new TeapotGeometry(0.62, 12)
     case 'stanford_bunny': return new THREE.CapsuleGeometry(0.5, 0.55, 8, 18)
-    case 'benchy': return new THREE.BoxGeometry(1.7, 0.8, 0.95)
+    case 'benchy': return benchyBoat()
     case 'stanford_dragon': return new THREE.TorusKnotGeometry(0.58, 0.2, 200, 20, 3, 7)
     case 'suzanne': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.0, 0.88, 1.12); return g }
     case 'spot': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.35, 0.8, 0.9); return g }
     case 'cow': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.4, 0.82, 0.86); return g }
-    case 'horse': return new THREE.CapsuleGeometry(0.42, 0.8, 8, 18)
-    case 'maxplanck': { const g = new THREE.SphereGeometry(1, 28, 20); g.scale(0.82, 1.0, 0.86); return g }
+    case 'armadillo': return new THREE.IcosahedronGeometry(1.05, 1)
+    case 'lucy': return new THREE.CapsuleGeometry(0.34, 1.15, 8, 16)
+    case 'csaszar': return new THREE.TorusGeometry(0.7, 0.3, 6, 14)
     default: return new THREE.IcosahedronGeometry(1)
   }
 }

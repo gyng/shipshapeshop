@@ -47,7 +47,7 @@ export const CODEX: Record<string, Codex> = {
   triple_torus: { term: 'a triple torus — genus 3 (three holes)', blurb: 'Three lanes. Only three. But mine are TIDY holes.', bond: 'Remember when order didn’t matter? …don’t tell senpai I said it was easier.' },
 
   tesseract: { term: 'a tesseract — the 4-cube; you only ever see its 3D shadow', blurb: 'A box inside a box, from where you stand.', bond: 'You see all eight rooms at once now. …It’s nice, being seen whole. Don’t tell Hex.' },
-  cell_16: { term: 'a 16-cell — the tesseract’s dual in 4D', blurb: 'Everything he does, with half the cells and twice the edge.', bond: 'It’s not like I was hoping you’d pull me. Don’t make it weird.' },
+  cell_16: { term: 'a 16-cell — the tesseract’s dual; the 4D cross-polytope (an octahedron, ascended)', blurb: 'A pure tone, a perfect blue, and absolutely no negotiation.', bond: 'Hold still — I only hum before I decide. The pattern reads blue. …it’s not like I was aiming at you. Don’t make it weird.' },
   cell_24: { term: 'a 24-cell — self-dual, with no analogue in any other dimension', blurb: 'There is no one quite like me. I checked every dimension.', bond: 'My mirror is me — but the Atlas is a mirror too, and now there are more of me. Thank you.' },
   cell_120: { term: 'a 120-cell — 600 vertices; the crown of the fourth dimension', blurb: 'They call me the crown jewel. I prefer “the one who leaves the porch light on.”', bond: 'You look flat from up here. And lovely. Come up.' },
   cell_600: { term: 'a 600-cell — the 120-cell’s dual; a storm of tetrahedra', blurb: 'A cathedral? Pretty. I am the WEATHER.', bond: 'When I rattle the windows, it’s only ever my sister’s house. I’d never crack a pane.' },
@@ -63,6 +63,7 @@ export const CODEX: Record<string, Codex> = {
   suzanne: { term: 'Suzanne — Blender’s monkey-head test model', blurb: 'The monkey who tests everything.', bond: 'Press the button and I appear — the quick way to check a shader. Tested more than anyone alive.' },
   spot: { term: 'Spot — Keenan Crane’s cow, mascot of geometry processing', blurb: 'I taught a generation conformal maps.', bond: 'A friendly cow, parameterised more lovingly than most. Moo — in the language of discrete differential geometry.' },
   cow: { term: 'the classic test cow — a graphics-lab staple for decades', blurb: 'Moo. I have been rendered in every lab on Earth.', bond: 'Low-poly and proud. They pass me around like a textbook; I have met every renderer ever written.' },
-  horse: { term: 'a scanned horse — a suggestive-contours benchmark', blurb: 'All gallop, no giddy-up.', bond: 'They line-drew my flanks to test new ink. Stand back — let me show you a clean silhouette.' },
-  maxplanck: { term: 'the Max Planck bust — a scanned-head graphics staple', blurb: 'A quantum of contemplation, sculpted.', bond: 'A father of quantum theory, immortalised as a test head. I ponder. I am also, somehow, a benchmark.' },
+  armadillo: { term: 'the Stanford Armadillo — a high-detail scan benchmark', blurb: 'Plates, claws, and a million triangles of attitude.', bond: 'Scanned in fine detail to stress every algorithm going. I am dense. I contain multitudes — mostly polygons.' },
+  lucy: { term: 'Lucy — the Stanford angel, scanned from a marble statue', blurb: 'Eight metres of marble, one tidy mesh.', bond: 'An angel holding a torch, digitised to the millimetre. I have been a benchmark longer than some of you have been rendered.' },
+  csaszar: { term: 'the Császár torus — a 7-vertex polyhedron where every pair of corners shares an edge', blurb: 'A donut with only seven corners, and no diagonals at all.', bond: 'Seven vertices, twenty-one edges, every pair joined — a torus stripped to the bone. Minimalism, with a hole in it.' },
 }

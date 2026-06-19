@@ -11,11 +11,14 @@ type ModelCfg = { url: string; kind: 'ply' | 'obj'; rot?: [number, number, numbe
 // Real downloaded meshes — loaded on demand for the HERO view only (gallery thumbnails use the cheap
 // placeholders in geometry.ts). Princeton "Suggestive Contours" .ply scans + Keenan Crane's Spot .obj.
 export const MODEL_FILES: Record<string, ModelCfg> = {
-  stanford_bunny: { url: '/models/bunny.ply', kind: 'ply', rot: [-Math.PI / 2, 0, 0] },
-  cow: { url: '/models/cow.ply', kind: 'ply', rot: [0, 0, 0] },
-  horse: { url: '/models/horse.ply', kind: 'ply', rot: [0, 0, 0] },
-  maxplanck: { url: '/models/maxplanck.ply', kind: 'ply', rot: [0, 0, 0] },
+  stanford_bunny: { url: '/models/bunny.ply', kind: 'ply', rot: [0, Math.PI, 0] },
+  cow: { url: '/models/cow.obj', kind: 'obj', rot: [0, Math.PI / 2, 0] },
   spot: { url: '/models/spot.obj', kind: 'obj', rot: [0, Math.PI, 0] },
+  armadillo: { url: '/models/armadillo.ply', kind: 'ply', rot: [0, 0, 0] },
+  lucy: { url: '/models/lucy.ply', kind: 'ply', rot: [0, 0, 0] },
+  stanford_dragon: { url: '/models/dragon.ply', kind: 'ply', rot: [0, 0, 0] },
+  heptoroid: { url: '/models/heptoroid.ply', kind: 'ply', rot: [Math.PI / 2, 0, 0] },
+  csaszar: { url: '/models/csaszar.obj', kind: 'obj', rot: [0, 0, 0] },
 }
 
 function normalize(g: THREE.BufferGeometry, rot?: [number, number, number]) {

@@ -13,7 +13,7 @@ const ALL_FAMILIES = [
   'heptoroid', 'costa', 'borromean', 'seifert', 'lorenz', 'schwarz_d', 'triple_torus', 'tesseract', 'cell_16',
   'cell_24', 'cell_120', 'cell_600', 'klein_quartic', 'hopf', 'mazur',
   // Relics (gallery-thumbnail geometry; real meshes load via ModelGem at runtime)
-  'utah_teapot', 'stanford_bunny', 'benchy', 'stanford_dragon', 'suzanne', 'spot', 'cow', 'horse', 'maxplanck',
+  'utah_teapot', 'stanford_bunny', 'benchy', 'stanford_dragon', 'suzanne', 'spot', 'cow', 'armadillo', 'lucy', 'csaszar',
 ]
 
 // Euler characteristic V−E+F, welding by POSITION only (three duplicates verts per face for flat shading,

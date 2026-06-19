@@ -84,8 +84,8 @@ function DevBar() {
   return (
     <div style={S.devBar}>
       <span style={S.devTitle}>🛠 dev</span>
-      <button style={S.devBtn} onClick={devAddFlux}>+10k ✦</button>
-      <button style={S.devBtn} onClick={devAddShards}>+2k ◈</button>
+      <button style={S.devBtn} onClick={devAddFlux}>+10k <span style={S.fluxIcon}>✦</span></button>
+      <button style={S.devBtn} onClick={devAddShards}>+2k <span style={S.shardIcon}>◈</span></button>
       <button style={S.devBtn} onClick={devUnlockAll}>Unlock all</button>
       <button style={S.devBtn} onClick={recrystallize}>Recrystallize ↑</button>
       <button style={S.devBtn} onClick={resetSave}>Reset save</button>
@@ -129,12 +129,12 @@ function Hud() {
   return (
     <header style={S.hud}>
       <div>
-        <span style={S.fluxLabel}>✦ {tr('hud.flux')}</span>
+        <span style={S.fluxLabel}><span style={S.fluxIcon}>✦</span> {tr('hud.flux')}</span>
         <span style={S.fluxValue}>{fmt(flux)}</span>
         <span style={S.rate}>+{fmt(view.rate_per_hr)}/hr</span>
       </div>
       <div style={S.hudStats}>
-        <span>◈ {view.shards} {tr('hud.shards')}</span>
+        <span><span style={S.shardIcon}>◈</span> {view.shards} {tr('hud.shards')}</span>
         <span>{tr('hud.collection')} {view.distinct_owned}/41</span>
         <span>{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
         <button onClick={toggleMute} style={S.langBtn} aria-label="toggle sound">{muted ? '🔇' : '🔊'}</button>
@@ -375,7 +375,7 @@ function ForgeView() {
   return (
     <div style={S.engine}>
       <div style={S.engineHead}>
-        <strong>{tr('forge.title')} · ◈ {view.shards} {tr('hud.shards')}</strong>
+        <strong>{tr('forge.title')} · <span style={S.shardIcon}>◈</span> {view.shards} {tr('hud.shards')}</strong>
       </div>
       <div style={{ ...S.engineRow, borderColor: '#ffd76b', marginBottom: 4 }}>
         <span style={{ ...S.tileDot, background: '#ffd76b' }} />
@@ -495,4 +495,6 @@ const S: Record<string, CSSProperties> = {
   devBar: { position: 'fixed', top: 8, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, alignItems: 'center', background: 'rgba(40,20,50,0.96)', border: '1px solid #6b3a7a', borderRadius: 10, padding: '6px 10px', zIndex: 20, flexWrap: 'wrap', maxWidth: '94%' },
   devTitle: { color: '#ff9ecf', fontSize: 12, fontWeight: 700, marginRight: 4 },
   devBtn: { background: '#3a2348', border: '1px solid #6b3a7a', color: '#fff', borderRadius: 6, padding: '4px 8px', fontSize: 12, cursor: 'pointer' },
+  fluxIcon: { color: '#ffcf6b' }, // Flux ✦ — warm gold
+  shardIcon: { color: '#5ad4ff' }, // Shards ◈ — cool cyan
 }

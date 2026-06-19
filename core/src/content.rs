@@ -26,7 +26,7 @@ const E: f64 = 150.0;
 const S: f64 = 250.0;
 const U: f64 = 400.0;
 
-pub const SHAPES: [ShapeDef; 50] = [
+pub const SHAPES: [ShapeDef; 51] = [
     // ── Common (ids 0..10) — genus 0, χ=2, free ballast ──────────────────────────────
     ShapeDef { nick: "Pip",     family: "sphere",        rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
     ShapeDef { nick: "Boxy",    family: "cube",          rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
@@ -80,10 +80,11 @@ pub const SHAPES: [ShapeDef; 50] = [
     ShapeDef { nick: "Drake",   family: "stanford_dragon",rarity: Rarity::Relic, genus: 0, euler_cost: 6, base_prod: U },
     ShapeDef { nick: "Suzanne", family: "suzanne",        rarity: Rarity::Relic, genus: 0, euler_cost: 4, base_prod: U },
     ShapeDef { nick: "Spot",    family: "spot",           rarity: Rarity::Relic, genus: 0, euler_cost: 3, base_prod: U },
-    // Princeton "Suggestive Contours" gallery — real scanned/sculpted meshes (.ply, loaded on demand)
+    // Real scanned/sculpted meshes (loaded on demand) — Princeton Suggestive-Contours + Stanford scans
     ShapeDef { nick: "Mooky",   family: "cow",            rarity: Rarity::Relic, genus: 0, euler_cost: 3, base_prod: U },
-    ShapeDef { nick: "Steed",   family: "horse",          rarity: Rarity::Relic, genus: 0, euler_cost: 4, base_prod: U },
-    ShapeDef { nick: "Max",     family: "maxplanck",      rarity: Rarity::Relic, genus: 0, euler_cost: 4, base_prod: U },
+    ShapeDef { nick: "Dillo",   family: "armadillo",      rarity: Rarity::Relic, genus: 0, euler_cost: 5, base_prod: U },
+    ShapeDef { nick: "Lucy",    family: "lucy",           rarity: Rarity::Relic, genus: 0, euler_cost: 6, base_prod: U },
+    ShapeDef { nick: "Cee",     family: "csaszar",        rarity: Rarity::Relic, genus: 1, euler_cost: 2, base_prod: U },
 ];
 
 pub const COUNT: usize = SHAPES.len();
@@ -99,7 +100,7 @@ pub fn rarity_range(r: Rarity) -> std::ops::Range<usize> {
         Rarity::Epic => 18..26,
         Rarity::Ssr => 26..33,
         Rarity::Ur => 33..41,
-        Rarity::Relic => 41..50,
+        Rarity::Relic => 41..51,
     }
 }
 

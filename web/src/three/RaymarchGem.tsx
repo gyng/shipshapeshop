@@ -16,7 +16,7 @@ export const RAYMARCH_SHAPES: Record<string, number> = {
   gyroid: 5,
   schwarz_p: 6,
   schwarz_d: 7,
-  mazur: 0, // the "monster" is secretly a ball
+  mazur: 11, // the "monster" — a lumpy ball that's secretly contractible
 }
 
 const RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4 }
@@ -71,6 +71,7 @@ const FRAG = /* glsl */ `
     if(uShape==2){ p=abs(p); return (p.x+p.y+p.z-1.35)*0.5773; }          // octahedron (planar approx)
     if(uShape==3){ vec2 q=vec2(length(p.xz)-0.72,p.y); return length(q)-0.30; } // torus
     if(uShape==4){ vec3 r=vec3(1.18,0.72,0.96); float k0=length(p/r); float k1=length(p/(r*r)); return k0*(k0-1.0)/k1; } // ellipsoid
+    if(uShape==11){ float d=length(p)-1.0; d += 0.07*sin(p.x*4.0)*sin(p.y*4.0+1.0)*sin(p.z*4.0+2.0); return d*0.8; } // mazur: lumpy "monster", secretly a ball
     // triply-periodic minimal surfaces, intersected with a sphere → a finite "crystal"
     float fr=3.0;
     vec3 s=sin(p*fr), c=cos(p*fr);
