@@ -80,6 +80,22 @@ const STR: Dict = {
 
   'forge.title': { en: 'The Forge', ja: '鍛冶場', zh: '熔炉' },
   'common.close': { en: 'Close', ja: '閉じる', zh: '关闭' },
+
+  'nudge.deploy': {
+    en: '📜 You’ve a shape in hand — open the Engine and Deploy it (or tap Auto-arrange) to start producing Flux.',
+    ja: '📜 形が手に入った——「工房」で配置（または「おまかせ配置」）すると、フラックスが貯まり始める。',
+    zh: '📜 你已拥有形状——进入「引擎」部署它（或点「自动布置」）即可开始产出流量。',
+  },
+  'nudge.forge': {
+    en: '📜 Two of your shapes can be glued into a third — try the Forge.',
+    ja: '📜 持っている形を二つ繋げて、別の形を生み出せる——「鍛冶」を試してみよう。',
+    zh: '📜 你的两个形状可以熔合成第三个——去「熔炉」试试。',
+  },
+  'nudge.prestige': {
+    en: '📜 The Atlas is full. Recrystallize (in the Engine) to ascend a dimension — your collection carries over.',
+    ja: '📜 アトラスが満ちた。「工房」で再結晶すると次元を上れる——コレクションは引き継がれる。',
+    zh: '📜 图志已满。在「引擎」中重结晶即可登上更高维度——收藏会保留。',
+  },
 }
 
 export function useT(): (key: string) => string {

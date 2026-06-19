@@ -29,21 +29,26 @@ export function HeroGem({ family, rarity, spin = 0.4 }: { family: string; rarity
   return (
     <mesh ref={ref} geometry={getGeometry(family)} scale={1.7}>
       <MeshTransmissionMaterial
-        color={RARITY_COLOR[rarity]}
-        thickness={1.2}
-        roughness={Math.max(0, 0.18 - rank * 0.04)}
-        transmission={0.6 + rank * 0.1}
-        ior={1.45 + rank * 0.07}
-        chromaticAberration={0.04 + rank * 0.06}
-        anisotropy={0.2}
-        distortion={0.1}
-        distortionScale={0.3}
-        temporalDistortion={0.1}
+        // Clear refractive glass: full transmission + low roughness so the starfield bends THROUGH it.
+        // Body stays white/clear; rarity shows as coloured internal attenuation + dispersion, not a tint.
+        color="#ffffff"
+        transmission={1}
+        thickness={1.5}
+        roughness={Math.max(0.0, 0.08 - rank * 0.02)}
+        ior={1.5 + rank * 0.06}
+        chromaticAberration={0.06 + rank * 0.09}
+        anisotropicBlur={0.1}
+        distortion={0.2}
+        distortionScale={0.4}
+        temporalDistortion={0.12}
         clearcoat={1}
+        clearcoatRoughness={0.1}
         attenuationColor={RARITY_COLOR[rarity]}
-        attenuationDistance={2.5}
-        emissive={RARITY_COLOR[rarity]}
-        emissiveIntensity={rank >= 3 ? 0.12 : 0.03}
+        attenuationDistance={rank >= 2 ? 1.1 : 3.5}
+        samples={8}
+        resolution={512}
+        backside
+        backsideThickness={0.4}
       />
     </mesh>
   )

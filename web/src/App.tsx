@@ -4,6 +4,7 @@ import { Stage } from './three/Stage'
 import { HeroGem, RARITY_COLOR } from './three/Gem'
 import { CODEX } from './content/codex'
 import { useT, useLangStore, LANGS } from './i18n'
+import { useHints } from './onboarding'
 
 function fmt(n: number): string {
   if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
@@ -68,6 +69,29 @@ export function App() {
       <OfflineModal />
       <WelcomeModal />
       {inspect !== null && <Inspector id={inspect} onClose={() => setInspect(null)} />}
+      <Nudge />
+    </div>
+  )
+}
+
+// One-time, diegetic onboarding hints (the Ledger's voice). Shows the single most-relevant un-dismissed
+// nudge for a non-obvious system; the core pull loop gets none (it's intentionally obvious).
+function Nudge() {
+  const view = useGame((s) => s.view)
+  const recipes = useGame((s) => s.recipes)
+  const dismissed = useHints((s) => s.dismissed)
+  const dismiss = useHints((s) => s.dismiss)
+  const tr = useT()
+  if (!view) return null
+  let id: string | null = null
+  if (view.distinct_owned >= 1 && view.loadout.length === 0) id = 'deploy'
+  else if (recipes.some((r, i) => view.owned[r.a] > 0 && view.owned[r.b] > 0 && view.shards >= 50 && !view.discovered[i])) id = 'forge'
+  else if (view.core_complete) id = 'prestige'
+  if (!id || dismissed.includes(id)) return null
+  return (
+    <div style={S.nudge}>
+      <span style={S.nudgeText}>{tr(`nudge.${id}`)}</span>
+      <button style={S.nudgeClose} onClick={() => dismiss(id!)}>✕</button>
     </div>
   )
 }
@@ -398,4 +422,7 @@ const S: Record<string, CSSProperties> = {
   revealSub: { color: '#aab', margin: '4px 0 14px' },
   revealRow: { display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 14, flexWrap: 'wrap' },
   miniGem: { width: 18, height: 18, borderRadius: '50%' },
+  nudge: { position: 'fixed', left: '50%', bottom: 16, transform: 'translateX(-50%)', maxWidth: 560, width: 'calc(100% - 32px)', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(28,30,42,0.94)', border: '1px solid #2a2c3a', borderRadius: 10, padding: '10px 14px', boxShadow: '0 6px 24px rgba(0,0,0,0.45)', zIndex: 5 },
+  nudgeText: { flex: 1, fontSize: 13, color: '#cdd2e0', lineHeight: 1.4 },
+  nudgeClose: { background: 'none', border: 'none', color: '#8a90a8', cursor: 'pointer', fontSize: 14, padding: 4 },
 }
