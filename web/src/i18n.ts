@@ -4,11 +4,12 @@ import { create } from 'zustand'
 // Tier-1.5 (AGENTS.md §10). The deep character/codex transcreation is a separate content track; this
 // covers the UI chrome so the trilingual plumbing is real and switchable. Nicknames stay as coined names.
 
-export type Lang = 'en' | 'ja' | 'zh'
+export type Lang = 'en' | 'ja' | 'zh' | 'zh-Hant'
 export const LANGS: { id: Lang; label: string }[] = [
   { id: 'en', label: 'EN' },
   { id: 'ja', label: '日本語' },
-  { id: 'zh', label: '中文' },
+  { id: 'zh', label: '简体' },
+  { id: 'zh-Hant', label: '繁體' },
 ]
 
 const LANG_KEY = 'shipshape-lang'
@@ -16,9 +17,12 @@ const LANG_KEY = 'shipshape-lang'
 interface LangStore {
   lang: Lang
   setLang: (l: Lang) => void
+  convReady: boolean // flips true once the Traditional (S→T) converter chunk has loaded
+  _markConvReady: () => void
 }
 export const useLangStore = create<LangStore>((set) => ({
   lang: ((typeof localStorage !== 'undefined' && localStorage.getItem(LANG_KEY)) as Lang) || 'en',
+  convReady: false,
   setLang: (lang) => {
     try {
       localStorage.setItem(LANG_KEY, lang)
@@ -27,9 +31,40 @@ export const useLangStore = create<LangStore>((set) => ({
     }
     set({ lang })
   },
+  _markConvReady: () => set({ convReady: true }),
 }))
 
-type Dict = Record<string, Record<Lang, string>>
+// Traditional Chinese is DERIVED from the Simplified bundle (AGENTS.md §10: zh-Hant as a derived bundle).
+// OpenCC is lazy-loaded as its own chunk the first time 繁體 is selected, so it never weighs down initial load;
+// until it resolves we show Simplified, then re-render.
+let _s2t: ((s: string) => string) | null = null
+let _loadingS2T = false
+function ensureS2T() {
+  if (_s2t || _loadingS2T) return
+  _loadingS2T = true
+  import('opencc-js')
+    .then((m) => {
+      _s2t = m.Converter({ from: 'cn', to: 'tw' })
+      useLangStore.getState()._markConvReady()
+    })
+    .catch(() => {
+      _loadingS2T = false
+    })
+}
+
+type Dict = Record<string, { en: string; ja: string; zh: string }>
+
+function resolve(key: string, lang: Lang): string {
+  const e = STR[key]
+  if (!e) return key
+  if (lang === 'zh-Hant') {
+    const base = e.zh ?? e.en
+    if (_s2t) return _s2t(base)
+    ensureS2T()
+    return base // Simplified shown until the converter chunk loads, then a re-render swaps it
+  }
+  return e[lang as 'en' | 'ja' | 'zh'] ?? e.en ?? key
+}
 const STR: Dict = {
   'nav.pull': { en: 'Pull', ja: 'ガチャ', zh: '抽取' },
   'nav.gallery': { en: 'Gallery', ja: '図鑑', zh: '图鉴' },
@@ -421,8 +456,9 @@ const STR: Dict = {
 
 export function useT(): (key: string, vars?: Record<string, string | number>) => string {
   const lang = useLangStore((s) => s.lang)
+  useLangStore((s) => s.convReady) // subscribe: re-render when the Traditional converter finishes loading
   return (key: string, vars?: Record<string, string | number>) => {
-    let s = STR[key]?.[lang] ?? STR[key]?.en ?? key
+    let s = resolve(key, lang)
     if (vars) {
       for (const k in vars) s = s.split('{' + k + '}').join(String(vars[k]))
     }

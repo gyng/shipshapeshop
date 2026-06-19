@@ -2,7 +2,7 @@ import { create } from 'zustand'
 
 // The 12 hand-made title pieces (optimized to WebP in /public/titles). The player's pick persists across
 // sessions; click-to-rotate on the welcome screen and in Settings.
-export const TITLE_COUNT = 12
+export const TITLE_COUNT = 11
 const KEY = 'shapegacha.title'
 
 // The title is RANDOM on every launch (a fresh piece each session); click-to-rotate then steps from there.
