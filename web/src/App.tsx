@@ -221,6 +221,51 @@ function Hud() {
   )
 }
 
+// The next 2–3 concrete goals (nearest-to-complete incomplete milestones), with progress bars.
+function Objectives() {
+  const { view, milestoneDefs } = useGame()
+  if (!view || milestoneDefs.length === 0) return null
+  const prog = (key: string): [number, number] => {
+    switch (key) {
+      case 'own_10': return [view.distinct_owned, 10]
+      case 'own_25': return [view.distinct_owned, 25]
+      case 'core_complete': return [view.distinct_owned, 41]
+      case 'forge_3': return [view.discovered.filter(Boolean).length, 3]
+      case 'bond_5': return [view.bond_levels.length ? Math.max(...view.bond_levels) : 0, 5]
+      case 'kin_3': return [view.active_synergies, 3]
+      case 'all_relics': return [view.relics_owned, view.relic_count]
+      case 'platonic': return [[1, 2, 3, 4, 5].filter((id) => view.owned[id] > 0).length, 5]
+      case 'ascend': return [view.ng_cycle >= 1 ? 1 : 0, 1]
+      default: return [0, 1]
+    }
+  }
+  const items = milestoneDefs
+    .map((m, i) => ({ key: m.key, done: view.milestones_done[i] }))
+    .filter((x) => !x.done)
+    .map((x) => { const [cur, target] = prog(x.key); return { ...x, cur, target, pct: Math.min(1, cur / target) } })
+    .sort((a, b) => b.pct - a.pct)
+    .slice(0, 3)
+  if (items.length === 0) return null
+  return (
+    <div style={S.objectives}>
+      <div style={S.objHead}>🎯 Next goals</div>
+      {items.map((x) => {
+        const info = MILESTONE_INFO[x.key] ?? { name: x.key, icon: '★' }
+        return (
+          <div key={x.key} style={S.objRow}>
+            <span style={{ fontSize: 15 }}>{info.icon}</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={S.objLabel}>{info.name}</div>
+              <div style={S.meterTrack}><div style={{ ...S.meterFill, width: `${x.pct * 100}%`, background: '#5fe0c6' }} /></div>
+            </div>
+            <span style={S.objNum}>{Math.min(x.cur, x.target)}/{x.target}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function GachaView() {
   const { view, pull, tenPull, shapes, lastReveal, autoPull, toggleAutoPull } = useGame()
   const tr = useT()
@@ -256,6 +301,7 @@ function GachaView() {
             🤖 Auto-pull · {autoPull ? 'ON' : 'OFF'}
           </button>
         )}
+        <Objectives />
       </div>
     </div>
   )
@@ -1276,6 +1322,11 @@ const S: Record<string, CSSProperties> = {
   kbDesc: { color: '#9aa0b4', fontSize: 12.5 },
   kbd2: { fontFamily: 'ui-monospace, monospace', fontSize: 12, background: '#0c0d15', border: '1px solid #3a3d4f', borderRadius: 5, padding: '2px 7px', color: '#e8eaf2' },
   milestoneRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#0e0f17', border: '1px solid #23252f', borderRadius: 8, fontSize: 13 },
+  objectives: { background: '#14151c', border: '1px solid #23252f', borderRadius: 12, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 },
+  objHead: { fontSize: 12, color: '#8a90a8', textTransform: 'uppercase', letterSpacing: 0.6 },
+  objRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  objLabel: { fontSize: 12, color: '#cdd2e0', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  objNum: { fontSize: 11, color: '#5fe0c6', fontWeight: 700, flexShrink: 0 },
   mileToast: { position: 'fixed', top: 58, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(30,24,12,0.96)', border: '1px solid #6b5a2a', borderRadius: 12, padding: '10px 16px', zIndex: 60, minWidth: 290, maxWidth: '92vw', boxShadow: '0 6px 24px rgba(0,0,0,0.55)', cursor: 'pointer' },
   patSurface: { position: 'absolute', inset: 0, cursor: 'grab', touchAction: 'none', zIndex: 3, overflow: 'hidden' },
   patGlow: { position: 'absolute', width: 130, height: 130, transform: 'translate(-50%, -50%)', borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,222,150,0.55), rgba(255,180,220,0.18) 45%, transparent 72%)', pointerEvents: 'none' },
