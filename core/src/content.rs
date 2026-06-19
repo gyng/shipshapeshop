@@ -26,7 +26,7 @@ const E: f64 = 150.0;
 const S: f64 = 250.0;
 const U: f64 = 400.0;
 
-pub const SHAPES: [ShapeDef; 47] = [
+pub const SHAPES: [ShapeDef; 48] = [
     // ── Common (ids 0..10) — genus 0, χ=2, free ballast ──────────────────────────────
     ShapeDef { nick: "Pip",     family: "sphere",        rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
     ShapeDef { nick: "Boxy",    family: "cube",          rarity: Rarity::Common, genus: 0, euler_cost: 0, base_prod: C },
@@ -80,6 +80,7 @@ pub const SHAPES: [ShapeDef; 47] = [
     ShapeDef { nick: "Drake",   family: "stanford_dragon",rarity: Rarity::Relic, genus: 0, euler_cost: 6, base_prod: U },
     ShapeDef { nick: "Suzanne", family: "suzanne",        rarity: Rarity::Relic, genus: 0, euler_cost: 4, base_prod: U },
     ShapeDef { nick: "Spot",    family: "spot",           rarity: Rarity::Relic, genus: 0, euler_cost: 3, base_prod: U },
+    ShapeDef { nick: "Hello",   family: "hello_world",    rarity: Rarity::Relic, genus: 0, euler_cost: 2, base_prod: U },
 ];
 
 pub const COUNT: usize = SHAPES.len();
@@ -95,7 +96,7 @@ pub fn rarity_range(r: Rarity) -> std::ops::Range<usize> {
         Rarity::Epic => 18..26,
         Rarity::Ssr => 26..33,
         Rarity::Ur => 33..41,
-        Rarity::Relic => 41..47,
+        Rarity::Relic => 41..48,
     }
 }
 

@@ -2,6 +2,11 @@ import * as THREE from 'three'
 import { ParametricGeometry } from 'three/examples/jsm/geometries/ParametricGeometry.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { TeapotGeometry } from 'three/examples/jsm/geometries/TeapotGeometry.js'
+import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js'
+import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js'
+import helvetiker from 'three/examples/fonts/helvetiker_regular.typeface.json'
+
+const FONT = new FontLoader().parse(helvetiker as unknown as Parameters<FontLoader['parse']>[0])
 
 // Family → geometry. Built-ins + parametric surfaces where they're exact; distinctive stand-ins for the
 // genuinely hard ones (true TPMS marching-cubes + real 4D projection are a later M2 deepening — for now the
@@ -142,6 +147,7 @@ function build(family: string): THREE.BufferGeometry {
     case 'stanford_dragon': return new THREE.TorusKnotGeometry(0.58, 0.2, 200, 20, 3, 7)
     case 'suzanne': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.0, 0.88, 1.12); return g }
     case 'spot': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.35, 0.8, 0.9); return g }
+    case 'hello_world': return new TextGeometry('Hello, World!', { font: FONT, size: 0.6, depth: 0.2, curveSegments: 5, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.02, bevelSegments: 2 })
     default: return new THREE.IcosahedronGeometry(1)
   }
 }

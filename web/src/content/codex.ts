@@ -62,4 +62,5 @@ export const CODEX: Record<string, Codex> = {
   stanford_dragon: { term: 'the Stanford Dragon — the model you render to show off light', blurb: 'Bring your best subsurface scattering.', bond: 'Every renderer cuts its teeth on my scales. Go on — show me what your light can do.' },
   suzanne: { term: 'Suzanne — Blender’s monkey-head test model', blurb: 'The monkey who tests everything.', bond: 'Press the button and I appear — the quick way to check a shader. Tested more than anyone alive.' },
   spot: { term: 'Spot — Keenan Crane’s cow, mascot of geometry processing', blurb: 'I taught a generation conformal maps.', bond: 'A friendly cow, parameterised more lovingly than most. Moo — in the language of discrete differential geometry.' },
+  hello_world: { term: 'a 3D “Hello, World!” — the first program, given a body', blurb: 'The first thing anyone makes. Now it has dimension.', bond: 'Every coder’s first words, extruded and set adrift in the Manifold. Hello. World. …Hello again.' },
 }
