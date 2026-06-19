@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { useGame, RARITY_ORDER } from './game/store'
-import { Stage } from './three/Stage'
-import { HeroGem, RARITY_COLOR } from './three/Gem'
+import { HeroView } from './three/HeroView'
+import { RARITY_COLOR } from './three/Gem'
 import { CODEX } from './content/codex'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
@@ -135,7 +135,7 @@ function GachaView() {
   return (
     <div style={S.gacha}>
       <div style={S.stageWrap}>
-        {shape && <Stage controls><HeroGem family={shape.family} rarity={shape.rarity} /></Stage>}
+        {shape && <HeroView key={shape.family} family={shape.family} rarity={shape.rarity} controls />}
         {shape && <div style={S.focusName}>{shape.nick} <em style={S.focusFam}>· {shape.family.replace(/_/g, ' ')}</em></div>}
       </div>
       <div style={S.pitymeters}>
@@ -244,7 +244,7 @@ function RevealModal() {
   return (
     <div style={S.modal} onClick={dismissReveal}>
       <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
-        <div style={S.revealStage}>{shape && <Stage><HeroGem family={shape.family} rarity={shape.rarity} spin={0.8} /></Stage>}</div>
+        <div style={S.revealStage}>{shape && <HeroView key={shape.family} family={shape.family} rarity={shape.rarity} spin={0.8} />}</div>
         {shape && <h2 style={{ color: RARITY_COLOR[shape.rarity] }}>{shape.nick}</h2>}
         {shape && <p style={S.revealSub}>{best.is_new ? tr('reveal.new') : `+${best.dupe_shards} ◈ ${tr('hud.shards')}`}</p>}
         {lastReveal.length > 1 && (
@@ -294,7 +294,7 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
   return (
     <div style={S.modal} onClick={onClose}>
       <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
-        <div style={S.revealStage}><Stage controls><HeroGem family={s.family} rarity={s.rarity} spin={0.3} /></Stage></div>
+        <div style={S.revealStage}><HeroView key={s.family} family={s.family} rarity={s.rarity} controls /></div>
         <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{owned ? s.nick : '??? (undiscovered)'}</h2>
         <p style={S.revealSub}>{s.rarity === 'Ssr' ? 'SSR' : s.rarity} · {s.family.replace(/_/g, ' ')}{owned ? ` · ♥ Bond ${bond}` : ''}</p>
         {owned && codex && <p style={{ ...S.hint, fontStyle: 'italic', color: '#cdd2e0' }}>“{codex.blurb}”</p>}
@@ -347,7 +347,7 @@ function ForgeToast() {
   return (
     <div style={S.modal} onClick={dismissForge}>
       <div style={S.revealCard} onClick={(e) => e.stopPropagation()}>
-        <div style={S.revealStage}>{s && <Stage><HeroGem family={s.family} rarity={s.rarity} spin={0.8} /></Stage>}</div>
+        <div style={S.revealStage}>{s && <HeroView key={s.family} family={s.family} rarity={s.rarity} spin={0.8} />}</div>
         {s && <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{s.nick}</h2>}
         <p style={S.revealSub}>{lastForge.is_discovery ? tr('reveal.discovery') : tr('reveal.forged')}</p>
         <button style={S.pullBtn} onClick={dismissForge}>{tr('reveal.continue')}</button>
