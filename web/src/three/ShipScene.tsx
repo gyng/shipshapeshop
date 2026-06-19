@@ -19,7 +19,7 @@ function SceneGem({ shape, side, speaking }: { shape: ShapeRow; side: -1 | 1; sp
   // symmetric placement (keeps the composition centred); emphasis comes from depth, scale + light, not x.
   // Modest x-spread + only a small forward lean so the active gem never pushes outside the frustum.
   const x = side * 1.3
-  const z = speaking ? 0.3 : -0.4
+  const z = speaking ? 0 : -0.3 // keep the speaker on the fit-plane (no forward push) so it never clips
   return (
     <>
       <Float speed={2} rotationIntensity={0} floatIntensity={speaking ? 0.9 : 0.35} floatingRange={[0, 0.16]}>
@@ -43,20 +43,19 @@ function SceneGem({ shape, side, speaking }: { shape: ShapeRow; side: -1 | 1; sp
   )
 }
 
-// Dolly the camera so a sphere of `radius` around the origin always fits — vertically AND horizontally —
-// for the current canvas aspect (+ margin). Prevents gems clipping on narrow/tall cutscene panels.
-function FitView({ radius }: { radius: number }) {
+// Dolly the camera so the composition (half-width × half-height around the origin) FILLS the panel for the
+// current aspect — centred, edge-to-edge with a little breathing room, never clipping at any width.
+function FitView({ halfW, halfH }: { halfW: number; halfH: number }) {
   const camera = useThree((s) => s.camera)
   const size = useThree((s) => s.size)
   useEffect(() => {
     const cam = camera as THREE.PerspectiveCamera
-    const vFov = (cam.fov * Math.PI) / 180
+    const tanV = Math.tan((cam.fov * Math.PI) / 360)
     const aspect = size.width / Math.max(1, size.height)
-    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * aspect)
-    const dist = Math.max(radius / Math.tan(vFov / 2), radius / Math.tan(hFov / 2)) * 1.1
+    const dist = Math.max(halfH / tanV, halfW / (tanV * aspect)) * 1.05
     cam.position.setLength(Math.max(dist, 1))
     cam.updateProjectionMatrix()
-  }, [camera, size, radius])
+  }, [camera, size, halfW, halfH])
   return null
 }
 
@@ -66,7 +65,7 @@ export function ShipScene({ a, b, speakerA }: { a?: ShapeRow; b?: ShapeRow; spea
   const [backdrop, key, cool, warm] = scene.env
   const g = useGfxPreset()
   return (
-    <Canvas dpr={g.dpr} shadows={g.shadows} gl={{ powerPreference: 'high-performance' }} camera={{ position: [0, 0.4, 4.4], fov: 42 }}>
+    <Canvas dpr={g.dpr} shadows={g.shadows} gl={{ powerPreference: 'high-performance' }} camera={{ position: [0, 0, 5], fov: 42 }}>
       <color attach="background" args={[cornell ? '#0a0a0a' : '#0a0a14']} />
       {!cornell && <Stars radius={50} depth={40} count={Math.round(900 * g.sparkle)} factor={3} saturation={0.6} fade speed={0.2} />}
       {!cornell && <Sparkles count={Math.round(30 * g.sparkle)} scale={[9, 5, 5]} size={2} speed={0.25} color={scene.stars} />}
@@ -78,7 +77,7 @@ export function ShipScene({ a, b, speakerA }: { a?: ShapeRow; b?: ShapeRow; spea
         <Lightformer intensity={1.8} color={backdrop} position={[0, -2, 4]} scale={6} />
         <Lightformer intensity={1.8} color={key} position={[0, 4, 2]} scale={5} />
       </Environment>
-      <FitView radius={2.5} />
+      <FitView halfW={2.45} halfH={1.3} />
       {a && <SceneGem shape={a} side={-1} speaking={speakerA} />}
       {b && <SceneGem shape={b} side={1} speaking={!speakerA} />}
       <ContactShadows position={[0, -1.1, 0]} opacity={0.5} scale={8} blur={2.4} far={3} />

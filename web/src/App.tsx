@@ -20,6 +20,7 @@ import { chatterFor } from './content/chatter'
 import { BANNER_INFO, rotatingBannerId } from './content/banners'
 import { shapeEffect } from './content/effects'
 import { generateMessages, type ChatMsg } from './content/chatlas'
+import { useDialogLog } from './dialogLog'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
@@ -147,6 +148,7 @@ export function App() {
       {inspect !== null && <Inspector id={inspect} onClose={() => setInspect(null)} />}
       <SettingsModal />
       <ShipCutscene />
+      <DialogLogModal />
       <ShipWatcher />
       <Nudge />
       <DevBar />
@@ -238,6 +240,7 @@ function Hud() {
         <span title="Viewport dimension — Recrystallize in the Engine to ascend (New Game+)">{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
         {view.facets > 0 && <span title="Facets — prestige meta-currency; spend in the Engine">🌌 {view.facets}</span>}
         <button onClick={toggleMute} style={S.langBtn} aria-label="toggle sound" title="Toggle sound">{muted ? '🔇' : '🔊'}</button>
+        <button onClick={() => useDialogLog.getState().setOpen(true)} style={S.langBtn} aria-label="dialogue log" title="Dialogue log — everything your shapes have said">📜</button>
         <button onClick={() => openSettings(true)} style={S.langBtn} aria-label="settings" title="Settings, scenes & credits">⚙</button>
         {DEV_MODE && <button onClick={toggleDev} style={S.langBtn} aria-label="dev tools" title="Dev tools (compiled out at release)">🛠</button>}
         <span style={S.langSwitch}>
@@ -322,7 +325,9 @@ function useChatter() {
     const lines = chatterFor(shape.family, bond)
     const line = lines[idx.current % lines.length]
     idx.current += 1
-    setBubble({ nick: shape.nick, line, color: RARITY_COLOR[shape.rarity] })
+    const color = RARITY_COLOR[shape.rarity]
+    setBubble({ nick: shape.nick, line, color })
+    useDialogLog.getState().log({ nick: shape.nick, line, color })
     speak(shape.family, line)
   }
   return { bubble, setBubble, talk }
@@ -1023,7 +1028,11 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
       inspect(id)
       const sh = shapes[id]
       const cx = sh ? CODEX[sh.family] : undefined
-      if (sh && cx) speak(sh.family, (view?.bond_levels[id] ?? 0) >= 1 ? cx.bond : cx.blurb)
+      if (sh && cx) {
+        const line = (view?.bond_levels[id] ?? 0) >= 1 ? cx.bond : cx.blurb
+        speak(sh.family, line)
+        useDialogLog.getState().log({ nick: sh.nick, line, color: RARITY_COLOR[sh.rarity] })
+      }
     }
     return () => stopVoice()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1549,6 +1558,38 @@ function MilestoneToast() {
   )
 }
 
+// The global dialogue log — every line any shape has said (chatter, greetings, cutscenes), viewable anytime.
+function DialogLogModal() {
+  const open = useDialogLog((s) => s.open)
+  const entries = useDialogLog((s) => s.entries)
+  const setOpen = useDialogLog((s) => s.setOpen)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (open) ref.current?.scrollTo(0, ref.current.scrollHeight)
+  }, [open, entries.length])
+  if (!open) return null
+  return (
+    <div style={S.modal} onClick={() => setOpen(false)}>
+      <div className="pop-in" style={S.logModalCard} onClick={(e) => e.stopPropagation()}>
+        <div style={S.shipHead}>📜 Dialogue log</div>
+        <div ref={ref} style={S.logModalBox}>
+          {entries.length === 0 ? (
+            <p style={{ ...S.hint, textAlign: 'center' }}>Nothing said yet — tap a shape (or inspect one) to hear it speak.</p>
+          ) : (
+            entries.map((e, i) => (
+              <div key={i} style={{ marginBottom: 9 }}>
+                <strong style={{ color: e.color, fontSize: 12 }}>{e.nick}</strong>
+                <p style={{ ...S.shipText, margin: '2px 0 0', fontSize: 13, fontStyle: 'normal' }}>{e.line}</p>
+              </div>
+            ))
+          )}
+        </div>
+        <button style={S.pullBtn} onClick={() => setOpen(false)}>Close</button>
+      </div>
+    </div>
+  )
+}
+
 // A two-character "ship" dialogue that plays when a kin pair first unites (and is re-watchable).
 function ShipCutscene() {
   const activeKey = useShips((s) => s.active)
@@ -1566,7 +1607,10 @@ function ShipCutscene() {
     const sc = SHIP_SCENES[activeKey]
     const ln = sc?.lines[i]
     if (!ln) return
-    speak(ln.who === 'a' ? sc.a : sc.b, ln.text)
+    const fam = ln.who === 'a' ? sc.a : sc.b
+    speak(fam, ln.text)
+    const sh = shapes.find((s) => s.family === fam)
+    if (sh) useDialogLog.getState().log({ nick: sh.nick, line: ln.text, color: RARITY_COLOR[sh.rarity] })
     return () => stopVoice()
   }, [activeKey, i])
   if (!activeKey) return null
@@ -1791,6 +1835,8 @@ const S: Record<string, CSSProperties> = {
   shipHead: { color: '#ff9ecf', fontWeight: 800, fontSize: 15, marginBottom: 14, letterSpacing: 0.3 },
   logBtn: { position: 'absolute', top: 14, right: 14, background: 'rgba(40,30,48,0.8)', border: '1px solid #4a3a52', color: '#ffb8e0', borderRadius: 999, width: 30, height: 30, cursor: 'pointer', fontSize: 14, lineHeight: 1 },
   logBox: { minHeight: 78, maxHeight: 220, overflowY: 'auto', background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: '12px 14px', marginBottom: 14, textAlign: 'left' },
+  logModalCard: { width: 'min(460px, 94vw)', background: '#101119', border: '1px solid #2a2c3a', borderRadius: 16, padding: 20, textAlign: 'center' },
+  logModalBox: { maxHeight: '58vh', overflowY: 'auto', textAlign: 'left', margin: '12px 0 14px', background: '#0c0d15', border: '1px solid #23252f', borderRadius: 12, padding: '12px 14px' },
   shipGems: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18, marginBottom: 14 },
   shipGem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, transition: 'all 0.25s ease', color: '#cdd2e0', fontSize: 13, fontWeight: 700 },
   shipGemDot: { width: 52, height: 52, borderRadius: '50%', transition: 'all 0.25s ease' },
