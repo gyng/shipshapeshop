@@ -266,7 +266,7 @@ function FluxTooltipContent() {
   const active = mults.filter(([, m]) => m > 1.0001)
   return (
     <div style={{ minWidth: 210 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: COLOR.gold, fontWeight: 700 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, color: COLOR.gold, fontWeight: 'var(--fw-bold)' }}>
         <span>✦ {tr('hud.flux')}</span>
         <span>+{fmt(view.rate_per_hr)}{tr('hud.perHour')}</span>
       </div>
@@ -274,9 +274,9 @@ function FluxTooltipContent() {
       {active.length > 0 && (
         <div style={{ borderTop: '1px solid #2c2f3c', marginTop: 2, paddingTop: 4 }}>
           {active.map(([label, m]) => (
-            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, fontSize: 12 }}>
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 14, fontSize: 'var(--fs-caption)' }}>
               <span style={{ color: '#9aa0b4' }}>{label}</span>
-              <span style={{ color: '#5fe0c6', fontWeight: 700 }}>×{m.toFixed(2)}</span>
+              <span style={{ color: '#5fe0c6', fontWeight: 'var(--fw-bold)' }}>×{m.toFixed(2)}</span>
             </div>
           ))}
         </div>
@@ -363,13 +363,13 @@ function Hud() {
         </div>
       </Tooltip>
       <div style={S.hudStats}>
-        <Tooltip content={<span style={{ fontSize: 12.5 }}>{tr('hud.shardsTip')}</span>}>
+        <Tooltip content={<span style={{ fontSize: 'var(--fs-caption)' }}>{tr('hud.shardsTip')}</span>}>
           <span style={{ cursor: 'help' }}><span ref={shardRef} key={shardPop} className="value-pop" style={{ display: 'inline-block' }}><span style={S.shardIcon}>◈</span> <Numeral value={view.shards} format={fmt} /></span> {tr('hud.shards')}</span>
         </Tooltip>
-        <Tooltip content={<span style={{ fontSize: 12.5 }}>{tr('hud.collectionTip')}</span>}>
+        <Tooltip content={<span style={{ fontSize: 'var(--fs-caption)' }}>{tr('hud.collectionTip')}</span>}>
           <span style={{ cursor: 'help' }}>{tr('hud.collection')} {view.distinct_owned}/41</span>
         </Tooltip>
-        <Tooltip content={<span style={{ fontSize: 12.5 }}>{tr('hud.dimTip')}</span>}>
+        <Tooltip content={<span style={{ fontSize: 'var(--fs-caption)' }}>{tr('hud.dimTip')}</span>}>
           <span style={{ cursor: 'help' }}>{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
         </Tooltip>
         {view.facets > 0 && <span title={tr('hud.facetsTip')}>🌌 {view.facets}</span>}
@@ -422,7 +422,7 @@ function Objectives() {
         const info = MILESTONE_INFO[x.key] ?? { name: x.key, icon: '★' }
         return (
           <div key={x.key} style={S.objRow}>
-            <span style={{ fontSize: 15 }}>{info.icon}</span>
+            <span style={{ fontSize: 'var(--fs-h4)' }}>{info.icon}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={S.objLabel}>{info.name}</div>
               <div style={S.meterTrack}><div style={{ ...S.meterFill, width: `${x.pct * 100}%`, background: '#5fe0c6', color: '#5fe0c6' }} /></div>
@@ -533,10 +533,10 @@ function BannerSelector() {
             </div>
             <div style={S.bannerFeat}>
               {def.featured.length === 0 ? (
-                <span style={{ color: '#8a90a8', fontSize: 11 }}>{tr('banner.fullPool')}</span>
+                <span style={{ color: '#8a90a8', fontSize: 'var(--fs-eyebrow)' }}>{tr('banner.fullPool')}</span>
               ) : (
                 def.featured.slice(0, 6).map((id) => (
-                  <span key={id} style={{ fontSize: 15 }}>{glyphOf(shapes[id]?.family ?? '')}</span>
+                  <span key={id} style={{ fontSize: 'var(--fs-h4)' }}>{glyphOf(shapes[id]?.family ?? '')}</span>
                 ))
               )}
             </div>
@@ -578,7 +578,7 @@ function GachaView() {
           <div style={S.focusName}>
             {shape.nick} <em style={S.focusFam}>· {shape.family.replace(/_/g, ' ')}</em>
             {isBannerPreview ? (
-              <span style={{ color: '#ff9d6b', fontSize: 12, fontWeight: 700 }}> 🔥 {tr('gacha.featured')}</span>
+              <span style={{ color: '#ff9d6b', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)' }}> 🔥 {tr('gacha.featured')}</span>
             ) : secretaryId === focusId ? (
               <span style={S.secretaryTag}> ★ {tr('gacha.secretaryTag')}</span>
             ) : null}
@@ -590,7 +590,7 @@ function GachaView() {
             return (
               <button style={S.effectPreview} onClick={() => useInspector.getState().set(focusId)} title={`${e.name} — ${e.desc}\n${tr('gacha.effectTooltip')}`}>
                 <span>{e.icon}</span>
-                <span style={{ fontWeight: 700 }}>{e.name}</span>
+                <span style={{ fontWeight: 'var(--fw-bold)' }}>{e.name}</span>
                 <span style={{ color: '#8a90a8' }}>· {tr('gacha.details')}</span>
               </button>
             )
@@ -643,8 +643,8 @@ function PullHistory() {
         <div key={i} style={{ ...S.histRow, cursor: 'pointer' }} onClick={() => useInspector.getState().set(p.id)} title={tr('pull.history.inspectTip')}>
           <span style={{ ...S.tileDot, background: RARITY_COLOR[p.rarity] }} />
           <span style={{ flex: 1, color: '#cdd2e0' }}>{p.nick}</span>
-          <span style={{ color: RARITY_COLOR[p.rarity], fontWeight: 700, fontSize: 12 }}>{p.rarity}</span>
-          {p.isNew && <span style={{ color: '#ff5d8f', fontSize: 11, fontWeight: 800 }}>{tr('pull.history.new')}</span>}
+          <span style={{ color: RARITY_COLOR[p.rarity], fontWeight: 'var(--fw-bold)', fontSize: 'var(--fs-caption)' }}>{p.rarity}</span>
+          {p.isNew && <span style={{ color: '#ff5d8f', fontSize: 'var(--fs-eyebrow)', fontWeight: 'var(--fw-heavy)' }}>{tr('pull.history.new')}</span>}
         </div>
       ))}
     </div>
@@ -766,7 +766,7 @@ function CuratorBadge({ compact = false }: { compact?: boolean }) {
       {!compact && (
         <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.25 }}>
           <span style={{ fontSize: 10.5, color: '#8a90a8', textTransform: 'uppercase', letterSpacing: 0.5 }}>{tr('rank.label')}</span>
-          <span style={{ fontSize: 12, color: '#cdd2e0' }}>{next ? tr('rank.toNext', { toNext, next }) : tr('rank.apex')}</span>
+          <span style={{ fontSize: 'var(--fs-caption)', color: '#cdd2e0' }}>{next ? tr('rank.toNext', { toNext, next }) : tr('rank.apex')}</span>
         </span>
       )}
     </div>
@@ -922,11 +922,11 @@ function FacetsPanel() {
           return (
             <div key={f.key} className={popped === f.key ? 'chip upgrade-pop' : 'chip'} style={{ ...S.recipeCard, borderColor: lvl > 0 ? '#b388ff' : '#2a2440' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{ fontSize: 18 }}>{info.icon}</span>
+                <span style={{ fontSize: 'var(--fs-h2)' }}>{info.icon}</span>
                 <strong style={{ color: '#e8eaf2' }}>{info.name}</strong>
-                {f.max_level > 1 && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a90a8' }}>{tr('common.lvFraction', { lvl, max: f.max_level })}</span>}
+                {f.max_level > 1 && <span style={{ marginLeft: 'auto', fontSize: 'var(--fs-eyebrow)', color: '#8a90a8' }}>{tr('common.lvFraction', { lvl, max: f.max_level })}</span>}
               </div>
-              <p style={{ ...S.boardDesc, margin: 0, fontSize: 12 }}>{info.desc}</p>
+              <p style={{ ...S.boardDesc, margin: 0, fontSize: 'var(--fs-caption)' }}>{info.desc}</p>
               <button className="forge-cap" style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={(e) => onBuy(e, i, f.key)}>
                 {maxed ? tr('common.maxed') : tr('facets.buy', { cost })}
               </button>
@@ -977,10 +977,10 @@ function UpgradesPanel() {
             return (
               <div key={u.key} className="chip" style={{ ...S.recipeCard, borderColor: '#23252f', opacity: 0.6 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                  <span style={{ fontSize: 18, filter: 'grayscale(1)' }}>🔒</span>
+                  <span style={{ fontSize: 'var(--fs-h2)', filter: 'grayscale(1)' }}>🔒</span>
                   <strong style={{ color: '#8a90a8' }}>{info.name}</strong>
                 </div>
-                <p style={{ ...S.boardDesc, margin: 0, fontSize: 12 }}>{info.desc}</p>
+                <p style={{ ...S.boardDesc, margin: 0, fontSize: 'var(--fs-caption)' }}>{info.desc}</p>
                 <div style={{ ...S.chipMeta, color: '#ff9d6b', marginTop: 4 }}>
                   {tr('workshop.requires', { name: reqInfo?.name ?? '' })}{req && req[1] > 1 ? tr('workshop.requiresLevel', { level: req[1] }) : ''}
                 </div>
@@ -993,11 +993,11 @@ function UpgradesPanel() {
           return (
             <div key={u.key} className={popped === u.key ? 'chip upgrade-pop' : 'chip'} style={{ ...S.recipeCard, borderColor: lvl > 0 ? '#5fe0c6' : '#23252f' }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                <span style={{ fontSize: 18 }}>{info.icon}</span>
+                <span style={{ fontSize: 'var(--fs-h2)' }}>{info.icon}</span>
                 <strong style={{ color: '#e8eaf2' }}>{info.name}</strong>
-                {u.max_level > 1 && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a90a8' }}>{tr('common.lvFraction', { lvl, max: u.max_level })}</span>}
+                {u.max_level > 1 && <span style={{ marginLeft: 'auto', fontSize: 'var(--fs-eyebrow)', color: '#8a90a8' }}>{tr('common.lvFraction', { lvl, max: u.max_level })}</span>}
               </div>
-              <p style={{ ...S.boardDesc, margin: 0, fontSize: 12 }}>{info.desc}</p>
+              <p style={{ ...S.boardDesc, margin: 0, fontSize: 'var(--fs-caption)' }}>{info.desc}</p>
               <button className="forge-cap" style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={(e) => onBuy(e, i, u.key, flux)}>
                 {maxed ? tr('common.maxed') : (
                   <>{tr('workshop.buy')}{fmt(flux)} <span style={S.fluxIcon}>✦</span>{shards > 0 ? <> + {shards} <span style={S.shardIcon}>◈</span></> : null}</>
@@ -1048,11 +1048,11 @@ function ProductionBreakdown() {
       <div style={S.multGrid}>
         {active.map((r) => (
           <div key={r.label} className="chip" style={S.multRow}>
-            <span style={{ color: '#cdd2e0', fontSize: 13 }}>
+            <span style={{ color: '#cdd2e0', fontSize: 'var(--fs-body-sm)' }}>
               {r.label}
-              {r.note ? <span style={{ color: '#8a90a8', fontSize: 11 }}> · {r.note}</span> : null}
+              {r.note ? <span style={{ color: '#8a90a8', fontSize: 'var(--fs-eyebrow)' }}> · {r.note}</span> : null}
             </span>
-            <span style={{ color: '#5fe0c6', fontWeight: 800 }}>×{r.mult.toFixed(2)}</span>
+            <span style={{ color: '#5fe0c6', fontWeight: 'var(--fw-heavy)' }}>×{r.mult.toFixed(2)}</span>
           </div>
         ))}
       </div>
@@ -1177,7 +1177,7 @@ function EngineView() {
         </div>
         {view.active_synergies > 0 && (
           <div style={S.bigStat}>
-            <span style={{ ...S.bigStatNum, color: '#ff9ecf', fontSize: 20 }}>×{view.mult_synergy.toFixed(2)}</span>
+            <span style={{ ...S.bigStatNum, color: '#ff9ecf', fontSize: 'var(--fs-numeral)' }}>×{view.mult_synergy.toFixed(2)}</span>
             <span style={S.bigStatLbl}>{tr('engine.kinSynergyStat', { count: view.active_synergies }).replace('{count>1?\'s\':\'\'}', view.active_synergies > 1 ? 's' : '')}</span>
           </div>
         )}
@@ -1196,7 +1196,7 @@ function EngineView() {
 
       <h4 style={S.boardSub}>{tr('engine.floorHeading', { w: view.board_w, h: view.board_h, count: view.loadout.length })}</h4>
       <HelpNote id="help.board">
-        <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>
+        <p style={{ ...S.boardDesc, fontSize: 'var(--fs-caption)', margin: '0 0 8px' }}>
           {tr('engine.boardHint')}
           {sel != null && <b style={{ color: '#5fe0c6' }}>{tr('engine.placingHint', { nick: shapes[sel]?.nick ?? '' })}</b>}
         </p>
@@ -1346,7 +1346,7 @@ function RevealModal() {
               if (!sh) return null
               return (
                 <div key={i} className="haul-in" style={{ ...S.haulTile, borderColor: RARITY_COLOR[sh.rarity], background: `${RARITY_COLOR[sh.rarity]}1c`, animationDelay: `${i * 55}ms` }} title={sh.nick}>
-                  <span style={{ fontSize: 20 }}>{glyphOf(sh.family)}</span>
+                  <span style={{ fontSize: 'var(--fs-numeral)' }}>{glyphOf(sh.family)}</span>
                   {o.is_new && <span style={S.haulNew}>NEW</span>}
                 </div>
               )
@@ -1435,7 +1435,7 @@ function PatSurface({ id }: { id: number }) {
     <div style={S.patSurface} onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerLeave={end}>
       {glow && <div style={{ ...S.patGlow, left: glow.x, top: glow.y }} />}
       {sparks.map((sp) => (
-        <span key={sp.k} className="floater" style={{ position: 'absolute', left: sp.x, top: sp.y, color: '#fff3b0', fontSize: 13, pointerEvents: 'none' }}>✦</span>
+        <span key={sp.k} className="floater" style={{ position: 'absolute', left: sp.x, top: sp.y, color: '#fff3b0', fontSize: 'var(--fs-body-sm)', pointerEvents: 'none' }}>✦</span>
       ))}
     </div>
   )
@@ -1534,7 +1534,7 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
                     >
                       <span style={{ color: united ? '#ff9ecf' : '#4a4d5f', width: 12, flexShrink: 0 }}>{united ? '♥' : '○'}</span>
                       <span style={S.kinType}>{k.type}</span>
-                      <span style={{ color: united ? '#e8eaf2' : '#8a90a8', fontWeight: 700, flexShrink: 0 }}>{partner ? partner.nick : '???'}</span>
+                      <span style={{ color: united ? '#e8eaf2' : '#8a90a8', fontWeight: 'var(--fw-bold)', flexShrink: 0 }}>{partner ? partner.nick : '???'}</span>
                       <span style={S.kinNote}>— {k.note}</span>
                       {canWatch && <span style={S.watchPill}>{tr('inspect.kinship.watchScene')}</span>}
                     </div>
@@ -1547,7 +1547,7 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
           <>
             {/* No 3D preview for undiscovered shapes — pulling is the joy. Just a vague teaser. */}
             <div style={{ ...S.revealStage, display: 'grid', placeItems: 'center' }}>
-              <span style={{ fontSize: 72, color: '#2a2c3a', fontWeight: 700 }}>?</span>
+              <span style={{ fontSize: 72, color: '#2a2c3a', fontWeight: 'var(--fw-bold)' }}>?</span>
             </div>
             <h2 style={{ color: '#6b7088' }}>{tr('inspect.undiscovered.title')}</h2>
             <p style={S.revealSub}>{rarityLabel(s.rarity)} · {tr('inspect.undiscovered.sub')}</p>
@@ -1670,7 +1670,7 @@ function TourCoachmark({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 22 }}>{cur.icon}</span>
           <strong style={{ color: '#e8eaf2' }}>{tr(`${cur.key}.title`)}</strong>
-          <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a90a8' }}>{step + 1}/{TOUR_STEPS.length}</span>
+          <span style={{ marginLeft: 'auto', fontSize: 'var(--fs-eyebrow)', color: '#8a90a8' }}>{step + 1}/{TOUR_STEPS.length}</span>
         </div>
         <p style={{ ...S.boardDesc, margin: '8px 0 12px' }}>{tr(`${cur.key}.body`)}</p>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -1742,7 +1742,7 @@ function WelcomeModal() {
       <div className="pop-in" style={{ ...S.revealCard, position: 'relative', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
         <WelcomeMotes />
         <TitleArt className="welcome-art" style={{ marginBottom: 14 }} />
-        <h2 style={{ margin: '0 0 6px', fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 700, letterSpacing: 0.5, animation: 'welcome-title-in 0.8s ease-out both' }}>{tr('welcome.title')}</h2>
+        <h2 style={{ margin: '0 0 6px', fontFamily: 'var(--font-display)', fontSize: 30, fontWeight: 'var(--fw-bold)', letterSpacing: 0.5, animation: 'welcome-title-in 0.8s ease-out both' }}>{tr('welcome.title')}</h2>
         <p style={S.revealSub}>{tr('welcome.body')}</p>
         <p style={S.hint}>{tr('welcome.note')}</p>
         <button style={S.pullBtn} onClick={begin}>{tr('welcome.begin')}</button>
@@ -1773,7 +1773,7 @@ function ShopView() {
               <div style={S.sceneSwatch}>{sc.env.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}</div>
               <div>
                 <strong style={{ color: '#e8eaf2' }}>{sc.name}{equipped ? ' ✓' : ''}</strong>
-                <p style={{ ...S.boardDesc, margin: '4px 0 0', fontSize: 12 }}>{sc.desc}</p>
+                <p style={{ ...S.boardDesc, margin: '4px 0 0', fontSize: 'var(--fs-caption)' }}>{sc.desc}</p>
               </div>
               {equipped ? (
                 <button style={{ ...S.forgeBtn, opacity: 0.6 }} disabled>{tr('shop.equipped')}</button>
@@ -1793,7 +1793,7 @@ function ShopView() {
 function FluxChart({ data }: { data: number[] }) {
   const tr = useT()
   if (data.length < 2) {
-    return <div style={{ ...S.boardIntro, height: 110, display: 'grid', placeItems: 'center', color: '#6b7088', fontSize: 13 }}>{tr('ledger.fluxTrendEmpty')}</div>
+    return <div style={{ ...S.boardIntro, height: 110, display: 'grid', placeItems: 'center', color: '#6b7088', fontSize: 'var(--fs-body-sm)' }}>{tr('ledger.fluxTrendEmpty')}</div>
   }
   const w = 600, h = 120
   const min = Math.min(...data), max = Math.max(...data)
@@ -1902,7 +1902,7 @@ function LedgerView() {
                     <span>{ok ? '✅' : '🔒'}</span>
                     <span style={{ fontSize: 17 }}>{info.icon}</span>
                     <span style={{ flex: 1, color: ok ? '#e8eaf2' : '#8a90a8' }}>{info.name}</span>
-                    <span style={{ color: ok ? '#5fe0c6' : '#6b7088', fontWeight: 700, fontSize: 12 }}>+{Math.round(m.bonus * 100)}%</span>
+                    <span style={{ color: ok ? '#5fe0c6' : '#6b7088', fontWeight: 'var(--fw-bold)', fontSize: 'var(--fs-caption)' }}>+{Math.round(m.bonus * 100)}%</span>
                   </div>
                 )
               })}
@@ -1927,8 +1927,8 @@ function SettingRow({ label, children }: { label: string; children: ReactNode })
 function Attribution() {
   const tr = useT()
   return (
-    <div style={{ fontSize: 12.5, lineHeight: 1.6, color: '#9aa0b4' }}>
-      <p style={{ margin: '0 0 4px', color: '#cdd2e0', fontWeight: 700 }}>{tr('attribution.referenceModels')}</p>
+    <div style={{ fontSize: 'var(--fs-caption)', lineHeight: 1.6, color: '#9aa0b4' }}>
+      <p style={{ margin: '0 0 4px', color: '#cdd2e0', fontWeight: 'var(--fw-bold)' }}>{tr('attribution.referenceModels')}</p>
       <ul style={S.attrList}>
         <li>{tr('attribution.stanford')}</li>
         <li>{tr('attribution.princeton')}</li>
@@ -1936,7 +1936,7 @@ function Attribution() {
         <li>{tr('attribution.crane')}</li>
         <li>{tr('attribution.benchy')}</li>
       </ul>
-      <p style={{ margin: '8px 0 4px', color: '#cdd2e0', fontWeight: 700 }}>{tr('attribution.builtWith')}</p>
+      <p style={{ margin: '8px 0 4px', color: '#cdd2e0', fontWeight: 'var(--fw-bold)' }}>{tr('attribution.builtWith')}</p>
       <ul style={S.attrList}>
         <li>{tr('attribution.builtThree')}</li>
         <li>{tr('attribution.builtRust')}</li>
@@ -2024,7 +2024,7 @@ function SettingsModal() {
     <div style={S.modal} onClick={() => setSettingsOpen(false)}>
       <div className="pop-in" style={S.settingsCard} onClick={(e) => e.stopPropagation()}>
         <div style={S.settingsHead}>
-          <strong style={{ fontSize: 16 }}>{tr('settings.title')}</strong>
+          <strong style={{ fontSize: 'var(--fs-h3)' }}>{tr('settings.title')}</strong>
           <button style={S.langBtn} onClick={() => setSettingsOpen(false)}>✕</button>
         </div>
         <div style={S.settingsTabs}>
@@ -2070,7 +2070,7 @@ function SettingsModal() {
           {tab === 'title' && <TitleArtSettings />}
           {tab === 'data' && <DataSettings />}
           {tab === 'keybinds' && (
-            <div style={{ fontSize: 13, color: '#cdd2e0' }}>
+            <div style={{ fontSize: 'var(--fs-body-sm)', color: '#cdd2e0' }}>
               <div style={S.kbRow}><span><kbd style={S.kbd2}>P</kbd> <kbd style={S.kbd2}>Space</kbd></span><span style={S.kbDesc}>{tr('settings.kbPullx1')}</span></div>
               <div style={S.kbRow}><kbd style={S.kbd2}>T</kbd><span style={S.kbDesc}>{tr('settings.kbPullx10')}</span></div>
               <div style={S.kbRow}><span><kbd style={S.kbd2}>1</kbd>–<kbd style={S.kbd2}>9</kbd></span><span style={S.kbDesc}>{tr('settings.kbNavScreens')}</span></div>
@@ -2102,12 +2102,12 @@ function MilestoneToast() {
   const info = MILESTONE_INFO[def?.key] ?? { name: tr('milestone.fallbackName'), icon: '🏆' }
   return (
     <div className="pop-in" style={S.mileToast} onClick={dismiss}>
-      <span style={{ fontSize: 24 }}>{info.icon}</span>
+      <span style={{ fontSize: 'var(--fs-h1)' }}>{info.icon}</span>
       <div>
-        <div style={{ color: '#ffd76b', fontWeight: 800, fontSize: 11, letterSpacing: 0.6 }}>{tr('milestone.toastBanner')}</div>
-        <div style={{ color: '#e8eaf2', fontSize: 13 }}>{info.name}</div>
+        <div style={{ color: '#ffd76b', fontWeight: 'var(--fw-heavy)', fontSize: 'var(--fs-eyebrow)', letterSpacing: 0.6 }}>{tr('milestone.toastBanner')}</div>
+        <div style={{ color: '#e8eaf2', fontSize: 'var(--fs-body-sm)' }}>{info.name}</div>
       </div>
-      <span style={{ marginLeft: 'auto', color: '#5fe0c6', fontWeight: 800 }}>+{Math.round((def?.bonus ?? 0) * 100)}%</span>
+      <span style={{ marginLeft: 'auto', color: '#5fe0c6', fontWeight: 'var(--fw-heavy)' }}>+{Math.round((def?.bonus ?? 0) * 100)}%</span>
       <div className="toast-drain" style={S.toastDrain} />
     </div>
   )
@@ -2134,8 +2134,8 @@ function DialogLogModal() {
           ) : (
             entries.map((e, i) => (
               <div key={i} style={{ marginBottom: 9 }}>
-                <strong style={{ color: e.color, fontSize: 12 }}>{e.nick}</strong>
-                <p style={{ ...S.shipText, margin: '2px 0 0', fontSize: 13, fontStyle: 'normal' }}>{e.line}</p>
+                <strong style={{ color: e.color, fontSize: 'var(--fs-caption)' }}>{e.nick}</strong>
+                <p style={{ ...S.shipText, margin: '2px 0 0', fontSize: 'var(--fs-body-sm)', fontStyle: 'normal' }}>{e.line}</p>
               </div>
             ))
           )}
@@ -2194,17 +2194,17 @@ function ShipCutscene() {
         <div style={S.shipStage}>
           <ShipScene a={a} b={b} speakerA={speakerA} />
           <div style={S.shipNames}>
-            <span style={{ color: speakerA ? aCol : '#7b8198', fontWeight: 700, transition: 'color .2s' }}>{a?.nick}</span>
+            <span style={{ color: speakerA ? aCol : '#7b8198', fontWeight: 'var(--fw-bold)', transition: 'color .2s' }}>{a?.nick}</span>
             <span style={{ color: '#ff5d8f' }}>♥</span>
-            <span style={{ color: speakerA ? '#7b8198' : bCol, fontWeight: 700, transition: 'color .2s' }}>{b?.nick}</span>
+            <span style={{ color: speakerA ? '#7b8198' : bCol, fontWeight: 'var(--fw-bold)', transition: 'color .2s' }}>{b?.nick}</span>
           </div>
         </div>
         {showLog ? (
           <div style={S.logBox}>
             {ship.lines.slice(0, i + 1).map((ln, j) => (
               <div key={j} style={{ marginBottom: 9 }}>
-                <strong style={{ color: colOf(ln.who), fontSize: 12 }}>{speakerOf(ln.who)?.nick}</strong>
-                <p style={{ ...S.shipText, margin: '2px 0 0', fontSize: 13, fontFamily: fontOf(ln.who === 'a' ? ship.a : ship.b) }}>{ln.text}</p>
+                <strong style={{ color: colOf(ln.who), fontSize: 'var(--fs-caption)' }}>{speakerOf(ln.who)?.nick}</strong>
+                <p style={{ ...S.shipText, margin: '2px 0 0', fontSize: 'var(--fs-body-sm)', fontFamily: fontOf(ln.who === 'a' ? ship.a : ship.b) }}>{ln.text}</p>
               </div>
             ))}
           </div>
@@ -2244,7 +2244,7 @@ const S: Record<string, CSSProperties> = {
   app: { background: 'var(--c-bg-base)', color: 'var(--c-text)', minHeight: '100vh', fontFamily: 'var(--font-app)', display: 'flex', flexDirection: 'column' },
   hud: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', flexWrap: 'wrap', gap: 'var(--sp-2)', background: 'linear-gradient(180deg, #16131a 0%, #100f17 100%), linear-gradient(180deg, rgba(255,207,107,0.06), transparent)', borderBottom: '1px solid #2c2f3c', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -1px 0 rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.4)' },
   fluxLabel: { color: 'var(--c-text-dim)', marginRight: 'var(--sp-2)', fontSize: 'var(--fs-body-sm)' },
-  fluxValue: { fontSize: 'var(--fs-display)', fontWeight: 800, color: 'var(--c-accent-gold-bright)', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 14px rgba(255,207,107,0.35)' },
+  fluxValue: { fontSize: 'var(--fs-display)', fontWeight: 'var(--fw-heavy)', color: 'var(--c-accent-gold-bright)', fontVariantNumeric: 'tabular-nums', textShadow: '0 0 14px rgba(255,207,107,0.35)' },
   rate: { color: 'var(--c-accent-teal)', marginLeft: 'var(--sp-2_5)', fontSize: 'var(--fs-body-sm)' },
   hudStats: { display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 'var(--sp-3)', rowGap: 'var(--sp-1_5)', fontSize: 'var(--fs-body-sm)', color: '#aab', alignItems: 'center', minWidth: 0 },
   langSwitch: { display: 'flex', gap: 'var(--sp-1)' },
@@ -2253,32 +2253,32 @@ const S: Record<string, CSSProperties> = {
   nav: { display: 'flex', gap: 'var(--sp-1)', padding: '8px 16px', overflowX: 'auto', background: 'linear-gradient(180deg,#15161f,#0e0f17)', boxShadow: 'inset 0 -1px 0 rgba(0,0,0,0.5)', borderBottom: '1px solid #20222e' },
   navBtn: { background: 'none', border: 'none', color: 'var(--c-text-dim)', padding: '8px 12px', borderRadius: 'var(--r-md)', cursor: 'pointer', fontSize: 'var(--fs-body)', display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-1_5)', flexShrink: 0, whiteSpace: 'nowrap' },
   navBtnActive: { background: 'linear-gradient(180deg, #262a3e, #1b1e2c)', color: 'var(--c-text-bright)', border: '1px solid #34384a', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -3px 0 -1px #5fe0c6, 0 2px 4px rgba(0,0,0,0.4)' },
-  navBtnImportant: { color: 'var(--c-accent-teal-soft)', background: 'rgba(95,224,198,0.10)', boxShadow: 'inset 0 0 0 1px rgba(95,224,198,0.5), inset 0 1px 0 rgba(255,255,255,0.06)', fontWeight: 700 },
+  navBtnImportant: { color: 'var(--c-accent-teal-soft)', background: 'rgba(95,224,198,0.10)', boxShadow: 'inset 0 0 0 1px rgba(95,224,198,0.5), inset 0 1px 0 rgba(255,255,255,0.06)', fontWeight: 'var(--fw-bold)' },
   main: { flex: 1, padding: 'var(--sp-4)', overflow: 'auto' },
   gacha: { maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-3_5)' },
   stageWrap: { position: 'relative', height: 340, borderRadius: 'var(--r-3xl)', overflow: 'hidden', background: 'var(--c-bg-stage)', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.7)' },
-  focusName: { position: 'absolute', bottom: 'var(--sp-2_5)', left: 0, right: 0, textAlign: 'center', fontSize: 'var(--fs-h2)', fontWeight: 600, pointerEvents: 'none' },
-  focusFam: { color: 'var(--c-text-dim)', fontStyle: 'normal', fontWeight: 400, fontSize: 'var(--fs-body-sm)' },
-  secretaryTag: { color: 'var(--c-accent-gold-deep)', fontSize: 'var(--fs-caption)', fontWeight: 700 },
+  focusName: { position: 'absolute', bottom: 'var(--sp-2_5)', left: 0, right: 0, textAlign: 'center', fontSize: 'var(--fs-h2)', fontWeight: 'var(--fw-medium)', pointerEvents: 'none' },
+  focusFam: { color: 'var(--c-text-dim)', fontStyle: 'normal', fontWeight: 'var(--fw-regular)', fontSize: 'var(--fs-body-sm)' },
+  secretaryTag: { color: 'var(--c-accent-gold-deep)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)' },
   effectPreview: { position: 'absolute', top: 'var(--sp-2_5)', left: 'var(--sp-2_5)', display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-1_5)', background: 'rgba(16,17,25,0.82)', border: '1px solid #2a2c3a', borderRadius: 'var(--r-pill)', padding: '6px 12px', fontSize: 'var(--fs-caption)', color: 'var(--c-text-secondary)', cursor: 'pointer', backdropFilter: 'blur(4px)', maxWidth: 'calc(100% - 20px)' },
   bannerRow: { display: 'flex', gap: 'var(--sp-2)', marginBottom: 'var(--sp-1)' },
   bannerCard: { ...VITRINE, flex: 1, textAlign: 'left', borderRadius: 'var(--r-lg)', padding: '8px 10px', cursor: 'pointer', color: 'var(--c-text-secondary)' },
   bannerCardOn: { borderColor: 'var(--c-accent-teal)', background: '#16201f', boxShadow: 'inset 0 -2px 0 #5fe0c6' },
-  bannerName: { fontSize: 12.5, fontWeight: 700, color: 'var(--c-text)', marginBottom: 'var(--sp-1)' },
-  bannerRotate: { color: 'var(--c-accent-coral)', fontSize: 'var(--fs-micro)', fontWeight: 800 },
-  bannerTimer: { marginTop: 'var(--sp-1)', fontSize: 'var(--fs-eyebrow)', color: 'var(--c-accent-coral)', fontVariantNumeric: 'tabular-nums', fontWeight: 700, letterSpacing: 0.3 },
+  bannerName: { fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)', color: 'var(--c-text)', marginBottom: 'var(--sp-1)' },
+  bannerRotate: { color: 'var(--c-accent-coral)', fontSize: 'var(--fs-micro)', fontWeight: 'var(--fw-heavy)' },
+  bannerTimer: { marginTop: 'var(--sp-1)', fontSize: 'var(--fs-eyebrow)', color: 'var(--c-accent-coral)', fontVariantNumeric: 'tabular-nums', fontWeight: 'var(--fw-bold)', letterSpacing: 0.3 },
   bannerFeat: { display: 'flex', gap: 'var(--sp-1)', alignItems: 'center', minHeight: 18 },
   talkBtn: { position: 'absolute', bottom: 'var(--sp-2)', right: 'var(--sp-2)', zIndex: 4, background: 'rgba(20,40,44,0.85)', border: '1px solid #2f6b6a', color: 'var(--c-accent-teal-bright)', borderRadius: 'var(--r-pill)', padding: '5px 12px', fontSize: 'var(--fs-h4)', cursor: 'pointer' },
   bubble: { position: 'absolute', top: 'var(--sp-3)', left: '50%', transform: 'translateX(-50%)', maxWidth: '88%', background: 'rgba(18,19,28,0.97)', border: '1px solid #3a3d4f', borderRadius: 'var(--r-2xl)', padding: '9px 14px', fontSize: 13.5, lineHeight: 1.5, color: 'var(--c-text)', zIndex: 6, cursor: 'pointer', boxShadow: '0 6px 20px rgba(0,0,0,0.5)' },
-  bubbleNick: { fontSize: 'var(--fs-eyebrow)', fontWeight: 800, marginBottom: 'var(--sp-0_5)' },
+  bubbleNick: { fontSize: 'var(--fs-eyebrow)', fontWeight: 'var(--fw-heavy)', marginBottom: 'var(--sp-0_5)' },
   pitymeters: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-1_5)' },
   meter: { display: 'flex', flexDirection: 'column', gap: 3 },
   meterLabel: { fontSize: 'var(--fs-eyebrow)', color: 'var(--c-text-muted)' },
   meterTrack: { height: 7, background: 'linear-gradient(180deg, #15161e, #1f2230)', border: '1px solid rgba(0,0,0,0.5)', borderRadius: 'var(--r-xs)', overflow: 'hidden', boxShadow: 'inset 0 2px 3px rgba(0,0,0,0.7), inset 0 -1px 0 rgba(120,130,160,0.10), 0 1px 0 rgba(255,255,255,0.03)' },
   meterFill: { height: '100%', borderRadius: 'var(--r-xs)', transition: 'width 0.3s', boxShadow: '0 0 6px 0 currentColor, inset 0 1px 0 rgba(255,255,255,0.4)' },
   pullRow: { display: 'flex', gap: 'var(--sp-2_5)' },
-  pullBtn: { flex: 1, background: 'linear-gradient(180deg, #ff7ba6 0%, #ff5d8f 38%, #c264e6 78%, #a94fd6 100%)', border: 'none', color: 'var(--c-text-bright)', padding: '14px', borderRadius: 'var(--r-xl)', fontSize: 'var(--fs-h3)', fontWeight: 800, cursor: 'pointer', textShadow: '0 1px 1px rgba(80,0,40,0.5)', boxShadow: 'inset 0 1.5px 0 rgba(255,255,255,0.45), inset 0 -3px 6px rgba(120,0,70,0.45), 0 4px 10px rgba(255,93,143,0.4), 0 2px 4px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,180,210,0.3)' },
-  pullBtn10: { flex: 1, background: 'linear-gradient(180deg, #1a1c28, #121420)', border: '1px solid #ff5d8f', color: 'var(--c-accent-pink-light)', padding: '14px', borderRadius: 'var(--r-xl)', fontSize: 'var(--fs-h3)', fontWeight: 800, cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 12px rgba(255,93,143,0.18), inset 0 -2px 4px rgba(0,0,0,0.5), 0 3px 7px rgba(0,0,0,0.45), 0 0 8px rgba(255,93,143,0.22)' },
+  pullBtn: { flex: 1, background: 'linear-gradient(180deg, #ff7ba6 0%, #ff5d8f 38%, #c264e6 78%, #a94fd6 100%)', border: 'none', color: 'var(--c-text-bright)', padding: '14px', borderRadius: 'var(--r-xl)', fontSize: 'var(--fs-h3)', fontWeight: 'var(--fw-heavy)', cursor: 'pointer', textShadow: '0 1px 1px rgba(80,0,40,0.5)', boxShadow: 'inset 0 1.5px 0 rgba(255,255,255,0.45), inset 0 -3px 6px rgba(120,0,70,0.45), 0 4px 10px rgba(255,93,143,0.4), 0 2px 4px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,180,210,0.3)' },
+  pullBtn10: { flex: 1, background: 'linear-gradient(180deg, #1a1c28, #121420)', border: '1px solid #ff5d8f', color: 'var(--c-accent-pink-light)', padding: '14px', borderRadius: 'var(--r-xl)', fontSize: 'var(--fs-h3)', fontWeight: 'var(--fw-heavy)', cursor: 'pointer', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 12px rgba(255,93,143,0.18), inset 0 -2px 4px rgba(0,0,0,0.5), 0 3px 7px rgba(0,0,0,0.45), 0 0 8px rgba(255,93,143,0.22)' },
   hint: { color: 'var(--c-text-dim)', fontSize: 'var(--fs-caption)', lineHeight: 1.5 },
   vibecoded: { margin: '14px 0 0', fontSize: 'var(--fs-eyebrow)', color: 'var(--c-text-faint)', fontStyle: 'italic', lineHeight: 1.5 },
   gallery: { maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-4_5)' },
@@ -2291,18 +2291,18 @@ const S: Record<string, CSSProperties> = {
   effectBox: { ...VITRINE, borderRadius: 'var(--r-lg)', padding: '8px 12px', margin: '2px 0 8px' },
   chatFeed: { height: 'min(62vh, 500px)', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', background: 'var(--c-surface-0)', border: '1px solid #23252f', borderRadius: 'var(--r-xl)', padding: 'var(--sp-3_5)', boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(95,224,198,0.04)' },
   chatMsg: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-px)', background: 'linear-gradient(180deg, #181a24, #131420)', borderRadius: 'var(--r-lg)', padding: '8px 12px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), 0 1px 2px rgba(0,0,0,0.35)' },
-  chatHandle: { fontSize: 'var(--fs-eyebrow)', fontWeight: 800 },
+  chatHandle: { fontSize: 'var(--fs-eyebrow)', fontWeight: 'var(--fw-heavy)' },
   chatText: { fontSize: 13.5, color: 'var(--c-text-secondary)', lineHeight: 1.45 },
   chatSticker: { width: 132, height: 'auto', borderRadius: 'var(--r-md)', marginTop: 'var(--sp-1)' },
   stickerBar: { display: 'flex', gap: 'var(--sp-1_5)', overflowX: 'auto', padding: '10px 4px 2px', marginTop: 'var(--sp-1)' },
   stickerPick: { ...CAP, flex: '0 0 auto', width: 54, height: 54, padding: 3, borderRadius: 'var(--r-lg)' },
   subTabs: { display: 'flex', gap: 'var(--sp-1_5)', marginTop: 'var(--sp-1)' },
-  subTab: { ...VITRINE, flex: 1, color: 'var(--c-text-dim)', borderRadius: 'var(--r-md)', padding: '7px 10px', cursor: 'pointer', fontSize: 'var(--fs-body-sm)', fontWeight: 700 },
+  subTab: { ...VITRINE, flex: 1, color: 'var(--c-text-dim)', borderRadius: 'var(--r-md)', padding: '7px 10px', cursor: 'pointer', fontSize: 'var(--fs-body-sm)', fontWeight: 'var(--fw-bold)' },
   subTabOn: { background: '#23263a', color: 'var(--c-text-bright)', borderColor: 'var(--c-accent-teal)' },
   histList: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-1)', maxHeight: 340, overflowY: 'auto', marginTop: 'var(--sp-1)' },
   histRow: { ...VITRINE, display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', borderRadius: 'var(--r-md)', padding: '7px 10px', fontSize: 13.5 },
   rankBadge: { display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-2)', background: 'linear-gradient(180deg, #1a1b24, #101119)', border: '1px solid #3a3320', borderRadius: 'var(--r-xl)', padding: '6px 12px 6px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,207,107,0.12), 0 2px 5px rgba(0,0,0,0.4)' },
-  rankLetter: { fontSize: 19, fontWeight: 900, border: '2px solid', borderRadius: 9, minWidth: 34, height: 34, padding: '0 4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
+  rankLetter: { fontSize: 19, fontWeight: 'var(--fw-black)', border: '2px solid', borderRadius: 9, minWidth: 34, height: 34, padding: '0 4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   multGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 'var(--sp-1_5)', marginBottom: 'var(--sp-2_5)' },
   multRow: { ...VITRINE, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 'var(--r-md)', padding: '6px 10px' },
   engine: { maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
@@ -2311,7 +2311,7 @@ const S: Record<string, CSSProperties> = {
   smallBtn: { ...CAP, padding: '8px 12px', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-body-sm)' },
   engineList: { display: 'flex', flexDirection: 'column', gap: 'var(--sp-1_5)' },
   engineRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2_5)', background: 'var(--c-surface-2)', border: '1px solid', borderRadius: 'var(--r-lg)', padding: '8px 12px' },
-  engineNick: { fontWeight: 600 },
+  engineNick: { fontWeight: 'var(--fw-medium)' },
   engineCost: { color: 'var(--c-text-dim)', fontSize: 'var(--fs-caption)', marginLeft: 'auto', marginRight: 'var(--sp-2_5)' },
   toggle: { ...CAP, padding: '6px 12px', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-body-sm)' },
   toggleOn: { background: 'var(--c-surface-6)', borderColor: 'var(--c-accent-teal)' },
@@ -2324,13 +2324,13 @@ const S: Record<string, CSSProperties> = {
   chargeHint: { fontSize: 'var(--fs-caption)', color: 'var(--c-text-dim)', letterSpacing: 0.5 },
   haulGrid: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 'var(--sp-1_5)', marginBottom: 'var(--sp-3_5)' },
   haulTile: { position: 'relative', width: 44, height: 44, borderRadius: 9, border: '2px solid', display: 'grid', placeItems: 'center' },
-  haulNew: { position: 'absolute', top: -6, right: -6, fontSize: 8, fontWeight: 800, color: 'var(--c-text-bright)', background: 'var(--c-accent-pink)', borderRadius: 'var(--r-sm)', padding: '1px 4px', letterSpacing: 0.3 },
+  haulNew: { position: 'absolute', top: -6, right: -6, fontSize: 8, fontWeight: 'var(--fw-heavy)', color: 'var(--c-text-bright)', background: 'var(--c-accent-pink)', borderRadius: 'var(--r-sm)', padding: '1px 4px', letterSpacing: 0.3 },
   miniGem: { width: 18, height: 18, borderRadius: '50%' },
   nudge: { position: 'fixed', left: '50%', bottom: 'var(--sp-4)', transform: 'translateX(-50%)', maxWidth: 560, width: 'calc(100% - 32px)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2_5)', background: 'rgba(28,30,42,0.94)', border: '1px solid #2a2c3a', borderRadius: 'var(--r-lg)', padding: '10px 14px', boxShadow: '0 6px 24px rgba(0,0,0,0.45)', zIndex: 5 },
   nudgeText: { flex: 1, fontSize: 'var(--fs-body-sm)', color: 'var(--c-text-secondary)', lineHeight: 1.4 },
   nudgeClose: { background: 'none', border: 'none', color: 'var(--c-text-dim)', cursor: 'pointer', fontSize: 'var(--fs-body)', padding: 'var(--sp-1)' },
   devBar: { position: 'fixed', top: 'var(--sp-2)', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 'var(--sp-1_5)', alignItems: 'center', background: 'rgba(40,20,50,0.96)', border: '1px solid #6b3a7a', borderRadius: 'var(--r-lg)', padding: '6px 10px', zIndex: 20, flexWrap: 'wrap', maxWidth: '94%' },
-  devTitle: { color: 'var(--c-accent-pink-bright)', fontSize: 'var(--fs-caption)', fontWeight: 700, marginRight: 'var(--sp-1)' },
+  devTitle: { color: 'var(--c-accent-pink-bright)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)', marginRight: 'var(--sp-1)' },
   devBtn: { ...CAP, border: '1px solid #6b3a7a', borderRadius: 'var(--r-sm)', padding: '4px 8px', fontSize: 'var(--fs-caption)' },
   fluxIcon: { color: 'var(--c-accent-gold)' }, // Flux ✦ — warm gold
   shardIcon: { color: 'var(--c-shard)' }, // Shards ◈ — cool cyan
@@ -2341,15 +2341,15 @@ const S: Record<string, CSSProperties> = {
   boardTitle: { margin: '0 0 6px', fontSize: 'var(--fs-h2)', color: 'var(--c-text)', fontFamily: 'var(--font-display)', letterSpacing: 0.3 },
   boardDesc: { margin: 0, fontSize: 'var(--fs-body-sm)', lineHeight: 1.5, color: 'var(--c-text-muted)' },
   helpClose: { position: 'absolute', top: -2, right: -4, background: 'none', border: 'none', color: 'var(--c-text-faint)', cursor: 'pointer', fontSize: 'var(--fs-h3)', lineHeight: 1, padding: 'var(--sp-1)' },
-  navBadge: { marginLeft: 4, fontSize: 9, fontWeight: 800, color: '#fff', background: 'var(--c-accent-pink)', borderRadius: 'var(--r-pill)', padding: '0 5px', lineHeight: 1.5, boxShadow: '0 0 8px rgba(255,93,143,0.6)' },
+  navBadge: { marginLeft: 4, fontSize: 9, fontWeight: 'var(--fw-heavy)', color: 'var(--c-text-bright)', background: 'var(--c-accent-pink)', borderRadius: 'var(--r-pill)', padding: '0 5px', lineHeight: 1.5, boxShadow: '0 0 8px rgba(255,93,143,0.6)' },
   shipNotice: { background: 'linear-gradient(180deg, rgba(255,93,143,0.10), rgba(255,93,143,0.03))', border: '1px solid rgba(255,93,143,0.35)', borderRadius: 'var(--r-2xl)', padding: 'var(--sp-3)', marginBottom: 'var(--sp-3)' },
-  shipNoticeHead: { color: 'var(--c-accent-pink-bright)', fontWeight: 800, fontSize: 'var(--fs-h4)', marginBottom: 'var(--sp-2)' },
+  shipNoticeHead: { color: 'var(--c-accent-pink-bright)', fontWeight: 'var(--fw-heavy)', fontSize: 'var(--fs-h4)', marginBottom: 'var(--sp-2)' },
   shipNoticeList: { display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2)' },
   shipNoticeBtn: { background: 'var(--c-surface-3)', border: '1px solid rgba(255,93,143,0.4)', borderRadius: 'var(--r-pill)', color: 'var(--c-text-secondary)', padding: '5px 12px', fontSize: 'var(--fs-caption)', cursor: 'pointer' },
-  shardBank: { marginTop: 'var(--sp-2)', fontSize: 'var(--fs-body-sm)', color: 'var(--c-text-secondary)', fontWeight: 600 },
+  shardBank: { marginTop: 'var(--sp-2)', fontSize: 'var(--fs-body-sm)', color: 'var(--c-text-secondary)', fontWeight: 'var(--fw-medium)' },
   boardStats: { ...VITRINE, display: 'flex', gap: 'var(--sp-3)', alignItems: 'center', flexWrap: 'wrap', borderRadius: 'var(--r-xl)', padding: 'var(--sp-3_5)' },
   bigStat: { display: 'flex', flexDirection: 'column', minWidth: 120 },
-  bigStatNum: { fontSize: 'var(--fs-display)', fontWeight: 800, lineHeight: 1 },
+  bigStatNum: { fontSize: 'var(--fs-display)', fontWeight: 'var(--fw-heavy)', lineHeight: 1 },
   bigStatLbl: { fontSize: 'var(--fs-caption)', color: 'var(--c-text-muted)', marginTop: 3 },
   budgetBox: { flex: 1, minWidth: 160 },
   budgetTop: { display: 'flex', justifyContent: 'space-between', fontSize: 'var(--fs-caption)', color: 'var(--c-text-muted)', marginBottom: 'var(--sp-1)' },
@@ -2363,27 +2363,27 @@ const S: Record<string, CSSProperties> = {
   boardCell: { aspectRatio: '1', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid', borderRadius: 'var(--r-md)', cursor: 'pointer', color: 'var(--c-text)', padding: 0, transition: 'background .12s, box-shadow .12s' },
   deployChip: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--sp-0_5)', background: 'linear-gradient(180deg, #1e202c, #15161f)', border: '2px solid', borderRadius: 'var(--r-lg)', padding: '10px 12px', cursor: 'pointer', textAlign: 'left', color: 'var(--c-text)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), 0 3px 6px rgba(0,0,0,0.4)' },
   benchChip: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 'var(--sp-0_5)', background: 'linear-gradient(180deg, #101119, #0c0d15)', border: '1px solid #23252f', borderRadius: 'var(--r-lg)', padding: '10px 12px', cursor: 'pointer', textAlign: 'left', color: 'var(--c-text-secondary)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(120,130,160,0.08)' },
-  chipNick: { fontSize: 'var(--fs-body)', fontWeight: 700 },
-  chipProd: { fontSize: 'var(--fs-caption)', color: 'var(--c-text-muted)', fontWeight: 600 },
+  chipNick: { fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-bold)' },
+  chipProd: { fontSize: 'var(--fs-caption)', color: 'var(--c-text-muted)', fontWeight: 'var(--fw-medium)' },
   chipMeta: { fontSize: 'var(--fs-eyebrow)', color: 'var(--c-text-faint)' },
   emptyHint: { ...VITRINE, border: '1px dashed #2a2e3e', gridColumn: '1 / -1', fontSize: 'var(--fs-body-sm)', color: 'var(--c-text-muted)', lineHeight: 1.6, borderRadius: 'var(--r-xl)', padding: '22px 16px', textAlign: 'center' },
   relicPanel: { display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', background: 'linear-gradient(120deg, #221c0e 0%, #16151c 60%)', border: '1px solid #6b5a2a', borderRadius: 'var(--r-xl)', padding: 'var(--sp-3_5)', boxShadow: 'inset 0 1px 0 rgba(255,222,150,0.12), inset 0 0 24px rgba(120,90,20,0.12), inset 0 0 0 1px rgba(255,207,107,0.10), 0 3px 8px rgba(0,0,0,0.4)' },
-  summonBtn: { background: 'linear-gradient(180deg, #ffe08a, #ffce5c 45%, #ff9d5c)', color: '#2a1d00', border: 'none', borderRadius: 'var(--r-md)', padding: '10px 14px', fontWeight: 800, cursor: 'pointer', fontSize: 'var(--fs-body-sm)', whiteSpace: 'nowrap', textShadow: '0 1px 0 rgba(255,230,180,0.5)', boxShadow: 'inset 0 1.5px 0 rgba(255,255,255,0.6), inset 0 -2px 4px rgba(150,80,0,0.45), 0 3px 7px rgba(255,170,60,0.4), 0 0 0 1px rgba(120,70,0,0.4)' },
+  summonBtn: { background: 'linear-gradient(180deg, #ffe08a, #ffce5c 45%, #ff9d5c)', color: '#2a1d00', border: 'none', borderRadius: 'var(--r-md)', padding: '10px 14px', fontWeight: 'var(--fw-heavy)', cursor: 'pointer', fontSize: 'var(--fs-body-sm)', whiteSpace: 'nowrap', textShadow: '0 1px 0 rgba(255,230,180,0.5)', boxShadow: 'inset 0 1.5px 0 rgba(255,255,255,0.6), inset 0 -2px 4px rgba(150,80,0,0.45), 0 3px 7px rgba(255,170,60,0.4), 0 0 0 1px rgba(120,70,0,0.4)' },
   recipeGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(232px, 1fr))', gap: 'var(--sp-2_5)' },
   recipeCard: { position: 'relative', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2_5)', background: 'linear-gradient(180deg, #16171f, #101119)', border: '2px solid', borderRadius: 'var(--r-xl)', padding: 'var(--sp-3)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), inset 0 -2px 5px rgba(0,0,0,0.45), 0 2px 4px rgba(0,0,0,0.3)' },
   recipeFlow: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--sp-1)' },
-  flowOp: { color: 'var(--c-text-faint)', fontSize: 'var(--fs-body)', fontWeight: 700 },
+  flowOp: { color: 'var(--c-text-faint)', fontSize: 'var(--fs-body)', fontWeight: 'var(--fw-bold)' },
   gemChip: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--sp-1)', width: 56 },
   gemChipDot: { width: 26, height: 26, borderRadius: '50%', boxShadow: '0 0 10px rgba(0,0,0,0.4)' },
   gemChipName: { fontSize: 'var(--fs-eyebrow)', color: 'var(--c-text-secondary)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 56 },
-  forgeBtn: { background: 'linear-gradient(180deg, #303341, #23252f 55%, #1a1b24)', color: 'var(--c-text-bright)', border: '1px solid #3a3d4f', borderTopColor: '#4a4e62', borderRadius: 'var(--r-md)', padding: 'var(--sp-2)', fontWeight: 700, cursor: 'pointer', fontSize: 'var(--fs-body-sm)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 2px rgba(0,0,0,0.45), 0 2px 3px rgba(0,0,0,0.4)' },
+  forgeBtn: { background: 'linear-gradient(180deg, #303341, #23252f 55%, #1a1b24)', color: 'var(--c-text-bright)', border: '1px solid #3a3d4f', borderTopColor: '#4a4e62', borderRadius: 'var(--r-md)', padding: 'var(--sp-2)', fontWeight: 'var(--fw-bold)', cursor: 'pointer', fontSize: 'var(--fs-body-sm)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.08), inset 0 -1px 2px rgba(0,0,0,0.45), 0 2px 3px rgba(0,0,0,0.4)' },
   discoveredTag: { position: 'absolute', top: 'var(--sp-2)', right: 'var(--sp-2_5)', fontSize: 'var(--fs-micro)', color: 'var(--c-accent-teal)' },
 
   // ── Shop / Ledger / Settings ──
   sceneSwatch: { display: 'flex', height: 38, borderRadius: 'var(--r-md)', overflow: 'hidden', border: '1px solid #23252f' },
   statGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 'var(--sp-2)' },
   statCard: { ...VITRINE, display: 'flex', flexDirection: 'column', gap: 'var(--sp-0_5)', borderRadius: 'var(--r-lg)', padding: '10px 12px' },
-  statVal: { fontSize: 'var(--fs-numeral)', fontWeight: 800, color: 'var(--c-text)' },
+  statVal: { fontSize: 'var(--fs-numeral)', fontWeight: 'var(--fw-heavy)', color: 'var(--c-text)' },
   statLbl: { fontSize: 'var(--fs-eyebrow)', color: 'var(--c-text-dim)' },
   settingsCard: { boxSizing: 'border-box', width: 'min(560px, calc(100vw - 28px))', maxHeight: '86vh', overflow: 'auto', background: 'radial-gradient(120% 90% at 50% 0%, #1a1c28 0%, #121320 55%, #0c0d15 100%)', border: '1px solid #34384a', borderRadius: 'var(--r-2xl)', padding: 'var(--sp-4)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 0 0 1px rgba(255,207,107,0.10), inset 0 0 40px rgba(0,0,0,0.5), 0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.6)' },
   settingsHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--sp-2_5)' },
@@ -2398,17 +2398,17 @@ const S: Record<string, CSSProperties> = {
   kinNote: { color: 'var(--c-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis' },
   bondRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', fontSize: 'var(--fs-h2)', margin: '0 0 6px' },
   bondHint: { color: 'var(--c-text-dim)', fontSize: 'var(--fs-caption)' },
-  watchPill: { marginLeft: 'auto', flexShrink: 0, background: '#3a2440', color: 'var(--c-accent-pink-bright)', border: '1px solid #6b3a7a', borderRadius: 'var(--r-pill)', padding: '2px 8px', fontSize: 'var(--fs-micro)', fontWeight: 700, whiteSpace: 'nowrap' },
+  watchPill: { marginLeft: 'auto', flexShrink: 0, background: '#3a2440', color: 'var(--c-accent-pink-bright)', border: '1px solid #6b3a7a', borderRadius: 'var(--r-pill)', padding: '2px 8px', fontSize: 'var(--fs-micro)', fontWeight: 'var(--fw-bold)', whiteSpace: 'nowrap' },
 
   // ── Ship cutscene ──
   shipCard: { boxSizing: 'border-box', width: 'min(480px, calc(100vw - 28px))', background: 'radial-gradient(120% 90% at 50% 0%, #1a1c28 0%, #121320 55%, #0c0d15 100%)', border: '1px solid #34384a', borderRadius: 'var(--r-3xl)', padding: 'var(--sp-5)', textAlign: 'center', position: 'relative', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 0 0 1px rgba(255,207,107,0.10), inset 0 0 40px rgba(0,0,0,0.5), 0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.6)' },
-  shipHead: { color: 'var(--c-accent-pink-bright)', fontWeight: 800, fontSize: 'var(--fs-h4)', marginBottom: 'var(--sp-3_5)', letterSpacing: 0.3 },
+  shipHead: { color: 'var(--c-accent-pink-bright)', fontWeight: 'var(--fw-heavy)', fontSize: 'var(--fs-h4)', marginBottom: 'var(--sp-3_5)', letterSpacing: 0.3 },
   logBtn: { position: 'absolute', top: 'var(--sp-3_5)', right: 'var(--sp-3_5)', background: 'rgba(40,30,48,0.8)', border: '1px solid #4a3a52', color: '#ffb8e0', borderRadius: 'var(--r-pill)', width: 30, height: 30, cursor: 'pointer', fontSize: 'var(--fs-body)', lineHeight: 1 },
   logBox: { minHeight: 78, maxHeight: 220, overflowY: 'auto', background: 'var(--c-surface-0)', border: '1px solid #23252f', borderRadius: 'var(--r-xl)', padding: '12px 14px', marginBottom: 'var(--sp-3_5)', textAlign: 'left', boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(95,224,198,0.04)' },
   logModalCard: { boxSizing: 'border-box', width: 'min(460px, calc(100vw - 28px))', background: 'radial-gradient(120% 90% at 50% 0%, #1a1c28 0%, #121320 55%, #0c0d15 100%)', border: '1px solid #34384a', borderRadius: 'var(--r-3xl)', padding: 'var(--sp-5)', textAlign: 'center', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), inset 0 0 0 1px rgba(255,207,107,0.10), inset 0 0 40px rgba(0,0,0,0.5), 0 24px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,0,0,0.6)' },
   logModalBox: { maxHeight: '58vh', overflowY: 'auto', textAlign: 'left', margin: '12px 0 14px', background: 'var(--c-surface-0)', border: '1px solid #23252f', borderRadius: 'var(--r-xl)', padding: '12px 14px', boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(95,224,198,0.04)' },
   shipGems: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 'var(--sp-4_5)', marginBottom: 'var(--sp-3_5)' },
-  shipGem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--sp-1_5)', transition: 'all 0.25s ease', color: 'var(--c-text-secondary)', fontSize: 'var(--fs-body-sm)', fontWeight: 700 },
+  shipGem: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 'var(--sp-1_5)', transition: 'all 0.25s ease', color: 'var(--c-text-secondary)', fontSize: 'var(--fs-body-sm)', fontWeight: 'var(--fw-bold)' },
   shipGemDot: { width: 52, height: 52, borderRadius: '50%', transition: 'all 0.25s ease' },
   shipHeart: { color: 'var(--c-accent-pink)', fontSize: 22 },
   shipLineBox: { minHeight: 78, background: 'var(--c-surface-0)', border: '1px solid #23252f', borderRadius: 'var(--r-xl)', padding: '12px 14px', marginBottom: 'var(--sp-3_5)', textAlign: 'left', boxShadow: 'inset 0 3px 8px rgba(0,0,0,0.7), inset 0 0 0 1px rgba(95,224,198,0.04)' },
@@ -2421,27 +2421,27 @@ const S: Record<string, CSSProperties> = {
   search: { background: 'var(--c-surface-0)', border: '1px solid #2a2c3a', borderRadius: 'var(--r-md)', color: 'var(--c-text)', padding: '6px 10px', fontSize: 'var(--fs-body-sm)', width: 170, boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.6), inset 0 -1px 0 rgba(120,130,160,0.08)' },
   galleryControls: { display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2_5)', alignItems: 'center', marginBottom: 'var(--sp-2)' },
   filterChips: { display: 'flex', gap: 'var(--sp-1_5)', flexWrap: 'wrap' },
-  filterChip: { background: 'var(--c-surface-1)', border: '1px solid', borderRadius: 'var(--r-pill)', padding: '3px 10px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: 'pointer' },
+  filterChip: { background: 'var(--c-surface-1)', border: '1px solid', borderRadius: 'var(--r-pill)', padding: '3px 10px', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)', cursor: 'pointer' },
   tileGlyph: { fontSize: 'var(--fs-h2)', lineHeight: 1, marginRight: 'var(--sp-0_5)' },
   kbd: { fontSize: 'var(--fs-micro)', background: 'rgba(0,0,0,0.32)', border: '1px solid rgba(255,255,255,0.28)', borderRadius: 'var(--r-xs)', padding: '0 5px', marginLeft: 5, fontFamily: 'ui-monospace, monospace' },
   shipModel: { position: 'relative', width: 132, height: 132, borderRadius: 'var(--r-xl)', overflow: 'hidden', transition: 'all 0.25s ease', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.7)' },
-  shipModelName: { position: 'absolute', left: 0, right: 0, bottom: 'var(--sp-1)', textAlign: 'center', fontSize: 'var(--fs-caption)', fontWeight: 700, color: 'var(--c-text-bright)', textShadow: '0 1px 4px #000', pointerEvents: 'none' },
+  shipModelName: { position: 'absolute', left: 0, right: 0, bottom: 'var(--sp-1)', textAlign: 'center', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)', color: 'var(--c-text-bright)', textShadow: '0 1px 4px #000', pointerEvents: 'none' },
   shipStage: { position: 'relative', height: 250, borderRadius: 'var(--r-xl)', overflow: 'hidden', border: '1px solid #2a2c3a', marginBottom: 'var(--sp-3_5)', boxShadow: 'inset 0 2px 8px rgba(0,0,0,0.7)' },
   shipNames: { position: 'absolute', left: 0, right: 0, bottom: 'var(--sp-2)', display: 'flex', justifyContent: 'center', gap: 'var(--sp-3_5)', fontSize: 'var(--fs-body-sm)', textShadow: '0 1px 6px #000', pointerEvents: 'none' },
   kbRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2_5)', padding: '5px 0', borderBottom: '1px solid #1c1e2a' },
-  kbDesc: { color: 'var(--c-text-muted)', fontSize: 12.5 },
+  kbDesc: { color: 'var(--c-text-muted)', fontSize: 'var(--fs-caption)' },
   kbd2: { fontFamily: 'ui-monospace, monospace', fontSize: 'var(--fs-caption)', background: 'var(--c-surface-0)', border: '1px solid #3a3d4f', borderRadius: 5, padding: '2px 7px', color: 'var(--c-text)', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.6), inset 0 -1px 0 rgba(120,130,160,0.08)' },
   milestoneRow: { ...VITRINE, display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', padding: '6px 10px', borderRadius: 'var(--r-md)', fontSize: 'var(--fs-body-sm)' },
   objectives: { ...VITRINE, borderRadius: 'var(--r-xl)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)' },
   objHead: { fontSize: 'var(--fs-caption)', color: 'var(--c-text-dim)', textTransform: 'uppercase', letterSpacing: 0.6 },
   objRow: { display: 'flex', alignItems: 'center', gap: 'var(--sp-2)' },
   objLabel: { fontSize: 'var(--fs-caption)', color: 'var(--c-text-secondary)', marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  objNum: { fontSize: 'var(--fs-eyebrow)', color: 'var(--c-accent-teal)', fontWeight: 700, flexShrink: 0 },
+  objNum: { fontSize: 'var(--fs-eyebrow)', color: 'var(--c-accent-teal)', fontWeight: 'var(--fw-bold)', flexShrink: 0 },
   mileToast: { position: 'fixed', top: 58, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', background: 'rgba(30,24,12,0.96)', border: '1px solid #6b5a2a', borderRadius: 'var(--r-xl)', padding: '10px 16px', zIndex: 60, minWidth: 290, maxWidth: '92vw', boxShadow: '0 6px 24px rgba(0,0,0,0.55)', cursor: 'pointer', overflow: 'hidden' },
   toastDrain: { position: 'absolute', left: 0, bottom: 0, height: 2, width: '100%', background: 'var(--c-accent-gold-deep)', borderRadius: 2 },
   tourWrap: { position: 'fixed', left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', padding: '0 12px 18px', zIndex: 70, pointerEvents: 'none' },
   tourCard: { boxSizing: 'border-box', pointerEvents: 'auto', width: 'min(460px, calc(100vw - 28px))', background: 'rgba(18,19,26,0.97)', border: '1px solid #3a3d4f', borderRadius: 'var(--r-2xl)', padding: '14px 16px', boxShadow: '0 8px 30px rgba(0,0,0,0.6)' },
   patSurface: { position: 'absolute', inset: 0, cursor: 'grab', touchAction: 'none', zIndex: 3, overflow: 'hidden' },
   patGlow: { position: 'absolute', width: 130, height: 130, transform: 'translate(-50%, -50%)', borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,222,150,0.55), rgba(255,180,220,0.18) 45%, transparent 72%)', pointerEvents: 'none' },
-  patBtn: { position: 'absolute', top: 'var(--sp-2)', right: 'var(--sp-2)', zIndex: 4, background: 'rgba(40,24,44,0.85)', border: '1px solid #6b3a7a', color: 'var(--c-accent-pink-bright)', borderRadius: 'var(--r-pill)', padding: '4px 10px', fontSize: 'var(--fs-caption)', fontWeight: 700, cursor: 'pointer' },
+  patBtn: { position: 'absolute', top: 'var(--sp-2)', right: 'var(--sp-2)', zIndex: 4, background: 'rgba(40,24,44,0.85)', border: '1px solid #6b3a7a', color: 'var(--c-accent-pink-bright)', borderRadius: 'var(--r-pill)', padding: '4px 10px', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)', cursor: 'pointer' },
 }

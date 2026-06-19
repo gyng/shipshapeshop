@@ -148,6 +148,8 @@ button:disabled { filter: grayscale(0.6) brightness(0.82); cursor: not-allowed; 
   --c-accent-amber: #ffb86b; --c-accent-violet: #b388ff; --c-accent-violet-bright: #d8b4ff;
   --c-accent-magenta: #c264e6; --c-shard: #5ad4ff;
   --c-danger: #ff8a8a; --c-danger-border: #a3434f;
+  /* translucent panel fill + blur for floating overlays (orrery HUD panels) */
+  --c-surface-glass: rgba(13, 14, 22, 0.78); --blur-panel: 6px;
   /* black-alpha (ink) + white catch-light (edge) + cool fleck + brass ramps */
   --ink-1: rgba(0,0,0,0.3); --ink-2: rgba(0,0,0,0.4); --ink-3: rgba(0,0,0,0.45);
   --ink-4: rgba(0,0,0,0.5); --ink-5: rgba(0,0,0,0.55); --ink-6: rgba(0,0,0,0.6); --ink-7: rgba(0,0,0,0.7);
@@ -298,16 +300,16 @@ body, button, input, textarea, select { font-family: var(--font-app); }
    ───────────────────────────────────────────────────────────── */
 .orrery-wrap { position: relative; width: 100%; height: min(74vh, 660px); border-radius: var(--r-3xl); overflow: hidden; border: 1px solid var(--c-border); background: var(--c-bg-stage); }
 .orrery-canvas { position: absolute; inset: 0; }
-.orrery-panel { background: rgba(13,14,22,0.78); backdrop-filter: blur(6px); border: 1px solid var(--c-border); border-radius: var(--r-2xl); box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 24px rgba(0,0,0,0.45); }
-.orrery-top { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 80%; z-index: 3; pointer-events: none; }
-.orrery-left, .orrery-right { position: absolute; top: 50px; bottom: 64px; width: 168px; overflow-y: auto; z-index: 3; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
-.orrery-left { left: 8px; }
-.orrery-right { right: 8px; }
-.orrery-bottom { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 3; padding: 6px 10px; }
+.orrery-panel { background: var(--c-surface-glass); backdrop-filter: blur(var(--blur-panel)); border: 1px solid var(--c-border); border-radius: var(--r-2xl); box-shadow: inset 0 1px 0 var(--edge-2), 0 8px 24px var(--ink-3); }
+.orrery-top { position: absolute; top: var(--sp-2); left: 50%; transform: translateX(-50%); display: flex; gap: var(--sp-1_5); flex-wrap: wrap; justify-content: center; max-width: 80%; z-index: 3; pointer-events: none; }
+.orrery-left, .orrery-right { position: absolute; top: 50px; bottom: 64px; width: 168px; overflow-y: auto; z-index: 3; padding: var(--sp-2); display: flex; flex-direction: column; gap: var(--sp-1_5); }
+.orrery-left { left: var(--sp-2); }
+.orrery-right { right: var(--sp-2); }
+.orrery-bottom { position: absolute; left: var(--sp-2); right: var(--sp-2); bottom: var(--sp-2); z-index: 3; padding: var(--sp-1_5) var(--sp-2_5); }
 @media (max-width: 760px) {
   .orrery-wrap { height: min(82vh, 600px); }
-  .orrery-left, .orrery-right { top: auto; bottom: 56px; width: calc(50% - 12px); max-height: 40%; }
-  .orrery-left { left: 8px; }
-  .orrery-right { right: 8px; }
+  .orrery-left, .orrery-right { top: auto; bottom: 56px; width: calc(50% - var(--sp-3)); max-height: 40%; }
+  .orrery-left { left: var(--sp-2); }
+  .orrery-right { right: var(--sp-2); }
   .orrery-top { max-width: 96%; }
 }
