@@ -212,6 +212,23 @@ pub const MILESTONES: [Milestone; 9] = [
 ];
 pub const MILESTONE_COUNT: usize = MILESTONES.len();
 
+/// Gacha banners. The Standard banner pulls the whole pool evenly (steered to missing shapes); themed
+/// banners add a rate-up that biases the within-tier pick toward their `featured` shape ids. Themed banners
+/// ROTATE (the web layer surfaces one featured banner at a time alongside Standard). Banners only change
+/// *which* shape you get within a rolled tier — never the rarity odds or pity (those stay in gacha.rs).
+pub struct BannerDef {
+    pub key: &'static str,
+    pub featured: &'static [usize], // shape ids with rate-up
+    pub rotating: bool,             // themed banners rotate in/out; Standard is always available
+}
+pub const BANNERS: [BannerDef; 4] = [
+    BannerDef { key: "standard", featured: &[], rotating: false },
+    BannerDef { key: "knots", featured: &[16, 22, 23, 28, 29, 39], rotating: true }, // Knots & Links (UR: Hopf link)
+    BannerDef { key: "fourth_dim", featured: &[33, 34, 35, 36, 37], rotating: true }, // The Fourth Dimension (4D polytopes)
+    BannerDef { key: "nonorientable", featured: &[11, 18, 19, 20, 21, 38], rotating: true }, // Non-Orientable (UR: Klein quartic)
+];
+pub const BANNER_COUNT: usize = BANNERS.len();
+
 /// Kin pairs (duals & soulmates) — deploying BOTH grants a production synergy (the "shipping" payoff).
 pub const SYNERGY_PAIRS: [(usize, usize); 8] = [
     (1, 3),   // cube ⇄ octahedron (dual)

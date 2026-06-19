@@ -179,6 +179,11 @@ pub fn shape_index(seed: u64, counter: u64, pool: usize) -> usize {
     (rand_u64(seed, BANNER, counter * 4 + 3) as usize) % pool
 }
 
+/// A uniform [0,1) on a SEPARATE RNG stream for banner rate-up decisions (doesn't perturb the rarity rolls).
+pub fn banner_unit(seed: u64, counter: u64) -> f64 {
+    rand_unit(seed, 2, counter)
+}
+
 /// One simulate-pull: rolls rarity, grants into `coll` (tops steered to a missing shape, low tiers random),
 /// and applies the spark. Used by `simulate_core` and the tests; the real game does its own granting.
 pub fn pull(

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import init, { Game, shapes_json, recipes_json, upgrades_json, milestones_json, facets_json, core_version } from 'shipshape-core'
+import init, { Game, shapes_json, recipes_json, upgrades_json, milestones_json, facets_json, banners_json, core_version } from 'shipshape-core'
 import { sfxPull, sfxForge, sfxMilestone, sfxAscend, sfxBondUp } from '../audio'
 import { useFloaters } from '../juice'
 import { glyphOf } from '../content/glyphs'
@@ -64,6 +64,13 @@ export interface View {
   milestones_done: boolean[]
   facets: number
   facet_perks: number[]
+  current_banner: number
+}
+
+export interface BannerDef {
+  key: string
+  featured: number[]
+  rotating: boolean
 }
 
 export interface UpgradeDef {
@@ -137,6 +144,7 @@ interface Store {
   upgradeDefs: UpgradeDef[]
   milestoneDefs: MilestoneDef[]
   facetDefs: FacetDef[]
+  bannerDefs: BannerDef[]
   view: View | null
   lastReveal: PullOutcome[] | null
   lastForge: ForgeResult | null
@@ -169,6 +177,7 @@ interface Store {
   buyCosmetic: (id: number, cost: number) => void
   buyUpgrade: (id: number) => void
   buyFacetPerk: (id: number) => void
+  setBanner: (id: number) => void
   selectScene: (id: number) => void
   fluxHistory: number[]
   milestoneToast: number | null
@@ -187,6 +196,7 @@ export const useGame = create<Store>((set, get) => ({
   upgradeDefs: [],
   milestoneDefs: [],
   facetDefs: [],
+  bannerDefs: [],
   view: null,
   lastReveal: null,
   lastForge: null,
@@ -205,6 +215,7 @@ export const useGame = create<Store>((set, get) => ({
     const upgradeDefs = JSON.parse(upgrades_json()) as UpgradeDef[]
     const milestoneDefs = JSON.parse(milestones_json()) as MilestoneDef[]
     const facetDefs = JSON.parse(facets_json()) as FacetDef[]
+    const bannerDefs = JSON.parse(banners_json()) as BannerDef[]
     const saved = localStorage.getItem(SAVE_KEY)
     let offline: OfflineReport | null = null
     if (saved) {
@@ -220,7 +231,7 @@ export const useGame = create<Store>((set, get) => ({
       const seed = Math.floor(Math.random() * 2 ** 48)
       game = new Game(seed, now())
     }
-    set({ ready: true, firstLaunch: !saved, version: core_version(), shapes, recipes, upgradeDefs, milestoneDefs, facetDefs, offline })
+    set({ ready: true, firstLaunch: !saved, version: core_version(), shapes, recipes, upgradeDefs, milestoneDefs, facetDefs, bannerDefs, offline })
     get().refresh()
     persist()
     // idle tick: advance the economy on a slow cadence (display is extrapolated in the HUD)
@@ -426,6 +437,11 @@ export const useGame = create<Store>((set, get) => ({
       get().refresh()
       persist()
     }
+  },
+  setBanner: (id) => {
+    game?.set_banner(id)
+    get().refresh()
+    persist()
   },
   selectScene: (id) => {
     if (game?.select_scene(id)) {

@@ -17,6 +17,7 @@ import { UPGRADE_INFO } from './content/upgrades'
 import { MILESTONE_INFO } from './content/milestones'
 import { FACET_INFO } from './content/facets'
 import { chatterFor } from './content/chatter'
+import { BANNER_INFO, rotatingBannerId } from './content/banners'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
@@ -322,6 +323,47 @@ function useIdleChatter(fire: () => void) {
   }, [])
 }
 
+// Banner picker: Standard (always) + the currently-featured themed banner (rotates daily). Selecting sets
+// the rate-up steering in the core; a stale selection (a themed banner that rotated out) resets to Standard.
+function BannerSelector() {
+  const { bannerDefs, view, setBanner, shapes } = useGame()
+  const themedCount = Math.max(0, bannerDefs.length - 1)
+  const rotId = rotatingBannerId(Date.now(), themedCount)
+  const offered = [0, rotId]
+  useEffect(() => {
+    if (view && !offered.includes(view.current_banner)) setBanner(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.current_banner, rotId])
+  if (bannerDefs.length === 0 || !view) return null
+  return (
+    <div style={S.bannerRow}>
+      {offered.map((bid) => {
+        const def = bannerDefs[bid]
+        if (!def) return null
+        const info = BANNER_INFO[def.key] ?? { name: def.key, blurb: '', icon: '✦' }
+        const sel = view.current_banner === bid
+        return (
+          <button key={bid} onClick={() => setBanner(bid)} style={{ ...S.bannerCard, ...(sel ? S.bannerCardOn : {}) }} title={info.blurb}>
+            <div style={S.bannerName}>
+              {info.icon} {info.name}
+              {def.rotating ? <span style={S.bannerRotate}> 🔥 rate-up</span> : null}
+            </div>
+            <div style={S.bannerFeat}>
+              {def.featured.length === 0 ? (
+                <span style={{ color: '#8a90a8', fontSize: 11 }}>full pool · pity-steered</span>
+              ) : (
+                def.featured.slice(0, 6).map((id) => (
+                  <span key={id} style={{ fontSize: 15 }}>{glyphOf(shapes[id]?.family ?? '')}</span>
+                ))
+              )}
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function GachaView() {
   const { view, pull, tenPull, shapes, lastReveal, autoPull, toggleAutoPull, secretaryId } = useGame()
   const tr = useT()
@@ -342,6 +384,7 @@ function GachaView() {
         {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
       </div>
       <div className="gacha-controls">
+        <BannerSelector />
         <div style={S.pitymeters}>
           <Meter label={`${tr('pull.pity')} ${view.pity_since_top}/30`} pct={view.pity_since_top / 30} color="#ffb86b" />
           <Meter label={`${tr('pull.resonance')} ${view.resonance}/40`} pct={view.resonance / 40} color="#ff5d8f" />
@@ -1488,6 +1531,12 @@ const S: Record<string, CSSProperties> = {
   focusName: { position: 'absolute', bottom: 10, left: 0, right: 0, textAlign: 'center', fontSize: 18, fontWeight: 600, pointerEvents: 'none' },
   focusFam: { color: '#8a90a8', fontStyle: 'normal', fontWeight: 400, fontSize: 13 },
   secretaryTag: { color: '#ffd76b', fontSize: 12, fontWeight: 700 },
+  bannerRow: { display: 'flex', gap: 8, marginBottom: 4 },
+  bannerCard: { flex: 1, textAlign: 'left', background: '#14151d', border: '1px solid #23252f', borderRadius: 10, padding: '8px 10px', cursor: 'pointer', color: '#cdd2e0' },
+  bannerCardOn: { borderColor: '#5fe0c6', background: '#16201f', boxShadow: 'inset 0 -2px 0 #5fe0c6' },
+  bannerName: { fontSize: 12.5, fontWeight: 700, color: '#e8eaf2', marginBottom: 4 },
+  bannerRotate: { color: '#ff9d6b', fontSize: 10, fontWeight: 800 },
+  bannerFeat: { display: 'flex', gap: 4, alignItems: 'center', minHeight: 18 },
   talkBtn: { position: 'absolute', bottom: 8, right: 8, zIndex: 4, background: 'rgba(20,40,44,0.85)', border: '1px solid #2f6b6a', color: '#9ef0ff', borderRadius: 999, padding: '5px 12px', fontSize: 15, cursor: 'pointer' },
   bubble: { position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', maxWidth: '88%', background: 'rgba(18,19,28,0.97)', border: '1px solid #3a3d4f', borderRadius: 14, padding: '9px 14px', fontSize: 13.5, lineHeight: 1.5, color: '#e8eaf2', zIndex: 6, cursor: 'pointer', boxShadow: '0 6px 20px rgba(0,0,0,0.5)' },
   bubbleNick: { fontSize: 11, fontWeight: 800, marginBottom: 2 },

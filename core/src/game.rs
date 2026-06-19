@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 use crate::content::{self, COUNT, SHAPES};
-use crate::gacha::{roll_rarity, shape_index, PityState, Rarity};
+use crate::gacha::{banner_unit, roll_rarity, shape_index, PityState, Rarity};
 
 const SCHEMA_VERSION: u32 = 2;
 const PULL_COST: f64 = 100.0;
@@ -17,6 +17,7 @@ const OFFLINE_CAP_MS: f64 = 24.0 * 3_600_000.0; // generous full-day cap — res
 const START_EULER_CAP: u32 = 6;
 const START_FLUX: f64 = 350.0; // onboarding: ~3 pulls in hand immediately, no 100-minute wait
 const RELIC_COST: u64 = 500; // shards to summon a Relic (the prestigious dupe-shard sink)
+const BANNER_RATEUP: f64 = 0.5; // on a themed banner, chance the within-tier pick is steered to a featured shape
 const MS_PER_HOUR: f64 = 3_600_000.0;
 const FORGE_COST: u64 = 50; // shards to forge
 const BOND_INSPECT_GAIN: u32 = 25; // affinity per inspect (the calm idler's path to bonds)
@@ -78,6 +79,8 @@ pub struct GameState {
     pub facets: u64, // prestige meta-currency (from recrystallizing)
     #[serde(default)]
     pub facet_perks: Vec<u32>, // level per content::FACET_PERKS id
+    #[serde(default)]
+    pub current_banner: u32, // selected gacha banner (0 = Standard); rate-up steering only
 }
 
 #[derive(Serialize)]
@@ -143,6 +146,7 @@ pub struct GameStateView {
     pub milestones_done: Vec<bool>,
     pub facets: u64,
     pub facet_perks: Vec<u32>,
+    pub current_banner: u32,
 }
 
 impl GameState {
@@ -173,6 +177,7 @@ impl GameState {
             milestones_done: vec![false; content::MILESTONE_COUNT],
             facets: 0,
             facet_perks: vec![0; content::FACET_PERK_COUNT],
+            current_banner: 0,
         }
     }
 
@@ -421,6 +426,29 @@ impl GameState {
 
     /// Pull once. Banks production to `now` first, then spends Flux. Steers tops to a missing "wanted"
     /// shape; lower tiers are random in-tier. Applies the Resonance Spark (UR-priority, SSR-spill).
+    /// Which shape to grant for a rolled tier. On a themed banner, a rate-up roll biases the pick toward a
+    /// featured shape in that tier (preferring a missing one); otherwise the standard steering applies.
+    fn pick_pull_shape(&self, rarity: Rarity, range: &std::ops::Range<usize>, counter: u64) -> usize {
+        let b = self.current_banner as usize;
+        if b < content::BANNER_COUNT && !content::BANNERS[b].featured.is_empty() {
+            let featured: Vec<usize> = content::BANNERS[b]
+                .featured
+                .iter()
+                .copied()
+                .filter(|id| range.contains(id))
+                .collect();
+            if !featured.is_empty() && banner_unit(self.master_seed, counter) < BANNER_RATEUP {
+                return featured.iter().copied().find(|&id| self.owned[id] == 0).unwrap_or(featured[0]);
+            }
+        }
+        match rarity {
+            Rarity::Ur | Rarity::Ssr => self
+                .first_missing(range.clone())
+                .unwrap_or(range.start + shape_index(self.master_seed, counter, range.len())),
+            _ => range.start + shape_index(self.master_seed, counter, range.len()),
+        }
+    }
+
     pub fn pull(&mut self, now_ms: f64) -> PullOutcome {
         self.tick(now_ms);
         if self.flux < PULL_COST {
@@ -435,12 +463,7 @@ impl GameState {
         let roll = roll_rarity(self.master_seed, &mut self.pity);
         let range = content::rarity_range(roll.rarity);
 
-        let id = match roll.rarity {
-            Rarity::Ur | Rarity::Ssr => self
-                .first_missing(range.clone())
-                .unwrap_or(range.start + shape_index(self.master_seed, c_before, range.len())),
-            _ => range.start + shape_index(self.master_seed, c_before, range.len()),
-        };
+        let id = self.pick_pull_shape(roll.rarity, &range, c_before);
         let (is_new, dupe_shards) = self.grant(id, roll.rarity);
         let ridx = match roll.rarity {
             Rarity::Common => 0,
@@ -677,6 +700,7 @@ impl GameState {
             milestones_done: self.milestones_done.clone(),
             facets: self.facets,
             facet_perks: self.facet_perks.clone(),
+            current_banner: self.current_banner,
         }
     }
 }
@@ -766,6 +790,11 @@ impl Game {
     }
     pub fn buy_facet_perk(&mut self, id: usize) -> bool {
         self.state.buy_facet_perk(id)
+    }
+    pub fn set_banner(&mut self, id: u32) {
+        if (id as usize) < content::BANNER_COUNT {
+            self.state.current_banner = id;
+        }
     }
     pub fn select_scene(&mut self, id: u32) -> bool {
         self.state.select_scene(id)
@@ -882,6 +911,22 @@ pub fn facets_json() -> String {
     let rows: Vec<FacetRow> = content::FACET_PERKS
         .iter()
         .map(|f| FacetRow { key: f.key, cost: f.cost, max_level: f.max_level })
+        .collect();
+    serde_json::to_string(&rows).unwrap()
+}
+
+/// The gacha banner table for the web layer (key + featured shape ids + whether it rotates).
+#[wasm_bindgen]
+pub fn banners_json() -> String {
+    #[derive(Serialize)]
+    struct BannerRow {
+        key: &'static str,
+        featured: Vec<usize>,
+        rotating: bool,
+    }
+    let rows: Vec<BannerRow> = content::BANNERS
+        .iter()
+        .map(|b| BannerRow { key: b.key, featured: b.featured.to_vec(), rotating: b.rotating })
         .collect();
     serde_json::to_string(&rows).unwrap()
 }
