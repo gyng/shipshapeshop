@@ -12,7 +12,7 @@ const RANK: Record<keyof typeof RARITY_COLOR, number> = { Common: 0, Rare: 1, Ep
 
 // A deployed gem on the floor: a jewel on a glowing ring, lit by its own coloured light, with rising Flux.
 // The ring + emissive "breathe" at a rarity-scaled rate (rarer = livelier), offset per-gem so they don't sync.
-function FloorGem({ family, rarity, pos }: { family: string; rarity: keyof typeof RARITY_COLOR; pos: [number, number, number] }) {
+function FloorGem({ family, rarity, pos, id, onTalk }: { family: string; rarity: keyof typeof RARITY_COLOR; pos: [number, number, number]; id: number; onTalk?: (id: number) => void }) {
   const ref = useRef<THREE.Mesh>(null)
   const ringRef = useRef<THREE.MeshBasicMaterial>(null)
   const gemRef = useRef<THREE.MeshPhysicalMaterial>(null)
@@ -35,7 +35,18 @@ function FloorGem({ family, rarity, pos }: { family: string; rarity: keyof typeo
       </mesh>
       <pointLight position={[0, 0.4, 0]} color={col} intensity={2.2 + rank * 0.4} distance={2.6} decay={1.6} />
       <Float speed={2.2} rotationIntensity={0} floatIntensity={0.7} floatingRange={[0, 0.16]}>
-        <mesh ref={ref} geometry={getGeometry(family)} scale={0.4} castShadow>
+        <mesh
+          ref={ref}
+          geometry={getGeometry(family)}
+          scale={0.4}
+          castShadow
+          onClick={(e) => {
+            e.stopPropagation()
+            onTalk?.(id)
+          }}
+          onPointerOver={() => onTalk && (document.body.style.cursor = 'pointer')}
+          onPointerOut={() => (document.body.style.cursor = 'auto')}
+        >
           <meshPhysicalMaterial
             ref={gemRef}
             color={col}
@@ -69,7 +80,7 @@ function GhostSlot({ pos }: { pos: [number, number, number] }) {
   )
 }
 
-export function FactoryFloor({ shapes, loadout, openSlots = 0 }: { shapes: ShapeRow[]; loadout: number[]; openSlots?: number }) {
+export function FactoryFloor({ shapes, loadout, openSlots = 0, onTalk }: { shapes: ShapeRow[]; loadout: number[]; openSlots?: number; onTalk?: (id: number) => void }) {
   const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
   const [backdrop, key, cool, warm] = scene.env
   const g = useGfxPreset()
@@ -117,7 +128,7 @@ export function FactoryFloor({ shapes, loadout, openSlots = 0 }: { shapes: Shape
       {loadout.map((id, i) => {
         const s = shapes[id]
         if (!s) return null
-        return <FloorGem key={id} family={s.family} rarity={s.rarity} pos={posOf(i)} />
+        return <FloorGem key={id} id={id} family={s.family} rarity={s.rarity} pos={posOf(i)} onTalk={onTalk} />
       })}
       {Array.from({ length: openSlots }).map((_, j) => <GhostSlot key={`g${j}`} pos={posOf(loadout.length + j)} />)}
 

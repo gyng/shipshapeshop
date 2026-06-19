@@ -15,6 +15,7 @@ import { useGfx, type Quality } from './gfx'
 import { UPGRADE_INFO } from './content/upgrades'
 import { MILESTONE_INFO } from './content/milestones'
 import { FACET_INFO } from './content/facets'
+import { chatterFor } from './content/chatter'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
@@ -269,17 +270,52 @@ function Objectives() {
   )
 }
 
+// A tappable flavour-dialog bubble (gacha "my room" chatter). Auto-dismisses; tap to close.
+type Bubble = { nick: string; line: string; color: string }
+function SpeechBubble({ bubble, onClose }: { bubble: Bubble; onClose: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onClose, 6000)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bubble])
+  return (
+    <div className="bubble-in" style={S.bubble} onClick={onClose}>
+      <div style={{ ...S.bubbleNick, color: bubble.color }}>{bubble.nick}</div>
+      <div>{bubble.line}</div>
+    </div>
+  )
+}
+
+// Cycles a shape's flavour lines on each tap, shows a bubble + speaks it in the character's voice.
+function useChatter() {
+  const [bubble, setBubble] = useState<Bubble | null>(null)
+  const idx = useRef(0)
+  const talk = (shape: ShapeRow | undefined, bond: number) => {
+    if (!shape) return
+    const lines = chatterFor(shape.family, bond)
+    const line = lines[idx.current % lines.length]
+    idx.current += 1
+    setBubble({ nick: shape.nick, line, color: RARITY_COLOR[shape.rarity] })
+    speak(shape.family, line)
+  }
+  return { bubble, setBubble, talk }
+}
+
 function GachaView() {
-  const { view, pull, tenPull, shapes, lastReveal, autoPull, toggleAutoPull } = useGame()
+  const { view, pull, tenPull, shapes, lastReveal, autoPull, toggleAutoPull, secretaryId } = useGame()
   const tr = useT()
-  const focusId = lastReveal?.[0]?.shape_id ?? 0
+  const { bubble, setBubble, talk } = useChatter()
+  const focusId = secretaryId != null && (view?.owned[secretaryId] ?? 0) > 0 ? secretaryId : lastReveal?.[0]?.shape_id ?? 0
   const shape = shapes[focusId] ?? shapes[0]
   if (!view) return null
+  const bond = view.bond_levels[focusId] ?? 0
   return (
     <div className="gacha-split">
       <div className="gacha-stage" style={S.stageWrap}>
         {shape && <HeroView key={shape.family} family={shape.family} rarity={shape.rarity} controls />}
-        {shape && <div style={S.focusName}>{shape.nick} <em style={S.focusFam}>· {shape.family.replace(/_/g, ' ')}</em></div>}
+        {shape && <div style={S.focusName}>{shape.nick} <em style={S.focusFam}>· {shape.family.replace(/_/g, ' ')}</em>{secretaryId === focusId ? <span style={S.secretaryTag}> ★ secretary</span> : null}</div>}
+        {shape && <button className="ready-pulse" style={S.talkBtn} onClick={() => talk(shape, bond)} title="Tap to chat">💬</button>}
+        {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
       </div>
       <div className="gacha-controls">
         <div style={S.pitymeters}>
@@ -472,8 +508,10 @@ function GemChip({ shape, show }: { shape: ShapeRow | undefined; show: boolean }
 
 function EngineView() {
   const { shapes, view, deploy, undeploy, autoArrange, recrystallize } = useGame()
+  const { bubble, setBubble, talk } = useChatter()
   const [q, setQ] = useState('')
   if (!view) return null
+  const onTalk = (sid: number) => talk(shapes[sid], view.bond_levels[sid] ?? 0)
   const owned = shapes.filter((s) => view.owned[s.id] > 0)
   const deployed = owned.filter((s) => view.loadout.includes(s.id))
   const ql = q.trim().toLowerCase()
@@ -493,8 +531,11 @@ function EngineView() {
           shapes={shapes}
           loadout={view.loadout}
           openSlots={view.euler_used < view.euler_cap ? (view.loadout.length === 0 ? 3 : 2) : 0}
+          onTalk={onTalk}
         />
         {view.loadout.length === 0 && <div style={S.floorTag}>🏭 Empty floor — tap a shape below (or Auto-arrange) to fill a slot ⭕</div>}
+        {view.loadout.length > 0 && !bubble && <div style={S.floorTag}>💬 tap a deployed shape to chat</div>}
+        {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
       </div>
       <div style={S.boardStats}>
         <div style={S.bigStat}>
@@ -752,8 +793,9 @@ function PatSurface({ id }: { id: number }) {
 }
 
 function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
-  const { shapes, view, inspect } = useGame()
+  const { shapes, view, inspect, secretaryId, setSecretary } = useGame()
   const tr = useT()
+  const { bubble, setBubble, talk } = useChatter()
   const [patMode, setPatMode] = useState(false)
   const s = shapes[id]
   const owned = !!view && view.owned[id] > 0
@@ -782,6 +824,8 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
               <button style={S.patBtn} onClick={() => setPatMode((p) => !p)} title="Pat / rub for a tiny bond boost">
                 {patMode ? '↺ orbit' : '✋ pat'}
               </button>
+              {!patMode && <button style={S.talkBtn} onClick={() => talk(s, bond)} title="Tap to chat">💬</button>}
+              {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
             </div>
             <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{s.nick}</h2>
             <p style={S.revealSub}>{rarityLabel(s.rarity)} · {s.family.replace(/_/g, ' ')}</p>
@@ -797,6 +841,13 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
               {s.genus > 0 ? `${s.genus} hole${s.genus > 1 ? 's' : ''} → ${s.genus} production lane${s.genus > 1 ? 's' : ''}. ` : 'No holes — free to deploy. '}
               Euler cost {s.euler_cost}.{codex ? ` …it is ${codex.term}.` : ''}
             </p>
+            <button
+              style={{ ...S.smallBtn, marginBottom: 6, ...(secretaryId === id ? S.toggleOn : {}) }}
+              onClick={() => setSecretary(secretaryId === id ? null : id)}
+              title="Your secretary greets you on the Pull screen"
+            >
+              {secretaryId === id ? '★ Secretary ✓' : '☆ Set as Secretary'}
+            </button>
             {KINSHIP[s.family]?.length ? (
               <div style={S.kinBox}>
                 <div style={S.kinHead}>♥ Kinship</div>
@@ -1360,6 +1411,10 @@ const S: Record<string, CSSProperties> = {
   stageWrap: { position: 'relative', height: 340, borderRadius: 16, overflow: 'hidden', background: '#0a0a12' },
   focusName: { position: 'absolute', bottom: 10, left: 0, right: 0, textAlign: 'center', fontSize: 18, fontWeight: 600, pointerEvents: 'none' },
   focusFam: { color: '#8a90a8', fontStyle: 'normal', fontWeight: 400, fontSize: 13 },
+  secretaryTag: { color: '#ffd76b', fontSize: 12, fontWeight: 700 },
+  talkBtn: { position: 'absolute', bottom: 8, right: 8, zIndex: 4, background: 'rgba(20,40,44,0.85)', border: '1px solid #2f6b6a', color: '#9ef0ff', borderRadius: 999, padding: '5px 12px', fontSize: 15, cursor: 'pointer' },
+  bubble: { position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', maxWidth: '88%', background: 'rgba(18,19,28,0.97)', border: '1px solid #3a3d4f', borderRadius: 14, padding: '9px 14px', fontSize: 13.5, lineHeight: 1.5, color: '#e8eaf2', zIndex: 6, cursor: 'pointer', boxShadow: '0 6px 20px rgba(0,0,0,0.5)' },
+  bubbleNick: { fontSize: 11, fontWeight: 800, marginBottom: 2 },
   pitymeters: { display: 'flex', flexDirection: 'column', gap: 6 },
   meter: { display: 'flex', flexDirection: 'column', gap: 3 },
   meterLabel: { fontSize: 11, color: '#a6adc4' },

@@ -160,6 +160,8 @@ interface Store {
   setSettingsOpen: (v: boolean) => void
   autoPull: boolean
   toggleAutoPull: () => void
+  secretaryId: number | null
+  setSecretary: (id: number | null) => void
   devAddFlux: () => void
   devAddShards: () => void
   devUnlockAll: () => void
@@ -192,6 +194,7 @@ export const useGame = create<Store>((set, get) => ({
   devOpen: false,
   settingsOpen: false,
   autoPull: typeof localStorage !== 'undefined' && localStorage.getItem('shipshape-autopull') === '1',
+  secretaryId: typeof localStorage !== 'undefined' && localStorage.getItem('shipshape-secretary') != null ? Number(localStorage.getItem('shipshape-secretary')) : null,
   fluxHistory: [],
   milestoneToast: null,
 
@@ -377,6 +380,15 @@ export const useGame = create<Store>((set, get) => ({
       /* ignore */
     }
     set({ autoPull: v })
+  },
+  setSecretary: (id) => {
+    try {
+      if (id == null) localStorage.removeItem('shipshape-secretary')
+      else localStorage.setItem('shipshape-secretary', String(id))
+    } catch {
+      /* ignore */
+    }
+    set({ secretaryId: id })
   },
   devAddFlux: () => {
     game?.dev_add_flux(10000)
