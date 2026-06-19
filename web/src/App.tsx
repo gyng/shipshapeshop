@@ -395,22 +395,41 @@ function BannerSelector() {
 }
 
 function GachaView() {
-  const { view, pull, tenPull, shapes, lastReveal, autoPull, toggleAutoPull, secretaryId } = useGame()
+  const { view, pull, tenPull, shapes, lastReveal, autoPull, toggleAutoPull, secretaryId, bannerDefs } = useGame()
   const tr = useT()
   const { bubble, setBubble, talk } = useChatter()
-  const focusId = secretaryId != null && (view?.owned[secretaryId] ?? 0) > 0 ? secretaryId : lastReveal?.[0]?.shape_id ?? 0
+  // On a themed banner, the preview shows its featured spotlight (the rate-up headline); Standard shows your
+  // secretary / last pull / Pip.
+  const bannerDef = view ? bannerDefs[view.current_banner] : undefined
+  const featuredId = bannerDef && bannerDef.featured.length ? bannerDef.featured[bannerDef.featured.length - 1] : null
+  const isBannerPreview = featuredId != null
+  const focusId = isBannerPreview
+    ? (featuredId as number)
+    : secretaryId != null && (view?.owned[secretaryId] ?? 0) > 0
+      ? secretaryId
+      : lastReveal?.[0]?.shape_id ?? 0
   const shape = shapes[focusId] ?? shapes[0]
+  const owned = !!view && (view.owned[focusId] ?? 0) > 0
   const bond = view?.bond_levels[focusId] ?? 0
   useIdleChatter(() => {
-    if (shape && view) talk(shape, bond)
+    if (shape && view && owned && !isBannerPreview) talk(shape, bond)
   })
   if (!view) return null
   return (
     <div className="gacha-split">
       <div className="gacha-stage" style={S.stageWrap}>
         {shape && <HeroView key={shape.family} family={shape.family} rarity={shape.rarity} controls />}
-        {shape && <div style={S.focusName}>{shape.nick} <em style={S.focusFam}>· {shape.family.replace(/_/g, ' ')}</em>{secretaryId === focusId ? <span style={S.secretaryTag}> ★ secretary</span> : null}</div>}
-        {shape && <button className="ready-pulse" style={S.talkBtn} onClick={() => talk(shape, bond)} title="Tap to chat">💬</button>}
+        {shape && (
+          <div style={S.focusName}>
+            {shape.nick} <em style={S.focusFam}>· {shape.family.replace(/_/g, ' ')}</em>
+            {isBannerPreview ? (
+              <span style={{ color: '#ff9d6b', fontSize: 12, fontWeight: 700 }}> 🔥 featured</span>
+            ) : secretaryId === focusId ? (
+              <span style={S.secretaryTag}> ★ secretary</span>
+            ) : null}
+          </div>
+        )}
+        {shape && owned && !isBannerPreview && <button className="ready-pulse" style={S.talkBtn} onClick={() => talk(shape, bond)} title="Tap to chat">💬</button>}
         {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
       </div>
       <div className="gacha-controls">
