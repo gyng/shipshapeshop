@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { useGame, RARITY_ORDER, type ShapeRow } from './game/store'
 import { HeroView } from './three/HeroView'
 import { FactoryFloor } from './three/FactoryFloor'
+import { RoomScene } from './three/RoomScene'
 import { ForgeAltar } from './three/ForgeAltar'
 import { ShipScene } from './three/ShipScene'
 import { RARITY_COLOR } from './three/Gem'
@@ -50,7 +51,8 @@ function useFluxDisplay(): number {
   return disp
 }
 
-type Tab = 'gacha' | 'gallery' | 'engine' | 'forge' | 'shop' | 'ledger'
+type Tab = 'gacha' | 'room' | 'gallery' | 'engine' | 'forge' | 'shop' | 'ledger'
+const TABS: Tab[] = ['gacha', 'room', 'gallery', 'engine', 'forge', 'shop', 'ledger']
 
 export function App() {
   const { ready, boot } = useGame()
@@ -82,8 +84,8 @@ export function App() {
         else if (g.lastForge) g.dismissForge()
         else if (g.offline) g.dismissOffline()
         else setInspect(null)
-      } else if (k >= '1' && k <= '6') {
-        setTab((['gacha', 'gallery', 'engine', 'forge', 'shop', 'ledger'] as Tab[])[Number(k) - 1])
+      } else if (k >= '1' && k <= '7') {
+        setTab(TABS[Number(k) - 1])
       }
     }
     window.addEventListener('keydown', onKey)
@@ -97,15 +99,16 @@ export function App() {
     <div style={{ ...S.app, background: sceneById(sceneId).bg }}>
       <Hud />
       <nav style={S.nav}>
-        {(['gacha', 'gallery', 'engine', 'forge', 'shop', 'ledger'] as Tab[]).map((t, i) => (
+        {TABS.map((t, i) => (
           <button key={t} onClick={() => setTab(t)} title={`Shortcut: ${i + 1}`} style={{ ...S.navBtn, ...(tab === t ? S.navBtnActive : {}) }}>
-            {t === 'gacha' ? tr('nav.pull') : t === 'shop' ? '🛍 Shop' : t === 'ledger' ? '📊 Ledger' : tr(`nav.${t}`)}
+            {t === 'gacha' ? tr('nav.pull') : t === 'room' ? '🛋 Room' : t === 'shop' ? '🛍 Shop' : t === 'ledger' ? '📊 Ledger' : tr(`nav.${t}`)}
           </button>
         ))}
       </nav>
       <main style={S.main}>
         <div key={tab} className="fade-in">
           {tab === 'gacha' && <GachaView />}
+          {tab === 'room' && <RoomView />}
           {tab === 'gallery' && <GalleryView onInspect={setInspect} />}
           {tab === 'engine' && <EngineView />}
           {tab === 'forge' && <ForgeView />}
@@ -301,14 +304,35 @@ function useChatter() {
   return { bubble, setBubble, talk }
 }
 
+// Occasionally trigger an unprompted line (idle chatter). Self-schedules every ~18–38s; runs only while the
+// hosting screen is mounted (so it only chatters on the tab you're looking at). Calls the latest fn each time.
+function useIdleChatter(fire: () => void) {
+  const ref = useRef(fire)
+  ref.current = fire
+  useEffect(() => {
+    let to: ReturnType<typeof setTimeout>
+    const schedule = () => {
+      to = setTimeout(() => {
+        ref.current()
+        schedule()
+      }, 18000 + Math.random() * 20000)
+    }
+    schedule()
+    return () => clearTimeout(to)
+  }, [])
+}
+
 function GachaView() {
   const { view, pull, tenPull, shapes, lastReveal, autoPull, toggleAutoPull, secretaryId } = useGame()
   const tr = useT()
   const { bubble, setBubble, talk } = useChatter()
   const focusId = secretaryId != null && (view?.owned[secretaryId] ?? 0) > 0 ? secretaryId : lastReveal?.[0]?.shape_id ?? 0
   const shape = shapes[focusId] ?? shapes[0]
+  const bond = view?.bond_levels[focusId] ?? 0
+  useIdleChatter(() => {
+    if (shape && view) talk(shape, bond)
+  })
   if (!view) return null
-  const bond = view.bond_levels[focusId] ?? 0
   return (
     <div className="gacha-split">
       <div className="gacha-stage" style={S.stageWrap}>
@@ -341,6 +365,58 @@ function GachaView() {
           </button>
         )}
         <Objectives />
+      </div>
+    </div>
+  )
+}
+
+// The lobby ("My Room"): your shapes roam a cozy floor; tap to chat + a tiny bond boost. Scene re-skins it.
+function RoomView() {
+  const shapes = useGame((s) => s.shapes)
+  const view = useGame((s) => s.view)
+  const pat = useGame((s) => s.pat)
+  const secretaryId = useGame((s) => s.secretaryId)
+  const { bubble, setBubble, talk } = useChatter()
+  const cooldown = useRef<Record<number, number>>({})
+  const ids: number[] = []
+  if (view) {
+    const push = (id: number) => {
+      if (id != null && view.owned[id] > 0 && !ids.includes(id)) ids.push(id)
+    }
+    if (secretaryId != null) push(secretaryId)
+    view.loadout.forEach(push)
+    shapes.forEach((s) => push(s.id))
+  }
+  const roster = ids.slice(0, 7).map((id) => shapes[id]).filter(Boolean) as ShapeRow[]
+  useIdleChatter(() => {
+    if (roster.length && view) {
+      const s = roster[Math.floor(Math.random() * roster.length)]
+      talk(s, view.bond_levels[s.id] ?? 0)
+    }
+  })
+  if (!view) return null
+  const onTap = (id: number) => {
+    talk(shapes[id], view.bond_levels[id] ?? 0)
+    const now = performance.now()
+    if (!cooldown.current[id] || now - cooldown.current[id] > 1500) {
+      cooldown.current[id] = now
+      pat(id) // minor bond + the store's bond-up celebration
+    }
+  }
+  return (
+    <div style={S.board}>
+      <div style={S.boardIntro}>
+        <h3 style={S.boardTitle}>🛋 The Atlas — your room</h3>
+        <p style={S.boardDesc}>Your shapes mill about between shifts. Tap one to chat and give it a little affection (a tiny bond boost). Re-skin the room from the <b>Shop</b>.</p>
+      </div>
+      <div style={{ ...S.floorWrap, height: 380 }}>
+        {roster.length > 0 ? (
+          <RoomScene roster={roster} secretaryId={secretaryId} onTap={onTap} />
+        ) : (
+          <div style={S.floorTag}>Pull a few shapes and they’ll move in here.</div>
+        )}
+        {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
+        {!bubble && roster.length > 0 && <div style={S.floorTag}>💬 tap a shape to chat &amp; pet · drag to look around</div>}
       </div>
     </div>
   )
