@@ -72,6 +72,8 @@ pub struct GameState {
     pub pulls_by_rarity: Vec<u64>, // len 5: Common,Rare,Epic,Ssr,Ur
     #[serde(default)]
     pub upgrades: Vec<u32>, // level per content::UPGRADES id
+    #[serde(default)]
+    pub milestones_done: Vec<bool>, // latched milestone achievements (len MILESTONE_COUNT)
 }
 
 #[derive(Serialize)]
@@ -134,6 +136,7 @@ pub struct GameStateView {
     pub last_seen_ms: f64,
     pub active_synergies: u32,
     pub upgrades: Vec<u32>,
+    pub milestones_done: Vec<bool>,
 }
 
 impl GameState {
@@ -161,6 +164,7 @@ impl GameState {
             total_forges: 0,
             pulls_by_rarity: vec![0; 5],
             upgrades: vec![0; content::UPGRADE_COUNT],
+            milestones_done: vec![false; content::MILESTONE_COUNT],
         }
     }
 
@@ -173,6 +177,7 @@ impl GameState {
             * self.bond_mult()
             * self.synergy_mult()
             * self.genus_resonance_mult()
+            * self.milestone_mult()
     }
 
     /// Family set bonus (M7): completing the 5 Platonic solids grants a permanent global multiplier.
@@ -229,6 +234,38 @@ impl GameState {
         self.shards -= shard_cost;
         self.upgrades[id] += 1;
         true
+    }
+
+    fn milestone_condition(&self, i: usize) -> bool {
+        match i {
+            0 => self.distinct_owned() >= 10,
+            1 => self.distinct_owned() >= 25,
+            2 => self.core_complete(),
+            3 => self.discovered.iter().filter(|&&d| d).count() >= 3,
+            4 => (0..COUNT).any(|id| self.bond_level(id) >= 5),
+            5 => self.synergy_count() >= 3,
+            6 => self.relics_owned() == (content::COUNT - content::PULL_COUNT) as u32,
+            7 => content::PLATONIC_IDS.iter().all(|&id| self.owned[id] > 0),
+            8 => self.ng_cycle >= 1,
+            _ => false,
+        }
+    }
+    /// Latch any newly-achieved milestones (idempotent; called from tick).
+    fn refresh_milestones(&mut self) {
+        for i in 0..content::MILESTONE_COUNT {
+            if !self.milestones_done[i] && self.milestone_condition(i) {
+                self.milestones_done[i] = true;
+            }
+        }
+    }
+    pub fn milestone_mult(&self) -> f64 {
+        let mut m = 1.0;
+        for (i, &done) in self.milestones_done.iter().enumerate() {
+            if done && i < content::MILESTONE_COUNT {
+                m += content::MILESTONES[i].bonus;
+            }
+        }
+        m
     }
 
     pub fn bond_level(&self, id: usize) -> u32 {
@@ -307,6 +344,7 @@ impl GameState {
         self.flux += gain;
         self.lifetime_flux += gain;
         self.add_affinity(dt);
+        self.refresh_milestones();
         self.last_seen_ms = now_ms;
     }
 
@@ -549,6 +587,9 @@ impl GameState {
         if state.upgrades.len() != content::UPGRADE_COUNT {
             state.upgrades.resize(content::UPGRADE_COUNT, 0);
         }
+        if state.milestones_done.len() != content::MILESTONE_COUNT {
+            state.milestones_done.resize(content::MILESTONE_COUNT, false);
+        }
         state.loadout.retain(|&id| id < COUNT && state.owned[id] > 0);
         state.schema_version = SCHEMA_VERSION;
         Ok(state)
@@ -589,6 +630,7 @@ impl GameState {
             last_seen_ms: self.last_seen_ms,
             active_synergies: self.synergy_count(),
             upgrades: self.upgrades.clone(),
+            milestones_done: self.milestones_done.clone(),
         }
     }
 }
@@ -760,6 +802,21 @@ pub fn upgrades_json() -> String {
             shard_cost: u.shard_cost,
             max_level: u.max_level,
         })
+        .collect();
+    serde_json::to_string(&rows).unwrap()
+}
+
+/// The milestone table for the web layer (key + permanent bonus).
+#[wasm_bindgen]
+pub fn milestones_json() -> String {
+    #[derive(Serialize)]
+    struct MilestoneRow {
+        key: &'static str,
+        bonus: f64,
+    }
+    let rows: Vec<MilestoneRow> = content::MILESTONES
+        .iter()
+        .map(|m| MilestoneRow { key: m.key, bonus: m.bonus })
         .collect();
     serde_json::to_string(&rows).unwrap()
 }
@@ -942,6 +999,24 @@ mod tests {
             g.buy_upgrade(0);
         }
         assert_eq!(g.upgrade_level(0), content::UPGRADES[0].max_level, "stops at max level");
+    }
+
+    #[test]
+    fn milestones_latch_permanently_and_boost_production() {
+        let mut g = GameState::new(1, 0.0);
+        assert!((g.milestone_mult() - 1.0).abs() < 1e-9);
+        for i in 0..10 {
+            g.owned[i] = 1;
+        }
+        g.tick(1000.0); // refresh_milestones runs in tick
+        assert!(g.milestones_done[0], "own-10 milestone latched");
+        assert!(g.milestone_mult() > 1.0);
+        // un-owning does NOT un-latch
+        for i in 0..10 {
+            g.owned[i] = 0;
+        }
+        g.tick(2000.0);
+        assert!(g.milestones_done[0], "milestone stays latched");
     }
 
     #[test]

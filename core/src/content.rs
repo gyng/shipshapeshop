@@ -166,6 +166,26 @@ pub fn upgrade_cost(id: usize, level: u32) -> (f64, u64) {
     ((d.flux_cost * mult).floor(), (d.shard_cost as f64 * mult).floor() as u64)
 }
 
+/// Milestones — once achieved they latch permanently and each adds a small global production bonus (the
+/// classic idle "achievement multiplier"). Conditions live in game.rs (by index). The checklist itself is
+/// the dopamine; the bonus is the cherry.
+pub struct Milestone {
+    pub key: &'static str,
+    pub bonus: f64, // permanent global production bonus once latched
+}
+pub const MILESTONES: [Milestone; 9] = [
+    Milestone { key: "own_10", bonus: 0.03 },        // 0
+    Milestone { key: "own_25", bonus: 0.05 },        // 1
+    Milestone { key: "core_complete", bonus: 0.10 }, // 2
+    Milestone { key: "forge_3", bonus: 0.04 },       // 3
+    Milestone { key: "bond_5", bonus: 0.05 },        // 4
+    Milestone { key: "kin_3", bonus: 0.05 },         // 5
+    Milestone { key: "all_relics", bonus: 0.08 },    // 6
+    Milestone { key: "platonic", bonus: 0.03 },      // 7
+    Milestone { key: "ascend", bonus: 0.05 },        // 8
+];
+pub const MILESTONE_COUNT: usize = MILESTONES.len();
+
 /// Kin pairs (duals & soulmates) — deploying BOTH grants a production synergy (the "shipping" payoff).
 pub const SYNERGY_PAIRS: [(usize, usize); 8] = [
     (1, 3),   // cube ⇄ octahedron (dual)

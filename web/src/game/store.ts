@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import init, { Game, shapes_json, recipes_json, upgrades_json, core_version } from 'shipshape-core'
+import init, { Game, shapes_json, recipes_json, upgrades_json, milestones_json, core_version } from 'shipshape-core'
 import { sfxPull, sfxReveal, sfxForge, rarityRank } from '../audio'
 import { useFloaters } from '../juice'
 
@@ -58,6 +58,7 @@ export interface View {
   last_seen_ms: number
   active_synergies: number
   upgrades: number[]
+  milestones_done: boolean[]
 }
 
 export interface UpgradeDef {
@@ -65,6 +66,11 @@ export interface UpgradeDef {
   flux_cost: number
   shard_cost: number
   max_level: number
+}
+
+export interface MilestoneDef {
+  key: string
+  bonus: number
 }
 
 export interface Recipe {
@@ -118,6 +124,7 @@ interface Store {
   shapes: ShapeRow[]
   recipes: Recipe[]
   upgradeDefs: UpgradeDef[]
+  milestoneDefs: MilestoneDef[]
   view: View | null
   lastReveal: PullOutcome[] | null
   lastForge: ForgeResult | null
@@ -159,6 +166,7 @@ export const useGame = create<Store>((set, get) => ({
   shapes: [],
   recipes: [],
   upgradeDefs: [],
+  milestoneDefs: [],
   view: null,
   lastReveal: null,
   lastForge: null,
@@ -172,6 +180,7 @@ export const useGame = create<Store>((set, get) => ({
     const shapes = JSON.parse(shapes_json()) as ShapeRow[]
     const recipes = JSON.parse(recipes_json()) as Recipe[]
     const upgradeDefs = JSON.parse(upgrades_json()) as UpgradeDef[]
+    const milestoneDefs = JSON.parse(milestones_json()) as MilestoneDef[]
     const saved = localStorage.getItem(SAVE_KEY)
     let offline: OfflineReport | null = null
     if (saved) {
@@ -187,7 +196,7 @@ export const useGame = create<Store>((set, get) => ({
       const seed = Math.floor(Math.random() * 2 ** 48)
       game = new Game(seed, now())
     }
-    set({ ready: true, firstLaunch: !saved, version: core_version(), shapes, recipes, upgradeDefs, offline })
+    set({ ready: true, firstLaunch: !saved, version: core_version(), shapes, recipes, upgradeDefs, milestoneDefs, offline })
     get().refresh()
     persist()
     // idle tick: advance the economy on a slow cadence (display is extrapolated in the HUD)

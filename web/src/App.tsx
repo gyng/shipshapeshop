@@ -13,6 +13,7 @@ import { glyphOf } from './content/glyphs'
 import { fontOf } from './content/fonts'
 import { useGfx, type Quality } from './gfx'
 import { UPGRADE_INFO } from './content/upgrades'
+import { MILESTONE_INFO } from './content/milestones'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
 import { useMute } from './audio'
@@ -791,7 +792,7 @@ function FluxChart({ data }: { data: number[] }) {
 }
 
 function LedgerView() {
-  const { view, fluxHistory } = useGame()
+  const { view, fluxHistory, milestoneDefs } = useGame()
   if (!view) return null
   const playMin = Math.max(0, (view.last_seen_ms - view.created_ms) / 60000)
   const playStr = playMin >= 60 ? (playMin / 60).toFixed(1) + 'h' : Math.floor(playMin) + 'm'
@@ -837,6 +838,31 @@ function LedgerView() {
           </div>
         ))}
       </div>
+
+      {(() => {
+        const done = view.milestones_done
+        const total = milestoneDefs.reduce((a, m, i) => a + (done[i] ? m.bonus : 0), 0)
+        const got = done.filter(Boolean).length
+        return (
+          <>
+            <h4 style={S.boardSub}>Milestones — {got}/{milestoneDefs.length} · +{Math.round(total * 100)}% production</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {milestoneDefs.map((m, i) => {
+                const ok = done[i]
+                const info = MILESTONE_INFO[m.key] ?? { name: m.key, icon: '★' }
+                return (
+                  <div key={m.key} style={{ ...S.milestoneRow, opacity: ok ? 1 : 0.6 }}>
+                    <span>{ok ? '✅' : '🔒'}</span>
+                    <span style={{ fontSize: 17 }}>{info.icon}</span>
+                    <span style={{ flex: 1, color: ok ? '#e8eaf2' : '#8a90a8' }}>{info.name}</span>
+                    <span style={{ color: ok ? '#5fe0c6' : '#6b7088', fontWeight: 700, fontSize: 12 }}>+{Math.round(m.bonus * 100)}%</span>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )
+      })()}
     </div>
   )
 }
@@ -1144,6 +1170,7 @@ const S: Record<string, CSSProperties> = {
   kbRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid #1c1e2a' },
   kbDesc: { color: '#9aa0b4', fontSize: 12.5 },
   kbd2: { fontFamily: 'ui-monospace, monospace', fontSize: 12, background: '#0c0d15', border: '1px solid #3a3d4f', borderRadius: 5, padding: '2px 7px', color: '#e8eaf2' },
+  milestoneRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#0e0f17', border: '1px solid #23252f', borderRadius: 8, fontSize: 13 },
   patSurface: { position: 'absolute', inset: 0, cursor: 'grab', touchAction: 'none', zIndex: 3, overflow: 'hidden' },
   patGlow: { position: 'absolute', width: 130, height: 130, transform: 'translate(-50%, -50%)', borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,222,150,0.55), rgba(255,180,220,0.18) 45%, transparent 72%)', pointerEvents: 'none' },
   patBtn: { position: 'absolute', top: 8, right: 8, zIndex: 4, background: 'rgba(40,24,44,0.85)', border: '1px solid #6b3a7a', color: '#ff9ecf', borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' },
