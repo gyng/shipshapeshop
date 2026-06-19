@@ -2,11 +2,6 @@ import * as THREE from 'three'
 import { ParametricGeometry } from 'three/examples/jsm/geometries/ParametricGeometry.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { TeapotGeometry } from 'three/examples/jsm/geometries/TeapotGeometry.js'
-import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js'
-import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js'
-import helvetiker from 'three/examples/fonts/helvetiker_regular.typeface.json'
-
-const FONT = new FontLoader().parse(helvetiker as unknown as Parameters<FontLoader['parse']>[0])
 
 // Family → geometry. Built-ins + parametric surfaces where they're exact; distinctive stand-ins for the
 // genuinely hard ones (true TPMS marching-cubes + real 4D projection are a later M2 deepening — for now the
@@ -139,15 +134,17 @@ function build(family: string): THREE.BufferGeometry {
     case 'cell_600': return new THREE.IcosahedronGeometry(1.1, 1)
     case 'hopf': return linkedRings()
     case 'mazur': return new THREE.SphereGeometry(1, 40, 28) // the "monster" is secretly a ball
-    // ── Relics: famous CG models. The Utah Teapot is exact (three's TeapotGeometry); the scanned/modelled
-    // ones are distinctive placeholders until real .glb assets land in /public/models (see README).
+    // ── Relics (Reference Wing). These are GALLERY-THUMBNAIL placeholders only; the hero view loads the real
+    // meshes via ModelGem (Princeton .ply scans + Spot's .obj). The Utah Teapot is exact everywhere.
     case 'utah_teapot': return new TeapotGeometry(0.62, 12)
     case 'stanford_bunny': return new THREE.CapsuleGeometry(0.5, 0.55, 8, 18)
     case 'benchy': return new THREE.BoxGeometry(1.7, 0.8, 0.95)
     case 'stanford_dragon': return new THREE.TorusKnotGeometry(0.58, 0.2, 200, 20, 3, 7)
     case 'suzanne': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.0, 0.88, 1.12); return g }
     case 'spot': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.35, 0.8, 0.9); return g }
-    case 'hello_world': return new TextGeometry('Hello, World!', { font: FONT, size: 0.6, depth: 0.2, curveSegments: 5, bevelEnabled: true, bevelThickness: 0.03, bevelSize: 0.02, bevelSegments: 2 })
+    case 'cow': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.4, 0.82, 0.86); return g }
+    case 'horse': return new THREE.CapsuleGeometry(0.42, 0.8, 8, 18)
+    case 'maxplanck': { const g = new THREE.SphereGeometry(1, 28, 20); g.scale(0.82, 1.0, 0.86); return g }
     default: return new THREE.IcosahedronGeometry(1)
   }
 }

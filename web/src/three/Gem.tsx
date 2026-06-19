@@ -18,7 +18,7 @@ export const RARITY_COLOR: Record<RarityName, string> = {
 const RARITY_RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4 }
 
 /** The hero gem (pull reveal + inspector): real transmission glass, dispersion scaling with rarity. */
-export function HeroGem({ family, rarity, spin = 0.4 }: { family: string; rarity: RarityName; spin?: number }) {
+export function HeroGem({ family, rarity, spin = 0.4, geom }: { family: string; rarity: RarityName; spin?: number; geom?: THREE.BufferGeometry }) {
   const ref = useRef<THREE.Mesh>(null)
   const rank = RARITY_RANK[rarity]
   useFrame((_, dt) => {
@@ -28,7 +28,7 @@ export function HeroGem({ family, rarity, spin = 0.4 }: { family: string; rarity
     }
   })
   return (
-    <mesh ref={ref} geometry={getGeometry(family)} scale={1.7}>
+    <mesh ref={ref} geometry={geom ?? getGeometry(family)} scale={1.7}>
       <MeshTransmissionMaterial
         // Clear refractive glass. NO temporal/animated distortion and NO backside double-pass — both
         // flicker with transmission. The bright nebula env behind makes the body refract colour (not

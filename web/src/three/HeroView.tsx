@@ -1,7 +1,9 @@
+import { Suspense } from 'react'
 import { Canvas } from '@react-three/fiber'
 import { Stage } from './Stage'
 import { HeroGem } from './Gem'
 import { RaymarchGem, RAYMARCH_SHAPES } from './RaymarchGem'
+import { ModelGem, MODEL_FILES } from './ModelGem'
 import type { RarityName } from '../game/store'
 
 /**
@@ -25,6 +27,15 @@ export function HeroView({
       <Canvas dpr={[1, 1.6]} gl={{ antialias: true }}>
         <RaymarchGem key={family + rarity} family={family} rarity={rarity} />
       </Canvas>
+    )
+  }
+  if (family in MODEL_FILES) {
+    return (
+      <Stage controls={controls}>
+        <Suspense fallback={null}>
+          <ModelGem family={family} rarity={rarity} spin={spin} />
+        </Suspense>
+      </Stage>
     )
   }
   return (
