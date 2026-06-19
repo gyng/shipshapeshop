@@ -12,6 +12,7 @@ import { SHIP_SCENES, useShips, hasShip } from './content/ships'
 import { glyphOf } from './content/glyphs'
 import { fontOf } from './content/fonts'
 import { useGfx, type Quality } from './gfx'
+import { UPGRADE_INFO } from './content/upgrades'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
 import { useMute } from './audio'
@@ -293,6 +294,43 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
   )
 }
 
+// The Workshop — permanent, rule-changing upgrades bought with banked Flux (+ some Shards).
+function UpgradesPanel() {
+  const { view, upgradeDefs, buyUpgrade } = useGame()
+  if (!view) return null
+  return (
+    <>
+      <h4 style={S.boardSub}>🔧 Workshop — permanent upgrades</h4>
+      <div style={S.recipeGrid}>
+        {upgradeDefs.map((u, i) => {
+          const lvl = view.upgrades[i] ?? 0
+          const maxed = lvl >= u.max_level
+          const mult = Math.pow(1.8, lvl)
+          const flux = Math.floor(u.flux_cost * mult)
+          const shards = Math.floor(u.shard_cost * mult)
+          const can = !maxed && view.flux >= flux && view.shards >= shards
+          const info = UPGRADE_INFO[u.key] ?? { name: u.key, desc: '', icon: '⚙' }
+          return (
+            <div key={u.key} className="chip" style={{ ...S.recipeCard, borderColor: lvl > 0 ? '#5fe0c6' : '#23252f' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ fontSize: 18 }}>{info.icon}</span>
+                <strong style={{ color: '#e8eaf2' }}>{info.name}</strong>
+                {u.max_level > 1 && <span style={{ marginLeft: 'auto', fontSize: 11, color: '#8a90a8' }}>Lv {lvl}/{u.max_level}</span>}
+              </div>
+              <p style={{ ...S.boardDesc, margin: 0, fontSize: 12 }}>{info.desc}</p>
+              <button style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={() => buyUpgrade(i)}>
+                {maxed ? 'Maxed ✓' : (
+                  <>Buy · {fmt(flux)} <span style={S.fluxIcon}>✦</span>{shards > 0 ? <> + {shards} <span style={S.shardIcon}>◈</span></> : null}</>
+                )}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
 // A mini gem chip for forge recipes / flows.
 function GemChip({ shape, show }: { shape: ShapeRow | undefined; show: boolean }) {
   return (
@@ -349,6 +387,8 @@ function EngineView() {
           <button style={{ ...S.smallBtn, opacity: view.core_complete ? 1 : 0.4 }} disabled={!view.core_complete} onClick={recrystallize}>↑ Recrystallize</button>
         </div>
       </div>
+
+      <UpgradesPanel />
 
       <h4 style={S.boardSub}>On the floor — {deployed.length}</h4>
       <div style={S.chipGrid}>

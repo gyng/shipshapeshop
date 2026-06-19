@@ -70,6 +70,8 @@ pub struct GameState {
     pub total_forges: u32,
     #[serde(default)]
     pub pulls_by_rarity: Vec<u64>, // len 5: Common,Rare,Epic,Ssr,Ur
+    #[serde(default)]
+    pub upgrades: Vec<u32>, // level per content::UPGRADES id
 }
 
 #[derive(Serialize)]
@@ -131,6 +133,7 @@ pub struct GameStateView {
     pub created_ms: f64,
     pub last_seen_ms: f64,
     pub active_synergies: u32,
+    pub upgrades: Vec<u32>,
 }
 
 impl GameState {
@@ -157,16 +160,19 @@ impl GameState {
             lifetime_shards: 0,
             total_forges: 0,
             pulls_by_rarity: vec![0; 5],
+            upgrades: vec![0; content::UPGRADE_COUNT],
         }
     }
 
     pub fn rate_per_hr(&self) -> f64 {
         let sum: f64 = self.loadout.iter().map(|&id| content::effective_prod(id)).sum();
-        (BASE_IDLE + sum).min(RATE_CAP)
+        let cap = RATE_CAP + 300.0 * self.upgrade_level(7) as f64; // overflow_cap (#7)
+        (BASE_IDLE + sum).min(cap)
             * self.prestige_mult
             * self.set_bonus_mult()
             * self.bond_mult()
             * self.synergy_mult()
+            * self.genus_resonance_mult()
     }
 
     /// Family set bonus (M7): completing the 5 Platonic solids grants a permanent global multiplier.
@@ -183,7 +189,46 @@ impl GameState {
             .count() as u32
     }
     pub fn synergy_mult(&self) -> f64 {
-        1.0 + SYNERGY_BONUS * self.synergy_count() as f64
+        let per_pair = SYNERGY_BONUS * if self.upgrade_level(2) > 0 { 2.0 } else { 1.0 }; // twin_bond
+        1.0 + per_pair * self.synergy_count() as f64
+    }
+
+    pub fn upgrade_level(&self, id: usize) -> u32 {
+        self.upgrades.get(id).copied().unwrap_or(0)
+    }
+    /// Floor space including the expand_floor upgrade (#0: +2 / level).
+    pub fn effective_euler_cap(&self) -> u32 {
+        self.euler_cap + 2 * self.upgrade_level(0)
+    }
+    fn affinity_mult(&self) -> f64 {
+        if self.upgrade_level(6) > 0 { 1.5 } else { 1.0 } // affinity_bloom
+    }
+    /// genus_resonance (#1): +6% production per DISTINCT genus among deployed shapes.
+    fn genus_resonance_mult(&self) -> f64 {
+        if self.upgrade_level(1) == 0 {
+            return 1.0;
+        }
+        let mut genera: Vec<u32> = self.loadout.iter().map(|&id| SHAPES[id].genus).collect();
+        genera.sort_unstable();
+        genera.dedup();
+        1.0 + 0.06 * genera.len() as f64
+    }
+    pub fn buy_upgrade(&mut self, id: usize) -> bool {
+        if id >= content::UPGRADE_COUNT {
+            return false;
+        }
+        let level = self.upgrade_level(id);
+        if level >= content::UPGRADES[id].max_level {
+            return false;
+        }
+        let (flux_cost, shard_cost) = content::upgrade_cost(id, level);
+        if self.flux < flux_cost || self.shards < shard_cost {
+            return false;
+        }
+        self.flux -= flux_cost;
+        self.shards -= shard_cost;
+        self.upgrades[id] += 1;
+        true
     }
 
     pub fn bond_level(&self, id: usize) -> u32 {
@@ -204,7 +249,7 @@ impl GameState {
     }
 
     fn add_affinity(&mut self, dt_ms: f64) {
-        let gain = (AFFINITY_PER_HR_DEPLOYED * dt_ms / MS_PER_HOUR) as u32;
+        let gain = (AFFINITY_PER_HR_DEPLOYED * self.affinity_mult() * dt_ms / MS_PER_HOUR) as u32;
         if gain == 0 {
             return;
         }
@@ -218,7 +263,8 @@ impl GameState {
     pub fn inspect(&mut self, id: usize) {
         if id < COUNT && self.owned[id] > 0 {
             let cap = *BOND_THRESHOLDS.last().unwrap();
-            self.bonds[id] = (self.bonds[id] + BOND_INSPECT_GAIN).min(cap);
+            let gain = (BOND_INSPECT_GAIN as f64 * self.affinity_mult()) as u32;
+            self.bonds[id] = (self.bonds[id] + gain).min(cap);
         }
     }
 
@@ -226,7 +272,8 @@ impl GameState {
     pub fn pat(&mut self, id: usize) {
         if id < COUNT && self.owned[id] > 0 {
             let cap = *BOND_THRESHOLDS.last().unwrap();
-            self.bonds[id] = (self.bonds[id] + BOND_PAT_GAIN).min(cap);
+            let gain = (BOND_PAT_GAIN as f64 * self.affinity_mult()) as u32;
+            self.bonds[id] = (self.bonds[id] + gain).min(cap);
         }
     }
 
@@ -236,10 +283,11 @@ impl GameState {
         let Some(ri) = content::find_recipe(a, b) else {
             return fail;
         };
-        if a >= COUNT || b >= COUNT || self.owned[a] == 0 || self.owned[b] == 0 || self.shards < FORGE_COST {
+        let cost = if self.upgrade_level(5) > 0 { 25 } else { FORGE_COST }; // forge_mastery (#5)
+        if a >= COUNT || b >= COUNT || self.owned[a] == 0 || self.owned[b] == 0 || self.shards < cost {
             return fail;
         }
-        self.shards -= FORGE_COST;
+        self.shards -= cost;
         self.total_forges += 1;
         let out = content::RECIPES[ri].out;
         self.grant(out, SHAPES[out].rarity);
@@ -265,7 +313,8 @@ impl GameState {
     /// Closed-form offline catch-up (same formula, capped). Instant even after weeks away.
     pub fn compute_offline(&mut self, now_ms: f64) -> OfflineReport {
         let elapsed = (now_ms - self.last_seen_ms).max(0.0);
-        let capped = elapsed.min(OFFLINE_CAP_MS);
+        let cap = OFFLINE_CAP_MS + self.upgrade_level(3) as f64 * 12.0 * MS_PER_HOUR; // patience (#3)
+        let capped = elapsed.min(cap);
         let gained = self.rate_per_hr() * (capped / MS_PER_HOUR);
         self.flux += gained;
         self.lifetime_flux += gained;
@@ -284,7 +333,8 @@ impl GameState {
         if was_new {
             (true, 0)
         } else {
-            let s = shard_value(r);
+            let base = shard_value(r);
+            let s = if self.upgrade_level(4) > 0 { (base as f64 * 1.5).floor() as u64 } else { base }; // shard_dividend (#4)
             self.shards += s;
             self.lifetime_shards += s;
             (false, s)
@@ -352,7 +402,7 @@ impl GameState {
         if id >= COUNT || self.owned[id] == 0 || self.loadout.contains(&id) {
             return false;
         }
-        if self.euler_used() + SHAPES[id].euler_cost > self.euler_cap {
+        if self.euler_used() + SHAPES[id].euler_cost > self.effective_euler_cap() {
             return false;
         }
         self.loadout.push(id);
@@ -380,7 +430,7 @@ impl GameState {
         let mut used = 0u32;
         for id in ids {
             let c = SHAPES[id].euler_cost;
-            if used + c <= self.euler_cap {
+            if used + c <= self.effective_euler_cap() {
                 self.loadout.push(id);
                 used += c;
             }
@@ -496,6 +546,9 @@ impl GameState {
         if state.pulls_by_rarity.len() != 5 {
             state.pulls_by_rarity.resize(5, 0);
         }
+        if state.upgrades.len() != content::UPGRADE_COUNT {
+            state.upgrades.resize(content::UPGRADE_COUNT, 0);
+        }
         state.loadout.retain(|&id| id < COUNT && state.owned[id] > 0);
         state.schema_version = SCHEMA_VERSION;
         Ok(state)
@@ -510,7 +563,7 @@ impl GameState {
             distinct_owned: self.distinct_owned(),
             loadout: self.loadout.clone(),
             euler_used: self.euler_used(),
-            euler_cap: self.euler_cap,
+            euler_cap: self.effective_euler_cap(),
             viewport_dim: self.viewport_dim,
             ng_cycle: self.ng_cycle,
             prestige_mult: self.prestige_mult,
@@ -535,6 +588,7 @@ impl GameState {
             created_ms: self.created_ms,
             last_seen_ms: self.last_seen_ms,
             active_synergies: self.synergy_count(),
+            upgrades: self.upgrades.clone(),
         }
     }
 }
@@ -619,6 +673,9 @@ impl Game {
     pub fn buy_cosmetic(&mut self, id: u32, cost: f64) -> bool {
         self.state.buy_cosmetic(id, cost)
     }
+    pub fn buy_upgrade(&mut self, id: usize) -> bool {
+        self.state.buy_upgrade(id)
+    }
     pub fn select_scene(&mut self, id: u32) -> bool {
         self.state.select_scene(id)
     }
@@ -680,6 +737,28 @@ pub fn recipes_json() -> String {
             a_nick: SHAPES[r.a].nick,
             b_nick: SHAPES[r.b].nick,
             out_nick: SHAPES[r.out].nick,
+        })
+        .collect();
+    serde_json::to_string(&rows).unwrap()
+}
+
+/// The Workshop upgrade table for the web layer (static defs; current levels come from the view).
+#[wasm_bindgen]
+pub fn upgrades_json() -> String {
+    #[derive(Serialize)]
+    struct UpgradeRow {
+        key: &'static str,
+        flux_cost: f64,
+        shard_cost: u64,
+        max_level: u32,
+    }
+    let rows: Vec<UpgradeRow> = content::UPGRADES
+        .iter()
+        .map(|u| UpgradeRow {
+            key: u.key,
+            flux_cost: u.flux_cost,
+            shard_cost: u.shard_cost,
+            max_level: u.max_level,
         })
         .collect();
     serde_json::to_string(&rows).unwrap()
@@ -848,6 +927,29 @@ mod tests {
         assert_eq!(g.shards, 700);
         assert_eq!(g.relics_owned(), 1);
         assert!(g.core_complete(), "Relics never affect core completion");
+    }
+
+    #[test]
+    fn buy_upgrade_expands_floor_and_caps_at_max() {
+        let mut g = GameState::new(1, 0.0);
+        let base = g.effective_euler_cap();
+        g.flux = 1_000_000.0;
+        assert!(g.buy_upgrade(0)); // expand_floor
+        assert_eq!(g.effective_euler_cap(), base + 2);
+        assert_eq!(g.upgrade_level(0), 1);
+        assert!(g.flux < 1_000_000.0, "flux was spent");
+        for _ in 0..20 {
+            g.buy_upgrade(0);
+        }
+        assert_eq!(g.upgrade_level(0), content::UPGRADES[0].max_level, "stops at max level");
+    }
+
+    #[test]
+    fn buy_upgrade_rejects_when_too_poor() {
+        let mut g = GameState::new(1, 0.0);
+        g.flux = 0.0;
+        assert!(!g.buy_upgrade(0));
+        assert_eq!(g.upgrade_level(0), 0);
     }
 
     #[test]

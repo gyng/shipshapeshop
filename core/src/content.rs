@@ -136,6 +136,36 @@ pub fn find_recipe(a: usize, b: usize) -> Option<usize> {
 /// The 5 Platonic solids (a family set, M7): completing it grants a permanent global bonus.
 pub const PLATONIC_IDS: [usize; 5] = [1, 2, 3, 4, 5]; // cube, tetra, octa, dodeca, icosa
 
+/// Permanent upgrades (the Workshop) — mostly *rule-changing* effects, not flat multipliers. Bought with
+/// banked Flux (the endgame sink) + sometimes Shards; persist across New Game+. Effects are applied by the
+/// matching arms in game.rs (keyed by index). Repeatable ones escalate in cost by 1.8× per level.
+pub struct UpgradeDef {
+    pub key: &'static str, // UI/i18n key
+    pub flux_cost: f64,
+    pub shard_cost: u64,
+    pub max_level: u32,
+}
+
+// Order is load-bearing — game.rs reads effects by index. Keep in sync.
+pub const UPGRADES: [UpgradeDef; 8] = [
+    UpgradeDef { key: "expand_floor", flux_cost: 700.0, shard_cost: 0, max_level: 6 }, // 0: +2 Euler cap / level
+    UpgradeDef { key: "genus_resonance", flux_cost: 4500.0, shard_cost: 15, max_level: 1 }, // 1: +6% per distinct genus on the floor
+    UpgradeDef { key: "twin_bond", flux_cost: 6000.0, shard_cost: 25, max_level: 1 }, // 2: kin synergy doubled
+    UpgradeDef { key: "patience", flux_cost: 2500.0, shard_cost: 0, max_level: 3 }, // 3: +12h offline cap / level
+    UpgradeDef { key: "shard_dividend", flux_cost: 3500.0, shard_cost: 0, max_level: 1 }, // 4: dupe shards ×1.5
+    UpgradeDef { key: "forge_mastery", flux_cost: 3000.0, shard_cost: 30, max_level: 1 }, // 5: forge costs 25 (was 50)
+    UpgradeDef { key: "affinity_bloom", flux_cost: 5000.0, shard_cost: 0, max_level: 1 }, // 6: all bond gains ×1.5
+    UpgradeDef { key: "overflow_cap", flux_cost: 8000.0, shard_cost: 0, max_level: 4 }, // 7: production cap +300/hr / level
+];
+pub const UPGRADE_COUNT: usize = UPGRADES.len();
+
+/// Flux + Shard cost for the NEXT level of an upgrade (escalates for repeatables).
+pub fn upgrade_cost(id: usize, level: u32) -> (f64, u64) {
+    let d = &UPGRADES[id];
+    let mult = 1.8_f64.powi(level as i32);
+    ((d.flux_cost * mult).floor(), (d.shard_cost as f64 * mult).floor() as u64)
+}
+
 /// Kin pairs (duals & soulmates) — deploying BOTH grants a production synergy (the "shipping" payoff).
 pub const SYNERGY_PAIRS: [(usize, usize); 8] = [
     (1, 3),   // cube ⇄ octahedron (dual)
