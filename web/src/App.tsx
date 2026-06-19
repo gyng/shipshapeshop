@@ -30,7 +30,7 @@ import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
 import { DEV_MODE } from './devmode'
-import { Floaters, useFloaters } from './juice'
+import { Floaters, useFloaters, Sparks, useSparks } from './juice'
 
 function fmt(n: number): string {
   if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'
@@ -161,6 +161,7 @@ export function App() {
       <Nudge />
       <DevBar />
       <Floaters />
+      <Sparks />
       <IdleFlux />
       <MilestoneToast />
       <TourCoachmark tab={tab} setTab={setTab} />
@@ -252,14 +253,29 @@ function Hud() {
     const cx = r.left + r.width / 2
     const cy = r.top + r.height / 2
     const mag = Math.log10(Math.max(10, gain)) // ~1 (tens) … ~7 (millions)
-    const count = Math.min(30, Math.round(2 + mag * 4))
-    const big = gain > 5000
-    for (let i = 0; i < count; i++) {
-      const a = (Math.PI * 2 * i) / count + Math.random()
-      const d = 14 + Math.random() * (16 + mag * 12)
-      useFloaters.getState().spawn('✦', { color: i % 3 === 0 ? '#ffe1a3' : '#ffcf6b', big, x: cx + Math.cos(a) * d, y: cy + Math.sin(a) * d * 0.65 })
-    }
+    // particles + the "+X" number fire in the SAME frame, from the counter, both scaled to the gain
+    useSparks.getState().burst(cx, cy, { count: Math.round(4 + mag * 4), power: Math.min(2.3, 0.5 + mag * 0.32) })
+    useFloaters.getState().spawn(`+${fmt(gain)} ✦`, { color: '#ffe1a3', big: gain > 5000, x: cx, y: cy - 6 })
   }, [fluxTruth, rate])
+  // Shards: a cyan burst when they tick up (dupe pulls / forge refunds). No drip, so any gain fires.
+  const shardTruth = view?.shards ?? 0
+  const prevShard = useRef(shardTruth)
+  const shardRef = useRef<HTMLSpanElement>(null)
+  const [shardPop, setShardPop] = useState(0)
+  useEffect(() => {
+    const gain = shardTruth - prevShard.current
+    prevShard.current = shardTruth
+    if (gain <= 0) return
+    setShardPop((n) => n + 1)
+    const el = shardRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const cx = r.left + r.width / 2
+    const cy = r.top + r.height / 2
+    const mag = Math.log10(Math.max(2, gain))
+    useSparks.getState().burst(cx, cy, { count: Math.round(4 + mag * 4), power: Math.min(2, 0.5 + mag * 0.4), hues: ['#eafcff', '#a6e6ff', '#5ad4ff', '#3aa6e0'] })
+    useFloaters.getState().spawn(`+${fmt(gain)} ◈`, { color: '#9fe6ff', x: cx, y: cy - 6 })
+  }, [shardTruth])
   if (!view) return null
   return (
     <header style={S.hud}>
@@ -269,7 +285,7 @@ function Hud() {
         <span style={S.rate} title={tr('hud.rateTip')}>+<Numeral value={view.rate_per_hr} format={fmt} />{tr('hud.perHour')}</span>
       </div>
       <div style={S.hudStats}>
-        <span title={tr('hud.shardsTip')}><span style={S.shardIcon}>◈</span> <Numeral value={view.shards} format={fmt} /> {tr('hud.shards')}</span>
+        <span title={tr('hud.shardsTip')}><span ref={shardRef} key={shardPop} className="value-pop" style={{ display: 'inline-block' }}><span style={S.shardIcon}>◈</span> <Numeral value={view.shards} format={fmt} /></span> {tr('hud.shards')}</span>
         <span title={tr('hud.collectionTip')}>{tr('hud.collection')} {view.distinct_owned}/41</span>
         <span title={tr('hud.dimTip')}>{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
         {view.facets > 0 && <span title={tr('hud.facetsTip')}>🌌 {view.facets}</span>}

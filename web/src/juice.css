@@ -244,3 +244,22 @@ input:focus, textarea:focus {
 /* Key-numeral reward pop (HUD Flux) — replays via React key change on a discrete gain */
 @keyframes value-pop { 0% { transform: scale(1); } 28% { transform: scale(1.16); filter: brightness(1.6); } 100% { transform: scale(1); filter: brightness(1); } }
 .value-pop { display: inline-block; animation: value-pop .45s ease-out; }
+
+/* Spark particles (ui burst — flux rewards). Glowing orbs that fan out + fade; trajectory via CSS vars. */
+.spark {
+  position: fixed; width: var(--sz); height: var(--sz);
+  margin: calc(var(--sz) / -2) 0 0 calc(var(--sz) / -2);
+  /* a 4-point sparkle/twinkle star (concave diamond) with a white-hot core */
+  background: radial-gradient(circle at 50% 50%, #fffdf3 0%, var(--col) 42%, rgba(255,200,110,0.55) 70%, transparent 85%);
+  clip-path: polygon(50% 0%, 58% 42%, 100% 50%, 58% 58%, 50% 100%, 42% 58%, 0% 50%, 42% 42%);
+  /* drop-shadow follows the clip-path (box-shadow would be clipped away) → the star itself glows */
+  filter: drop-shadow(0 0 2px var(--col)) drop-shadow(0 0 5px rgba(255,210,120,0.55));
+  animation: spark var(--dur) cubic-bezier(.16,.6,.3,1) var(--delay, 0ms) forwards;
+  will-change: transform, opacity; pointer-events: none; opacity: 0;
+}
+@keyframes spark {
+  0%   { transform: translate(0,0) scale(0.2) rotate(0deg); opacity: 0; }
+  18%  { transform: translate(calc(var(--dx) * 0.5), var(--rise)) scale(1.15) rotate(var(--rot)); opacity: 1; }
+  65%  { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--fall)) scale(0.3) rotate(calc(var(--rot) * 2.4)); opacity: 0; }
+}
