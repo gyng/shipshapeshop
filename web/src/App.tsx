@@ -18,6 +18,7 @@ import { MILESTONE_INFO } from './content/milestones'
 import { FACET_INFO } from './content/facets'
 import { chatterFor } from './content/chatter'
 import { BANNER_INFO, rotatingBannerId } from './content/banners'
+import { shapeEffect } from './content/effects'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
@@ -499,7 +500,11 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
                   style={{ ...S.tile, borderColor: owned ? RARITY_COLOR[r] : '#23252f', color: owned ? '#fff' : '#555', background: owned ? `${RARITY_COLOR[r]}14` : '#13141d' }}>
                   <span style={S.tileGlyph}>{owned ? glyphOf(s.family) : '❓'}</span>
                   {owned ? s.nick : '???'}
-                  {view.owned[s.id] > 1 && <span style={S.dupe}>×{view.owned[s.id]}</span>}
+                  {(view.star_levels[s.id] ?? 0) > 0 ? (
+                    <span style={S.starBadge} title={`★${view.star_levels[s.id]} · ×${view.owned[s.id]} copies`}>{'★'.repeat(view.star_levels[s.id])}</span>
+                  ) : (
+                    view.owned[s.id] > 1 && <span style={S.dupe}>×{view.owned[s.id]}</span>
+                  )}
                 </button>
               )
             })}
@@ -681,6 +686,7 @@ function EngineView() {
       <UpgradesPanel />
 
       <h4 style={S.boardSub}>On the floor — {deployed.length}</h4>
+      <p style={{ ...S.boardDesc, fontSize: 12, margin: '0 0 8px' }}>💡 Arrangement matters now: place kin pairs <b>side by side</b> for synergy, and slot <b>knots between</b> producers to entangle them. ★ duplicates strengthen each shape’s effect.</p>
       <div style={S.chipGrid}>
         {deployed.length === 0 && <p style={S.emptyHint}>Nothing deployed yet — tap a shape below (or hit Auto-arrange) to start earning Flux.</p>}
         {deployed.map((s) => (
@@ -953,6 +959,23 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
               <span style={{ color: '#3b2b38', letterSpacing: 2 }}>{'♡'.repeat(Math.max(0, 5 - bond))}</span>
               <span style={S.bondHint}>Bond {bond}/5 · inspect &amp; keep deployed to raise</span>
             </p>
+            {(() => {
+              const st = view.star_levels[id] ?? 0
+              const e = shapeEffect(s.family, s.genus, s.euler_cost)
+              return (
+                <>
+                  <p style={S.bondRow}>
+                    <span style={{ color: '#ffd76b', letterSpacing: 2 }}>{'★'.repeat(st)}</span>
+                    <span style={{ color: '#3a3320', letterSpacing: 2 }}>{'☆'.repeat(5 - st)}</span>
+                    <span style={S.bondHint}>★{st}/5 · pull duplicates to raise (boosts its effect)</span>
+                  </p>
+                  <div style={S.effectBox}>
+                    <strong style={{ color: '#9ef0ff' }}>{e.icon} {e.name}</strong>
+                    <p style={{ ...S.hint, margin: '3px 0 0' }}>{e.desc}</p>
+                  </div>
+                </>
+              )
+            })()}
             {codex && <p style={{ ...S.hint, fontStyle: 'italic', color: '#cdd2e0', fontFamily: fontOf(s.family) }}>“{codex.blurb}”</p>}
             {codex && bond >= 1 && <p style={{ ...S.hint, color: RARITY_COLOR[s.rarity], fontFamily: fontOf(s.family) }}>{codex.bond}</p>}
             {codex && bond < 1 && <p style={{ ...S.hint, opacity: 0.7 }}>🔒 Reach Bond 1 (inspect a few times) to hear them speak.</p>}
@@ -1555,6 +1578,8 @@ const S: Record<string, CSSProperties> = {
   tile: { display: 'flex', alignItems: 'center', gap: 8, background: '#13141d', border: '1px solid', borderRadius: 10, padding: '10px 12px', cursor: 'pointer', fontSize: 14, textAlign: 'left' },
   tileDot: { width: 12, height: 12, borderRadius: '50%', flexShrink: 0 },
   dupe: { marginLeft: 'auto', color: '#8a90a8', fontSize: 12 },
+  starBadge: { marginLeft: 'auto', color: '#ffd76b', fontSize: 10, letterSpacing: -1 },
+  effectBox: { background: '#0e1620', border: '1px solid #243042', borderRadius: 10, padding: '8px 12px', margin: '2px 0 8px' },
   engine: { maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 },
   engineHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   engineBtns: { display: 'flex', gap: 8 },

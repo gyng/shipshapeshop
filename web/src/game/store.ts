@@ -65,6 +65,7 @@ export interface View {
   facets: number
   facet_perks: number[]
   current_banner: number
+  star_levels: number[]
 }
 
 export interface BannerDef {
