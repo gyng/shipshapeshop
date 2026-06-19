@@ -66,6 +66,15 @@ export interface View {
   facet_perks: number[]
   current_banner: number
   star_levels: number[]
+  mult_prestige: number
+  mult_set: number
+  mult_bond: number
+  mult_synergy: number
+  mult_genus_res: number
+  mult_milestone: number
+  mult_facet: number
+  mult_ballast: number
+  mult_crossdim: number
 }
 
 export interface BannerDef {

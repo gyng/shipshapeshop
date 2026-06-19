@@ -57,6 +57,25 @@ function useFluxDisplay(): number {
 type Tab = 'gacha' | 'room' | 'chatlas' | 'gallery' | 'engine' | 'forge' | 'shop' | 'ledger'
 const TABS: Tab[] = ['gacha', 'room', 'chatlas', 'gallery', 'engine', 'forge', 'shop', 'ledger']
 
+// Proper line icons per tab (inherit currentColor, so active/inactive nav colour applies). No emoji.
+function TabIcon({ tab }: { tab: Tab }) {
+  const paths: Record<Tab, ReactNode> = {
+    gacha: <><path d="M6 9.5l2.5-4.5h7L18 9.5l-6 9.5z" /><path d="M6 9.5h12" /><path d="M9.8 5L8.5 9.5 12 19M14.2 5l1.3 4.5L12 19" /></>, // faceted gem
+    room: <><path d="M3.5 11L12 4l8.5 7" /><path d="M5.5 9.5V20h13V9.5" /><path d="M10 20v-5h4v5" /></>, // house + door
+    chatlas: <><path d="M4 5.5h16v9H10l-4.5 4v-4H4z" /><path d="M8 9h8M8 11.5h5" /></>, // speech bubble + lines
+    gallery: <><rect x="3.5" y="3.5" width="7.3" height="7.3" rx="1.3" /><rect x="13.2" y="3.5" width="7.3" height="7.3" rx="1.3" /><rect x="3.5" y="13.2" width="7.3" height="7.3" rx="1.3" /><rect x="13.2" y="13.2" width="7.3" height="7.3" rx="1.3" /></>, // grid
+    engine: <><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v3.3M12 18.2v3.3M2.5 12h3.3M18.2 12h3.3M5.2 5.2l2.3 2.3M16.5 16.5l2.3 2.3M18.8 5.2l-2.3 2.3M7.5 16.5l-2.3 2.3" /></>, // gear
+    forge: <><path d="M4 20l7.5-7.5" /><path d="M11.5 5.5l7 7-3 3-7-7z" /></>, // hammer
+    shop: <><path d="M5 8h14l-1.2 12.5H6.2z" /><path d="M8.8 8V6.2a3.2 3.2 0 016.4 0V8" /></>, // shopping bag
+    ledger: <><path d="M4 20.5h16" /><path d="M6.5 20.5V11M11 20.5V5M15.5 20.5v-6M20 20.5V8" /></>, // bar chart
+  }
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+      {paths[tab]}
+    </svg>
+  )
+}
+
 export function App() {
   const { ready, boot } = useGame()
   useEffect(() => {
@@ -104,7 +123,8 @@ export function App() {
       <nav style={S.nav}>
         {TABS.map((t, i) => (
           <button key={t} onClick={() => setTab(t)} title={`Shortcut: ${i + 1}`} style={{ ...S.navBtn, ...(tab === t ? S.navBtnActive : {}) }}>
-            {t === 'gacha' ? tr('nav.pull') : t === 'room' ? '🛋 Room' : t === 'chatlas' ? '💬 Chatlas' : t === 'shop' ? '🛍 Shop' : t === 'ledger' ? '📊 Ledger' : tr(`nav.${t}`)}
+            <TabIcon tab={t} />
+            <span>{t === 'gacha' ? tr('nav.pull') : t === 'room' ? 'Room' : t === 'chatlas' ? 'Chatlas' : t === 'shop' ? 'Shop' : t === 'ledger' ? 'Ledger' : tr(`nav.${t}`)}</span>
           </button>
         ))}
       </nav>
@@ -666,6 +686,42 @@ function GemChip({ shape, show }: { shape: ShapeRow | undefined; show: boolean }
   )
 }
 
+// Active production multipliers — the combos + topology effects made visible. Values come straight from the
+// Rust view (the truth); the UI only displays them. Shows just the multipliers currently doing something.
+function ProductionBreakdown() {
+  const view = useGame((s) => s.view)
+  if (!view) return null
+  const rows: { label: string; mult: number; note?: string }[] = [
+    { label: '♥ Kin synergy', mult: view.mult_synergy, note: view.active_synergies > 0 ? `${view.active_synergies} adjacent pair${view.active_synergies === 1 ? '' : 's'}` : undefined },
+    { label: '🌀 Genus resonance', mult: view.mult_genus_res },
+    { label: '⚓ Euler ballast', mult: view.mult_ballast },
+    { label: '🧩 Cross-dimension', mult: view.mult_crossdim },
+    { label: '♥ Bonds', mult: view.mult_bond },
+    { label: '⬛ Platonic set', mult: view.mult_set },
+    { label: '🏆 Milestones', mult: view.mult_milestone },
+    { label: '💎 Facets', mult: view.mult_facet },
+    { label: '🌌 Prestige', mult: view.mult_prestige },
+  ]
+  const active = rows.filter((r) => r.mult > 1.0001)
+  if (active.length === 0) return null
+  return (
+    <>
+      <h4 style={S.boardSub}>Active multipliers — {active.length}</h4>
+      <div style={S.multGrid}>
+        {active.map((r) => (
+          <div key={r.label} className="chip" style={S.multRow}>
+            <span style={{ color: '#cdd2e0', fontSize: 13 }}>
+              {r.label}
+              {r.note ? <span style={{ color: '#8a90a8', fontSize: 11 }}> · {r.note}</span> : null}
+            </span>
+            <span style={{ color: '#5fe0c6', fontWeight: 800 }}>×{r.mult.toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
 function EngineView() {
   const { shapes, view, deploy, undeploy, autoArrange, recrystallize } = useGame()
   const { bubble, setBubble, talk } = useChatter()
@@ -704,7 +760,7 @@ function EngineView() {
         </div>
         {view.active_synergies > 0 && (
           <div style={S.bigStat}>
-            <span style={{ ...S.bigStatNum, color: '#ff9ecf', fontSize: 20 }}>×{(1 + 0.08 * view.active_synergies).toFixed(2)}</span>
+            <span style={{ ...S.bigStatNum, color: '#ff9ecf', fontSize: 20 }}>×{view.mult_synergy.toFixed(2)}</span>
             <span style={S.bigStatLbl}>♥ kin synergy · {view.active_synergies} pair{view.active_synergies > 1 ? 's' : ''}</span>
           </div>
         )}
@@ -718,6 +774,7 @@ function EngineView() {
         </div>
       </div>
 
+      <ProductionBreakdown />
       <FacetsPanel />
       <UpgradesPanel />
 
@@ -1582,7 +1639,7 @@ const S: Record<string, CSSProperties> = {
   langBtn: { background: 'none', border: '1px solid #2a2c3a', color: '#8a90a8', borderRadius: 6, padding: '2px 7px', fontSize: 11, cursor: 'pointer' },
   langBtnOn: { background: '#28304a', color: '#fff', borderColor: '#5fe0c6' },
   nav: { display: 'flex', gap: 4, padding: '8px 16px', borderBottom: '1px solid #1c1e2a' },
-  navBtn: { background: 'none', border: 'none', color: '#8a90a8', padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 15 },
+  navBtn: { background: 'none', border: 'none', color: '#8a90a8', padding: '8px 12px', borderRadius: 8, cursor: 'pointer', fontSize: 14, display: 'inline-flex', alignItems: 'center', gap: 6 },
   navBtnActive: { background: '#23263a', color: '#fff', boxShadow: 'inset 0 -2px 0 #5fe0c6' },
   main: { flex: 1, padding: 16, overflow: 'auto' },
   gacha: { maxWidth: 520, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 14 },
@@ -1620,6 +1677,8 @@ const S: Record<string, CSSProperties> = {
   chatMsg: { display: 'flex', flexDirection: 'column', gap: 1, background: '#14151d', borderRadius: 10, padding: '8px 12px' },
   chatHandle: { fontSize: 11, fontWeight: 800 },
   chatText: { fontSize: 13.5, color: '#cdd2e0', lineHeight: 1.45 },
+  multGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 6, marginBottom: 10 },
+  multRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#14151d', border: '1px solid #23252f', borderRadius: 8, padding: '6px 10px' },
   engine: { maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 },
   engineHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
   engineBtns: { display: 'flex', gap: 8 },

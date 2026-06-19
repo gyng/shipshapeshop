@@ -150,6 +150,16 @@ pub struct GameStateView {
     pub facet_perks: Vec<u32>,
     pub current_banner: u32,
     pub star_levels: Vec<u32>,
+    // Live production-multiplier breakdown (the truth — the UI only displays these, never recomputes them).
+    pub mult_prestige: f64,
+    pub mult_set: f64,
+    pub mult_bond: f64,
+    pub mult_synergy: f64,
+    pub mult_genus_res: f64,
+    pub mult_milestone: f64,
+    pub mult_facet: f64,
+    pub mult_ballast: f64,
+    pub mult_crossdim: f64,
 }
 
 impl GameState {
@@ -778,6 +788,15 @@ impl GameState {
             facet_perks: self.facet_perks.clone(),
             current_banner: self.current_banner,
             star_levels: (0..COUNT).map(|i| self.star_level(i)).collect(),
+            mult_prestige: self.prestige_mult,
+            mult_set: self.set_bonus_mult(),
+            mult_bond: self.bond_mult(),
+            mult_synergy: self.synergy_mult(),
+            mult_genus_res: self.genus_resonance_mult(),
+            mult_milestone: self.milestone_mult(),
+            mult_facet: self.facet_meta_mult(),
+            mult_ballast: self.ballast_mult(),
+            mult_crossdim: self.crossdim_mult(),
         }
     }
 }
