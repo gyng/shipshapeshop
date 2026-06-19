@@ -85,11 +85,7 @@ const STR: Dict = {
   'pull.ten': { en: 'Pull ×10 · 1000 ✦', ja: '10連 · 1000 ✦', zh: '十连 · 1000 ✦' },
   'pull.pity': { en: 'SSR+ pity', ja: 'SSR+ 天井', zh: 'SSR+ 保底' },
   'pull.resonance': { en: 'Resonance', ja: '共鳴', zh: '共鸣' },
-  'pull.hint': {
-    en: 'Pulls cost idle-generated Flux. Pity guarantees an SSR+ by 30; every pull builds Resonance — at 40 you claim a wanted shape.',
-    ja: 'ガチャは放置で貯まるフラックスを消費します。30回で SSR+ 確定、毎回「共鳴」が貯まり、40 で好きな形を獲得できます。',
-    zh: '抽取消耗挂机产出的流量。第 30 次必出 SSR+；每次抽取累积「共鸣」，满 40 可指定领取一个想要的形状。',
-  },
+  'pull.hint': { en: 'Pull with the Flux you earn while idle. A rare shape is guaranteed by pull 30. Every pull fills Resonance — reach 40 to claim any shape you want.', ja: '放置で貯まったフラックスで引こう。30回までに必ずレアが出る。1回ごとに共鳴が貯まり、40で好きな形を選んで受け取れる。', zh: '用挂机攒下的流量来抽。第 30 抽前必出稀有。每抽都会累积共鸣，满 40 即可指定领取你想要的任意形状。' },
 
   'welcome.title': { en: 'The Atlas', ja: 'アトラス', zh: '图志' },
   'welcome.begin': { en: 'Begin ✦', ja: 'はじめる ✦', zh: '开始 ✦' },
@@ -98,11 +94,7 @@ const STR: Dict = {
     ja: 'これを読んでいるなら、君が新しい学芸員だ。床を守るため灯りは消しておいた。紐を引いて——誰が流れ着くか見てみよう。——前任者の手記より',
     zh: '若你正读到这里，你便是新任馆长。为护住地板，我把灯都熄了。拉一下绳子——看看会有谁漂上岸来。——前任者的笔记',
   },
-  'welcome.note': {
-    en: 'Pull shapes from the Manifold, learn what they truly are, and light the Atlas room by room. Idle Flux accrues even while you’re away. The summit looks up into the fourth dimension.',
-    ja: '「多様体」から形を引き、その正体を知り、アトラスを一室ずつ灯していく。フラックスは離れていても貯まる。頂上は四次元を見上げている。',
-    zh: '从「流形」中抽出形状，认识它们的本质，一间间点亮图志。流量在你离开时仍会累积。终点，仰望着第四维。',
-  },
+  'welcome.note': { en: 'Pull shapes from the Manifold and light the Atlas room by room. Flux keeps gathering while you’re away. At the summit, the fourth dimension is waiting.', ja: '「多様体」から形を引き、アトラスを一室ずつ灯していこう。離れていてもフラックスは貯まり続ける。頂上では、四次元が待っている。', zh: '从「流形」中抽出形状，一间间点亮图志。你离开时，流量也在持续累积。终点处，第四维正等着你。' },
 
   'reveal.new': { en: '✦ New shape!', ja: '✦ 新しいかたち！', zh: '✦ 新形状！' },
   'reveal.continue': { en: 'Continue', ja: 'つづける', zh: '继续' },
@@ -121,21 +113,9 @@ const STR: Dict = {
   'forge.title': { en: 'The Forge', ja: '鍛冶場', zh: '熔炉' },
   'common.close': { en: 'Close', ja: '閉じる', zh: '关闭' },
 
-  'nudge.deploy': {
-    en: '📜 You’ve a shape in hand — open the Engine and Deploy it (or tap Auto-arrange) to start producing Flux.',
-    ja: '📜 形が手に入った——「工房」で配置（または「おまかせ配置」）すると、フラックスが貯まり始める。',
-    zh: '📜 你已拥有形状——进入「引擎」部署它（或点「自动布置」）即可开始产出流量。',
-  },
-  'nudge.forge': {
-    en: '📜 Two of your shapes can be glued into a third — try the Forge.',
-    ja: '📜 持っている形を二つ繋げて、別の形を生み出せる——「鍛冶」を試してみよう。',
-    zh: '📜 你的两个形状可以熔合成第三个——去「熔炉」试试。',
-  },
-  'nudge.prestige': {
-    en: '📜 The Atlas is full. Recrystallize (in the Engine) to ascend a dimension — your collection carries over.',
-    ja: '📜 アトラスが満ちた。「工房」で再結晶すると次元を上れる——コレクションは引き継がれる。',
-    zh: '📜 图志已满。在「引擎」中重结晶即可登上更高维度——收藏会保留。',
-  },
+  'nudge.deploy': { en: '📜 You’ve got a shape to spare. Place it in the Engine to start earning Flux. (No mood to fiddle? Tap Auto-arrange.)', ja: '📜 手の空いた形がある。工房に置けばフラックスが貯まり始める。（いじるのが面倒なら「おまかせ配置」を。）', zh: '📜 你有个闲置的形状。把它放进引擎就能开始赚流量。（不想费心？点「自动布置」。）' },
+  'nudge.forge': { en: '📜 Two of your shapes can be glued into a brand-new one. Try the Forge.', ja: '📜 持っている二つの形を繋げて、新しい形を作れる。鍛冶を試してみよう。', zh: '📜 你的两个形状能熔合出一个全新的。去熔炉试试。' },
+  'nudge.prestige': { en: '📜 The Atlas is full. Recrystallize in the Engine to climb a dimension. Your collection comes with you.', ja: '📜 アトラスが満ちた。工房で再結晶すれば次元を一つ上れる。コレクションはそのまま持っていける。', zh: '📜 图志已满。在引擎中重结晶即可登上更高一维。你的收藏会一同带走。' },
 
   // First-run tour
   'tour.next': { en: 'Next ▸', ja: '次へ ▸', zh: '下一步 ▸' },
@@ -143,41 +123,17 @@ const STR: Dict = {
   'tour.finish': { en: 'Let’s go ✦', ja: 'はじめよう ✦', zh: '开始吧 ✦' },
   'settings.replay': { en: '▶ Replay tutorial', ja: '▶ チュートリアルを再生', zh: '▶ 重看教程' },
   'tour.s0.title': { en: 'Pull shapes', ja: 'ガチャを引く', zh: '抽取形状' },
-  'tour.s0.body': {
-    en: 'Tap Pull to summon a shape with Flux. Odds are shown and pity is visible — keep pulling and a rare one is guaranteed. No tricks.',
-    ja: '✦ で形を引ける。確率は明示、天井も見える——引き続ければレアは必ず出る。小細工なし。',
-    zh: '用流量抽取形状。概率公开、保底可见——持续抽取必出稀有。绝无套路。',
-  },
+  'tour.s0.body': { en: 'Tap Pull to summon a shape with Flux. The odds are right there, and a rare one is guaranteed if you keep going. No tricks.', ja: 'フラックスで形を引ける。確率はそのまま見えていて、引き続ければレアは必ず出る。小細工なし。', zh: '用流量抽取形状。概率就摆在眼前，持续抽下去必出稀有。绝无套路。' },
   'tour.s1.title': { en: 'Your collection', ja: 'コレクション', zh: '你的收藏' },
-  'tour.s1.body': {
-    en: 'Every shape you own lives here. Tap one to inspect it, raise its Bond, and hear it speak — each has a personality.',
-    ja: '持っている形はすべてここに。タップして調べ、絆を育て、声を聞こう——みんな個性がある。',
-    zh: '你拥有的形状都在这里。点击查看、培养羁绊、聆听它说话——每个都有个性。',
-  },
+  'tour.s1.body': { en: 'Every shape you own lives here. Tap one to look closer and hear it speak. Each has a personality of its own.', ja: '持っている形はすべてここに。タップして近くで眺め、声を聞こう。みんな自分の個性がある。', zh: '你拥有的形状都在这里。点一个就能近看、听它说话。每个都有自己的个性。' },
   'tour.s2.title': { en: 'Deploy for Flux', ja: '配置で生産', zh: '部署产出' },
-  'tour.s2.body': {
-    en: 'You start with Pip the sphere. Deploy it here on the factory floor to produce Flux automatically — even while the game is closed. Then head to Pull for more shapes.',
-    ja: 'まずは球の「ピップ」を所持。工場フロアに配置するとフラックスを自動生産——閉じていても貯まる。次は✦でもっと形を引こう。',
-    zh: '你以球体「皮普」开局。把它部署到工厂车间即可自动产出流量——关闭游戏也在累积。然后去抽取更多形状。',
-  },
+  'tour.s2.body': { en: 'You start with Pip the sphere. Place it on the floor and it earns Flux on its own, even while the game is closed. Then head to Pull for more.', ja: 'まずは球の「ピップ」から。フロアに置けば、ゲームを閉じていても勝手にフラックスを稼いでくれる。あとはガチャでもっと引こう。', zh: '你从球体「皮普」开始。把它放到车间，它就会自己赚流量，连关游戏时也在赚。然后去抽取更多。' },
   'tour.s3.title': { en: 'Workshop & beyond', ja: '工房とその先', zh: '工房与进阶' },
-  'tour.s3.body': {
-    en: 'Spend banked Flux on permanent upgrades that change how you play. Complete the core, then Recrystallize to ascend and earn Facets — a deeper prestige tree.',
-    ja: 'フラックスを使い、遊び方を変える恒久強化を購入。コアを完成させたら再結晶で次元を上げ、Facets を獲得——より深い転生ツリーへ。',
-    zh: '用储备的流量购买改变玩法的永久升级。完成核心后重结晶以飞升，并赚取 Facets——更深的转生树。',
-  },
+  'tour.s3.body': { en: 'Spend banked Flux on permanent upgrades that change how you play. Finish the core, then Recrystallize to climb higher and earn Facets.', ja: '貯めたフラックスで、遊び方を変える恒久強化を買おう。コアを終えたら再結晶でさらに上を目指し、Facets を手に入れる。', zh: '用攒下的流量购买改变玩法的永久升级。完成核心后重结晶，登得更高，并赚取 Facets。' },
   'tour.s4.title': { en: 'Forge new shapes', ja: '鍛冶で生成', zh: '熔炉合成' },
-  'tour.s4.body': {
-    en: 'Glue two shapes together to discover a third — a Möbius strip plus a Möbius strip makes a Klein bottle!',
-    ja: '二つの形を繋げて三つ目を発見——メビウスの帯＋メビウスの帯でクラインの壺！',
-    zh: '将两个形状熔合发现第三个——莫比乌斯带＋莫比乌斯带＝克莱因瓶！',
-  },
+  'tour.s4.body': { en: 'Glue two shapes together and discover a third. A Möbius strip plus a Möbius strip makes a Klein bottle!', ja: '二つの形を繋げて、三つ目を発見しよう。メビウスの帯＋メビウスの帯で、クラインの壺！', zh: '把两个形状熔合在一起，发现第三个。莫比乌斯带＋莫比乌斯带，就是克莱因瓶！' },
   'tour.s5.title': { en: 'Your goals — enjoy', ja: '目標、そして楽しむ', zh: '你的目标——尽情享受' },
-  'tour.s5.body': {
-    en: 'The Next Goals panel tracks what to chase. Play it calm and cozy or optimise the numbers — entirely your call. Have fun!',
-    ja: '『次の目標』パネルが目指す先を示す。のんびり癒しでも、数字を最適化でも——あなた次第。楽しんで！',
-    zh: '『下一目标』面板会指引方向。悠闲治愈，或钻研数字优化——全凭你。玩得开心！',
-  },
+  'tour.s5.body': { en: 'The Next Goals panel shows what to chase next. Play it calm and cozy, or dig into the numbers. Entirely your call. Have fun!', ja: '「次の目標」パネルが、次に狙うものを教えてくれる。のんびり癒しでも、数字を突き詰めても、全部あなた次第。楽しんで！', zh: '「下一目标」面板会告诉你接下来追什么。悠闲治愈，或钻研数字，全凭你。玩得开心！' },
   // Newer feature labels (trivial UI track). JA/ZH provided for the simple structural strings; richer copy
   // stays English-first until a translator does the transcreation pass (AGENTS.md §10).
   'pull.goals': { en: '🎯 Goals', ja: '🎯 目標', zh: '🎯 目标' },
@@ -227,10 +183,10 @@ const STR: Dict = {
   'pull.history.empty': { en: 'No pulls yet — your gacha history will appear here.', ja: 'まだ抽選していません — 抽選履歴はここに表示されます。', zh: '还没有抽取记录 — 你的抽卡历史会显示在这里。' },
   'pull.history.new': { en: 'NEW', ja: 'NEW', zh: '新' },
 
-  'ledger.events.empty': { en: 'Forge a shape, summon a relic, or recrystallize and it\'ll show up here this session.', ja: 'Forge a shape, summon a relic, or recrystallize and it\'ll show up here this session.', zh: 'Forge a shape, summon a relic, or recrystallize and it\'ll show up here this session.' },
+  'ledger.events.empty': { en: 'Nothing logged yet. Forge, summon, or recrystallize, and the moment lands here.', ja: 'まだ記録はなし。鍛冶・召喚・再結晶をすれば、その瞬間がここに残る。', zh: '还没有记录。熔炼、召唤或重结晶，那一刻就会留在这里。' },
 
   'room.title': { en: '🛋 The Atlas — your room', ja: '🛋 The Atlas — your room', zh: '🛋 The Atlas — your room' },
-  'room.desc': { en: 'Your shapes mill about between shifts. Tap one to chat and give it a little affection (a tiny bond boost). Re-skin the room from the Shop.', ja: 'Your shapes mill about between shifts. Tap one to chat and give it a little affection (a tiny bond boost). Re-skin the room from the Shop.', zh: 'Your shapes mill about between shifts. Tap one to chat and give it a little affection (a tiny bond boost). Re-skin the room from the Shop.' },
+  'room.desc': { en: 'Your shapes hang out here between shifts. Tap one to chat and pet it — it’ll like you a little more. (Re-skin the room in the Shop.)', ja: '形たちはシフトの合間にここでくつろぐ。タップして話しかけ、なでてあげよう。少しなついてくれる。（部屋の模様替えはショップで。）', zh: '形状们在轮班间隙在这儿歇着。点一个聊聊天、摸一摸，它会更喜欢你一点。（房间换皮在商店里。）' },
   'room.moveIn': { en: 'Pull a few shapes and they\'ll move in here.', ja: 'いくつか抽選すると、ここに引っ越してきます。', zh: '抽几个形状，它们就会搬进来。' },
   'room.tapHint': { en: '💬 tap a shape to chat & pet · drag to look around', ja: '💬 形状をタップして会話＆なでなで · ドラッグで見回す', zh: '💬 点击形状聊天和抚摸 · 拖动环视四周' },
 
@@ -238,7 +194,7 @@ const STR: Dict = {
   'rank.apex': { en: 'Apex reached', ja: '最高ランク到達', zh: '已达巅峰' },
 
   'chatlas.title': { en: '💬 Chatlas', ja: '💬 Chatlas', zh: '💬 Chatlas' },
-  'chatlas.desc': { en: 'The curators\' group chat — hot takes, shipping gossip, and 3am flux-watching from collectors across the Manifold. Procedurally generated, entirely in good fun.', ja: 'The curators\' group chat — hot takes, shipping gossip, and 3am flux-watching from collectors across the Manifold. Procedurally generated, entirely in good fun.', zh: 'The curators\' group chat — hot takes, shipping gossip, and 3am flux-watching from collectors across the Manifold. Procedurally generated, entirely in good fun.' },
+  'chatlas.desc': { en: 'The curators’ group chat. Hot takes, shipping gossip, and 3am Flux-watching from collectors across the Manifold. All in good fun.', ja: '学芸員たちのグループチャット。多様体じゅうのコレクターによる、過激な持論、カップリング談義、深夜のフラックス見守り。全部おふざけ。', zh: '馆长们的群聊。来自流形各地藏家的暴论、磕CP八卦、还有凌晨三点的流量蹲守。全是图个乐。' },
   'chatlas.stickerTooltip': { en: 'Send this sticker', ja: 'このスタンプを送る', zh: '发送这个贴纸' },
 
   'gallery.searchPlaceholder': { en: '🔎 search owned shapes…', ja: '🔎 所持シェイプを検索…', zh: '🔎 搜索已拥有的形状…' },
@@ -278,12 +234,12 @@ const STR: Dict = {
   'production.prestige.label': { en: '🌌 Prestige', ja: '🌌 プレステージ', zh: '🌌 威望' },
   'production.activeHeading': { en: 'Active multipliers — {count}', ja: '有効な倍率 — {count}', zh: '生效倍率 — {count}' },
 
-  'workshop.intro': { en: 'Spend banked ✦ Flux (and shards) on permanent, rule-changing upgrades. Complete the core and Recrystallize (in the Engine) to earn 🌌 Facets for a deeper prestige tree.', ja: 'Spend banked ✦ Flux (and shards) on permanent, rule-changing upgrades. Complete the core and Recrystallize (in the Engine) to earn 🌌 Facets for a deeper prestige tree.', zh: 'Spend banked ✦ Flux (and shards) on permanent, rule-changing upgrades. Complete the core and Recrystallize (in the Engine) to earn 🌌 Facets for a deeper prestige tree.' },
+  'workshop.intro': { en: 'Spend banked ✦ Flux and shards on permanent upgrades that bend the rules. Finish the core, then Recrystallize in the Engine to earn 🌌 Facets.', ja: '貯めた ✦ フラックスと欠片で、ルールを変える恒久強化を買おう。コアを終えたら、工房で再結晶して 🌌 Facets を獲得。', zh: '用攒下的 ✦ 流量和碎片购买能改写规则的永久升级。完成核心后，在引擎中重结晶以赚取 🌌 Facets。' },
 
   'board.emptyCell': { en: 'empty cell', ja: '空きセル', zh: '空格' },
 
   'engine.title': { en: '⚙ Engine — your Flux factory', ja: '⚙ 工房 — フラックス工場', zh: '⚙ 引擎 — 你的流量工厂' },
-  'engine.intro': { en: 'Deploy shapes onto the floor and they generate ✦ Flux every hour — even while you\'re away. Each shape takes floor space (round shapes are free; exotic many-holed ones cost more but pay far more).', ja: 'Deploy shapes onto the floor and they generate ✦ Flux every hour — even while you\'re away. Each shape takes floor space (round shapes are free; exotic many-holed ones cost more but pay far more).', zh: 'Deploy shapes onto the floor and they generate ✦ Flux every hour — even while you\'re away. Each shape takes floor space (round shapes are free; exotic many-holed ones cost more but pay far more).' },
+  'engine.intro': { en: 'Place shapes on the floor to earn ✦ Flux every hour, even while you’re away. Bigger, stranger shapes take more room but pay more.', ja: '形をフロアに置けば、離れていても毎時 ✦ フラックスが入る。大きく風変わりな形ほど場所を取るが、その分よく稼ぐ。', zh: '把形状放到车间，每小时都能赚 ✦ 流量，连离开时也在赚。越大越奇特的形状占地越多，但回报也越高。' },
   'engine.emptyFloor': { en: '🏭 Empty floor — tap a shape below (or Auto-arrange) to fill a slot ⭕', ja: '🏭 フロアが空です — 下の形をタップ（または自動配置）してスロットを埋めましょう ⭕', zh: '🏭 工厂空着 — 点击下方的形状（或自动布置）来填入一个槽位 ⭕' },
   'engine.tapToChat': { en: '💬 tap a deployed shape to chat', ja: '💬 配置した形をタップして会話', zh: '💬 点击已部署的形状来聊天' },
   'engine.fluxPerHour': { en: '✦ Flux / hour', ja: '✦ フラックス / 時', zh: '✦ 流量 / 小时' },
@@ -292,7 +248,7 @@ const STR: Dict = {
   'engine.autoArrange': { en: '✨ Auto-arrange', ja: '✨ 自動配置', zh: '✨ 自动布置' },
   'engine.recrystallizeBtn': { en: '↑ Recrystallize', ja: '↑ 再結晶', zh: '↑ 重结晶' },
   'engine.floorHeading': { en: 'The floor — a {w}×{h} grid · {count} placed', ja: 'フロア — {w}×{h} のグリッド · {count} 配置済み', zh: '工厂 — {w}×{h} 网格 · 已放置 {count}' },
-  'engine.boardHint': { en: '💡 It\'s a spatial puzzle: pick a shape from storage, then tap a cell to place it. Kin pairs that touch earn synergy; a knot lifts all 4 orthogonal neighbours; ★ dupes strengthen every effect. Tap a placed shape to pick it up (tap its own cell again to remove). Auto-arrange solves it for you.', ja: '💡 It\'s a spatial puzzle: pick a shape from storage, then tap a cell to place it. Kin pairs that touch earn synergy; a knot lifts all 4 orthogonal neighbours; ★ dupes strengthen every effect. Tap a placed shape to pick it up (tap its own cell again to remove). Auto-arrange solves it for you.', zh: '💡 It\'s a spatial puzzle: pick a shape from storage, then tap a cell to place it. Kin pairs that touch earn synergy; a knot lifts all 4 orthogonal neighbours; ★ dupes strengthen every effect. Tap a placed shape to pick it up (tap its own cell again to remove). Auto-arrange solves it for you.' },
+  'engine.boardHint': { en: '💡 Pick a shape, then tap a cell to set it down. Shapes that belong together do better side by side. (No mood to fiddle? Tap ✨ Auto-arrange.)', ja: '💡 形を選んで、セルをタップして置こう。気の合う形どうしは、隣り合うと調子が上がる。（いじるのが面倒なら ✨ おまかせ配置を。）', zh: '💡 选一个形状，再点格子放下。合得来的形状挨在一起会更出彩。（不想费心？点 ✨ 自动布置。）' },
   'engine.placingHint': { en: ' · placing {nick} — tap a cell (or its cell to cancel/remove)', ja: ' · 配置中: {nick} — セルをタップ（自身のセルでキャンセル/除去）', zh: ' · 正在放置 {nick} — 点击格子（点其所在格可取消/移除）' },
   'engine.storageHeading': { en: 'In storage — {count}', ja: 'ストレージ — {count}', zh: '仓库 — {count}' },
   'engine.filterPlaceholder': { en: '🔎 filter…', ja: '🔎 絞り込み…', zh: '🔎 筛选…' },
@@ -334,13 +290,13 @@ const STR: Dict = {
   'inspect.kinship.watchScene': { en: '▶ Watch scene', ja: '▶ シーンを見る', zh: '▶ 观看场景' },
   'inspect.undiscovered.title': { en: 'Undiscovered', ja: '未発見', zh: '未发现' },
   'inspect.undiscovered.sub': { en: 'still adrift in the Manifold', ja: 'still adrift in the Manifold', zh: 'still adrift in the Manifold' },
-  'inspect.undiscovered.pullHint': { en: 'Pull to bring it ashore — the reveal is half the joy.', ja: 'Pull to bring it ashore — the reveal is half the joy.', zh: 'Pull to bring it ashore — the reveal is half the joy.' },
+  'inspect.undiscovered.pullHint': { en: 'Pull to bring it ashore. The reveal is half the joy.', ja: '引いて岸へ連れてこよう。お披露目の瞬間こそ、楽しみの半分。', zh: '抽一抽，把它带上岸。揭晓的那一刻，乐趣已占一半。' },
 
   'forge.titleFull': { en: '🔨 Forge — fuse shapes together', ja: '🔨 鍛冶 — 形を融合させる', zh: '🔨 锻造 — 将形状融合在一起' },
-  'forge.desc': { en: 'Glue two shapes you own into a rarer third (a connected sum — real topology picks the result). Each forge costs ◈ 50; the first time you discover a recipe you earn +100 ◈. Shards come from duplicate pulls.', ja: 'Glue two shapes you own into a rarer third (a connected sum — real topology picks the result). Each forge costs ◈ 50; the first time you discover a recipe you earn +100 ◈. Shards come from duplicate pulls.', zh: 'Glue two shapes you own into a rarer third (a connected sum — real topology picks the result). Each forge costs ◈ 50; the first time you discover a recipe you earn +100 ◈. Shards come from duplicate pulls.' },
+  'forge.desc': { en: 'Glue two of your shapes into a rarer third. Each forge costs ◈ 50, and a first-time discovery hands you +100 ◈ back. Shards come from duplicate pulls.', ja: '持っている形を二つ繋げて、より珍しい三つ目を作る。鍛冶は1回 ◈ 50。初めての発見では +100 ◈ が返ってくる。欠片はダブったガチャから手に入る。', zh: '把你的两个形状熔合成更稀有的第三个。每次熔炼花 ◈ 50，首次发现还会返还 +100 ◈。碎片来自重复抽取。' },
   'forge.shardBank': { en: '{shards} shards in the bank', ja: '残高に{shards}シャード', zh: '库存{shards}碎片' },
   'forge.referenceWing.title': { en: '★ Reference Wing', ja: '★ リファレンス棟', zh: '★ 参考展厅' },
-  'forge.referenceWing.desc': { en: 'Summon a legendary CG model — Teapot, Bunny, Dragon… {owned}/{count} collected.', ja: 'Summon a legendary CG model — Teapot, Bunny, Dragon… {owned}/{count} collected.', zh: 'Summon a legendary CG model — Teapot, Bunny, Dragon… {owned}/{count} collected.' },
+  'forge.referenceWing.desc': { en: 'Summon a legendary CG model — Teapot, Bunny, Dragon… {owned}/{count} collected.', ja: '伝説の CG モデルを召喚しよう——ティーポット、バニー、ドラゴン……{owned}/{count} 収集済み。', zh: '召唤传说级 CG 模型——茶壶、兔子、龙……已收集 {owned}/{count}。' },
   'forge.summon.complete': { en: 'Complete ✓', ja: 'コンプリート ✓', zh: '已完成 ✓' },
   'forge.summon.cost': { en: 'Summon · {cost} ◈', ja: '召喚 · {cost} ◈', zh: '召唤 · {cost} ◈' },
   'forge.recipes.heading': { en: 'Recipes', ja: 'レシピ', zh: '配方' },
@@ -353,7 +309,7 @@ const STR: Dict = {
   'title.cycle': { en: 'Click for another title', ja: 'クリックで別のタイトルへ', zh: '点击切换其他标题' },
 
   'shop.title': { en: '🛍 Shop — scenes & environments', ja: '🛍 ショップ — シーン & 環境', zh: '🛍 商店 — 场景与环境' },
-  'shop.desc': { en: 'Spend ✦ Flux on swappable scenes that re-light the whole game — the patron sink for late-game Flux. Owned scenes equip for free.', ja: 'Spend ✦ Flux on swappable scenes that re-light the whole game — the patron sink for late-game Flux. Owned scenes equip for free.', zh: 'Spend ✦ Flux on swappable scenes that re-light the whole game — the patron sink for late-game Flux. Owned scenes equip for free.' },
+  'shop.desc': { en: 'Spend ✦ Flux on scenes that re-light the whole game. Swap between any you own for free.', ja: '✦ フラックスで、ゲーム全体を照らし直すシーンを買おう。手に入れたシーンはいつでも無料で着せ替えできる。', zh: '用 ✦ 流量购买能重新点亮整个游戏的场景。已拥有的可随时免费切换。' },
   'shop.fluxAvailable': { en: 'Flux available', ja: 'Flux 利用可能', zh: '可用 Flux' },
   'shop.equipped': { en: 'Equipped', ja: '装備中', zh: '已装备' },
   'shop.equip': { en: 'Equip', ja: '装備', zh: '装备' },
@@ -361,7 +317,7 @@ const STR: Dict = {
 
   'ledger.fluxTrendEmpty': { en: 'Flux trend will appear as you play…', ja: 'プレイするにつれて Flux の推移が表示されます…', zh: '随着游戏进行，Flux 趋势将会显示…' },
   'ledger.title': { en: '📊 Ledger — your run in numbers', ja: '📊 台帳 — 数字で見るあなたのラン', zh: '📊 账本 — 用数字看你的旅程' },
-  'ledger.desc': { en: 'Everything the Atlas has tallied. Flux over the last couple of minutes:', ja: 'Everything the Atlas has tallied. Flux over the last couple of minutes:', zh: 'Everything the Atlas has tallied. Flux over the last couple of minutes:' },
+  'ledger.desc': { en: 'Everything the Atlas has tallied so far. Flux over the last couple of minutes:', ja: 'アトラスがこれまでに数えてきたすべて。直近数分のフラックス推移：', zh: '图志至今记下的一切。最近几分钟的流量走势：' },
   'ledger.sectionEconomy': { en: 'Economy', ja: '経済', zh: '经济' },
   'ledger.statFluxNow': { en: 'Flux now', ja: '現在の Flux', zh: '当前 Flux' },
   'ledger.statFluxPerHr': { en: 'Flux / hr', ja: 'Flux / 時', zh: 'Flux / 小时' },
@@ -404,14 +360,14 @@ const STR: Dict = {
   'attribution.builtThree': { en: 'three.js · React Three Fiber · drei', ja: 'three.js · React Three Fiber · drei', zh: 'three.js · React Three Fiber · drei' },
   'attribution.builtRust': { en: 'Rust → WebAssembly (deterministic game core)', ja: 'Rust → WebAssembly (deterministic game core)', zh: 'Rust → WebAssembly (deterministic game core)' },
   'attribution.builtReact': { en: 'React · Zustand · Vite · TypeScript', ja: 'React · Zustand · Vite · TypeScript', zh: 'React · Zustand · Vite · TypeScript' },
-  'attribution.licenceNote': { en: 'Shapes are mathematical objects; topology is public-domain mathematics. Verify each model\'s licence before commercial use.', ja: 'Shapes are mathematical objects; topology is public-domain mathematics. Verify each model\'s licence before commercial use.', zh: 'Shapes are mathematical objects; topology is public-domain mathematics. Verify each model\'s licence before commercial use.' },
+  'attribution.licenceNote': { en: 'Shapes are mathematical objects, and topology is public-domain mathematics. Check each model’s licence before any commercial use.', ja: '形は数学的対象であり、トポロジーはパブリックドメインの数学だ。商用利用の前に、各モデルのライセンスを確認しよう。', zh: '形状是数学对象，拓扑学属于公有领域的数学。商用前请逐一核对每个模型的许可。' },
 
-  'settings.titleArtDesc': { en: 'The shop\'s cover art. Click the image (or use ◂ ▸) to cycle all {count} pieces — your pick is saved and shown on the welcome screen.', ja: 'The shop\'s cover art. Click the image (or use ◂ ▸) to cycle all {count} pieces — your pick is saved and shown on the welcome screen.', zh: 'The shop\'s cover art. Click the image (or use ◂ ▸) to cycle all {count} pieces — your pick is saved and shown on the welcome screen.' },
+  'settings.titleArtDesc': { en: 'The shop’s cover art. Tap the image (or ◂ ▸) to flip through all {count} pieces. Your pick is saved and greets you on the welcome screen.', ja: 'ショップのカバーアート。画像（または ◂ ▸）をタップして {count} 枚すべてをめくれる。選んだ1枚は保存され、ウェルカム画面で出迎えてくれる。', zh: '商店的封面图。点图片（或 ◂ ▸）即可翻看全部 {count} 张。你选的那张会被保存，并在欢迎页迎接你。' },
   'settings.titleArtAlt': { en: 'title art', ja: 'タイトルアート', zh: '标题图' },
   'settings.titleArtClickHint': { en: 'Click for another', ja: 'クリックで別の絵に', zh: '点击切换下一张' },
   'settings.prev': { en: '◂ Prev', ja: '◂ 前へ', zh: '◂ 上一张' },
   'settings.next': { en: 'Next ▸', ja: '次へ ▸', zh: '下一张 ▸' },
-  'settings.dataDesc': { en: 'Progress saves automatically in this browser. Export a backup you can re-import here or on another device.', ja: '進行状況はこのブラウザに自動保存されます。バックアップを書き出して、ここや別の端末で再読み込みできます。', zh: '进度会自动保存在此浏览器中。导出备份后可在此处或其他设备重新导入。' },
+  'settings.dataDesc': { en: 'Progress saves automatically in this browser. Export a backup to re-import here or on another device.', ja: '進行状況はこのブラウザに自動保存される。バックアップを書き出せば、ここでも別の端末でも読み込み直せる。', zh: '进度会自动保存在此浏览器。导出备份后，可在此处或其他设备重新导入。' },
   'settings.dataExportMsg': { en: 'Save exported. Keep the file somewhere safe.', ja: 'セーブを書き出しました。ファイルを安全な場所に保管してください。', zh: '存档已导出。请将文件妥善保存。' },
   'settings.dataImportConfirm': { en: 'Import this save? Your current progress will be replaced.', ja: 'このセーブをインポートしますか？現在の進行状況は置き換えられます。', zh: '导入此存档？当前进度将被替换。' },
   'settings.dataImportInvalid': { en: 'That file was not a valid Shape Gacha save.', ja: 'そのファイルは有効な Shape Gacha のセーブではありませんでした。', zh: '该文件不是有效的 Shape Gacha 存档。' },
@@ -437,16 +393,16 @@ const STR: Dict = {
   'settings.qualityLow': { en: 'Low', ja: '低', zh: '低' },
   'settings.qualityMedium': { en: 'Medium', ja: '中', zh: '中' },
   'settings.qualityHigh': { en: 'High', ja: '高', zh: '高' },
-  'settings.qualityHint': { en: 'Quality scales resolution, glass detail, raymarch steps, shadows & particle density — drop it for higher FPS on weaker devices. Backgrounds & scenes are buyable in the 🛍 Shop.', ja: 'Quality scales resolution, glass detail, raymarch steps, shadows & particle density — drop it for higher FPS on weaker devices. Backgrounds & scenes are buyable in the 🛍 Shop.', zh: 'Quality scales resolution, glass detail, raymarch steps, shadows & particle density — drop it for higher FPS on weaker devices. Backgrounds & scenes are buyable in the 🛍 Shop.' },
-  'settings.gameplayLoopDesc': { en: 'The loop: pull shapes → deploy them in the Engine to make Flux → forge rarer shapes → recrystallize to ascend a dimension (New Game+). Edutainment (the real maths) lives in each owned shape\'s Codex — discovery-first, and it never gates the fun.', ja: 'The loop: pull shapes → deploy them in the Engine to make Flux → forge rarer shapes → recrystallize to ascend a dimension (New Game+). Edutainment (the real maths) lives in each owned shape\'s Codex — discovery-first, and it never gates the fun.', zh: 'The loop: pull shapes → deploy them in the Engine to make Flux → forge rarer shapes → recrystallize to ascend a dimension (New Game+). Edutainment (the real maths) lives in each owned shape\'s Codex — discovery-first, and it never gates the fun.' },
+  'settings.qualityHint': { en: 'Quality scales resolution, glass detail, shadows, and particles. Drop it for smoother frames on weaker devices. (Backgrounds and scenes live in the 🛍 Shop.)', ja: '品質は解像度・ガラスの精細さ・影・パーティクルを調整する。非力な端末ではフレームを滑らかにするため下げよう。（背景とシーンは 🛍 ショップに。）', zh: '画质会调整分辨率、玻璃细节、阴影和粒子。设备较弱时调低可让帧率更顺。（背景与场景在 🛍 商店里。）' },
+  'settings.gameplayLoopDesc': { en: 'The loop: pull shapes, place them in the Engine to make Flux, forge rarer ones, then recrystallize to climb a dimension. The real maths lives in each shape’s Codex — always optional, never in your way.', ja: 'ループ：形を引く → 工房に置いてフラックスを作る → より珍しい形を鍛える → 再結晶で次元を上る。本物の数学は各形のコデックスに。いつでも任意で、邪魔はしない。', zh: '循环：抽形状 → 放进引擎产出流量 → 熔炼更稀有的 → 重结晶登上更高维度。真正的数学藏在每个形状的图鉴里，始终可选，绝不挡路。' },
   'settings.kbPullx1': { en: 'Pull ×1', ja: 'ガチャ ×1', zh: '抽取 ×1' },
   'settings.kbPullx10': { en: 'Pull ×10', ja: 'ガチャ ×10', zh: '抽取 ×10' },
   'settings.kbNavScreens': { en: 'Engine · Workshop · Pull · Room · Chatlas · Gallery · Forge · Shop · Ledger', ja: 'Engine · Workshop · Pull · Room · Chatlas · Gallery · Forge · Shop · Ledger', zh: 'Engine · Workshop · Pull · Room · Chatlas · Gallery · Forge · Shop · Ledger' },
   'settings.kbCloseDialog': { en: 'Close the open dialog', ja: '開いているダイアログを閉じる', zh: '关闭打开的对话框' },
-  'settings.kbOrbitHint': { en: 'In any 3D view: drag (left or right) to orbit, scroll / pinch to zoom.', ja: 'In any 3D view: drag (left or right) to orbit, scroll / pinch to zoom.', zh: 'In any 3D view: drag (left or right) to orbit, scroll / pinch to zoom.' },
+  'settings.kbOrbitHint': { en: 'In any 3D view, drag to orbit and scroll or pinch to zoom.', ja: 'どの 3D ビューでも、ドラッグで回転、スクロールやピンチでズーム。', zh: '在任意 3D 视图中，拖动可旋转，滚动或捏合可缩放。' },
 
   'dialogLog.title': { en: 'Dialogue log', ja: '会話ログ', zh: '对话记录' },
-  'dialogLog.empty': { en: 'Nothing said yet — tap a shape (or inspect one) to hear it speak.', ja: 'Nothing said yet — tap a shape (or inspect one) to hear it speak.', zh: 'Nothing said yet — tap a shape (or inspect one) to hear it speak.' },
+  'dialogLog.empty': { en: 'Quiet so far. Tap a shape, or take a closer look, to hear it speak.', ja: 'まだ静か。形をタップするか、近くで眺めると、声が聞ける。', zh: '目前还很安静。点一个形状，或凑近看看，就能听它说话。' },
   'dialogLog.close': { en: 'Close', ja: '閉じる', zh: '关闭' },
 
   'ship.resume': { en: '▸ Resume', ja: '▸ 再開', zh: '▸ 继续' },
