@@ -188,6 +188,8 @@ interface Store {
   devAddShards: () => void
   devUnlockAll: () => void
   resetSave: () => void
+  exportSave: () => string
+  importSave: (text: string) => boolean
   buyCosmetic: (id: number, cost: number) => void
   buyUpgrade: (id: number) => void
   buyFacetPerk: (id: number) => void
@@ -432,7 +434,45 @@ export const useGame = create<Store>((set, get) => ({
   },
   resetSave: () => {
     localStorage.removeItem(SAVE_KEY)
+    localStorage.removeItem('shipshape-secretary')
+    localStorage.removeItem('shipshape-autopull')
     location.reload()
+  },
+  // Portable backup: the authoritative core save (game.serialize) wrapped with the gameplay-relevant UI prefs.
+  exportSave: () => {
+    if (!game) return ''
+    const env = {
+      app: 'shape-gacha',
+      exported: new Date().toISOString(),
+      game: game.serialize(),
+      secretary: get().secretaryId,
+      autopull: get().autoPull,
+      title: Number(localStorage.getItem('shapegacha.title')) || 0,
+    }
+    return JSON.stringify(env)
+  },
+  importSave: (text) => {
+    try {
+      let raw = text.trim()
+      let env: { game?: string; secretary?: number | null; autopull?: boolean; title?: number } | null = null
+      if (raw.startsWith('{') && raw.includes('"game"')) {
+        env = JSON.parse(raw)
+        if (env && typeof env.game === 'string') raw = env.game
+      }
+      const g = Game.from_save(raw, now()) // throws on invalid/corrupt/newer-schema
+      game = g
+      localStorage.setItem(SAVE_KEY, raw)
+      if (env) {
+        if (env.secretary == null) localStorage.removeItem('shipshape-secretary')
+        else localStorage.setItem('shipshape-secretary', String(env.secretary))
+        if (env.autopull != null) localStorage.setItem('shipshape-autopull', env.autopull ? '1' : '0')
+        if (Number.isInteger(env.title)) localStorage.setItem('shapegacha.title', String(env.title))
+      }
+      location.reload()
+      return true
+    } catch {
+      return false
+    }
   },
   buyCosmetic: (id, cost) => {
     if (game?.buy_cosmetic(id, cost)) {

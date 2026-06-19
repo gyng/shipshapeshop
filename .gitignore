@@ -26,3 +26,6 @@ Cargo.lock
 .env
 .env.*
 !.env.example
+
+# Source title art (large raw PNGs) — optimized WebP derivatives ship in web/public/titles
+assets/*.png

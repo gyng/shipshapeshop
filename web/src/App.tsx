@@ -21,6 +21,7 @@ import { BANNER_INFO, rotatingBannerId } from './content/banners'
 import { shapeEffect } from './content/effects'
 import { generateMessages, type ChatMsg } from './content/chatlas'
 import { useDialogLog } from './dialogLog'
+import { useTitle, titleSrc, TITLE_COUNT } from './titleArt'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
 import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, speak, stopVoice } from './audio'
@@ -1320,6 +1321,24 @@ function TourCoachmark({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) 
   )
 }
 
+// The hand-made title art — click to rotate through the set. Persists the choice.
+function TitleArt({ style, rounded = 12 }: { style?: CSSProperties; rounded?: number }) {
+  const idx = useTitle((s) => s.idx)
+  const next = useTitle((s) => s.next)
+  return (
+    <img
+      src={titleSrc(idx)}
+      alt="Ship Shape Shop"
+      onClick={(e) => {
+        e.stopPropagation()
+        next()
+      }}
+      title="Click for another title"
+      style={{ width: '100%', borderRadius: rounded, cursor: 'pointer', display: 'block', aspectRatio: '4 / 3', objectFit: 'cover', ...style }}
+    />
+  )
+}
+
 function WelcomeModal() {
   const { firstLaunch, dismissWelcome } = useGame()
   const startTour = useTour((s) => s.start)
@@ -1332,7 +1351,8 @@ function WelcomeModal() {
   return (
     <div style={S.modal} onClick={begin}>
       <div className="pop-in" style={S.revealCard} onClick={(e) => e.stopPropagation()}>
-        <h2>{tr('welcome.title')}</h2>
+        <TitleArt style={{ marginBottom: 14 }} />
+        <h2 style={{ margin: '0 0 6px' }}>{tr('welcome.title')}</h2>
         <p style={S.revealSub}>{tr('welcome.body')}</p>
         <p style={S.hint}>{tr('welcome.note')}</p>
         <button style={S.pullBtn} onClick={begin}>{tr('welcome.begin')}</button>
@@ -1514,6 +1534,66 @@ function Attribution() {
   )
 }
 
+function TitleArtSettings() {
+  const idx = useTitle((s) => s.idx)
+  const next = useTitle((s) => s.next)
+  const prev = useTitle((s) => s.prev)
+  return (
+    <>
+      <p style={S.boardDesc}>The shop’s cover art. Click the image (or use ◂ ▸) to cycle all {TITLE_COUNT} pieces — your pick is saved and shown on the welcome screen.</p>
+      <img src={titleSrc(idx)} alt="title art" onClick={next} title="Click for another" style={{ width: '100%', borderRadius: 12, cursor: 'pointer', aspectRatio: '4 / 3', objectFit: 'cover' }} />
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+        <button style={S.smallBtn} onClick={prev}>◂ Prev</button>
+        <span style={S.hint}>{idx + 1} / {TITLE_COUNT}</span>
+        <button style={S.smallBtn} onClick={next}>Next ▸</button>
+      </div>
+    </>
+  )
+}
+
+function DataSettings() {
+  const exportSave = useGame((s) => s.exportSave)
+  const importSave = useGame((s) => s.importSave)
+  const resetSave = useGame((s) => s.resetSave)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [msg, setMsg] = useState<string | null>(null)
+  const doExport = () => {
+    const data = exportSave()
+    if (!data) return
+    const blob = new Blob([data], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `shape-gacha-save-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+    setMsg('Save exported. Keep the file somewhere safe.')
+  }
+  const onFile = async () => {
+    const f = fileRef.current?.files?.[0]
+    if (!f) return
+    const text = await f.text()
+    if (fileRef.current) fileRef.current.value = ''
+    if (!window.confirm('Import this save? Your current progress will be replaced.')) return
+    if (!importSave(text)) setMsg('That file was not a valid Shape Gacha save.')
+    // on success the page reloads
+  }
+  const doReset = () => {
+    if (!window.confirm('Reset ALL progress? This erases your collection, Flux, bonds and prestige.')) return
+    if (window.confirm('Are you absolutely sure? There is no undo.')) resetSave()
+  }
+  return (
+    <>
+      <p style={S.boardDesc}>Progress saves automatically in this browser. Export a backup you can re-import here or on another device.</p>
+      <SettingRow label="Backup"><button style={S.smallBtn} onClick={doExport}>⬇ Export save</button></SettingRow>
+      <SettingRow label="Restore"><button style={S.smallBtn} onClick={() => fileRef.current?.click()}>⬆ Import save…</button></SettingRow>
+      <input ref={fileRef} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={onFile} />
+      <SettingRow label="Danger zone"><button style={{ ...S.smallBtn, borderColor: '#a3434f', color: '#ff8a8a' }} onClick={doReset}>Reset progress…</button></SettingRow>
+      {msg && <p style={{ ...S.hint, color: '#ffd76b' }}>{msg}</p>}
+    </>
+  )
+}
+
 function SettingsModal() {
   const tr = useT()
   const settingsOpen = useGame((s) => s.settingsOpen)
@@ -1522,9 +1602,9 @@ function SettingsModal() {
   const toggleMute = useMute((s) => s.toggle)
   const quality = useGfx((s) => s.quality)
   const setQuality = useGfx((s) => s.setQuality)
-  const [tab, setTab] = useState<'graphics' | 'gameplay' | 'keybinds' | 'attribution'>('graphics')
+  const [tab, setTab] = useState<'graphics' | 'gameplay' | 'title' | 'data' | 'keybinds' | 'attribution'>('graphics')
   if (!settingsOpen) return null
-  const tabs: typeof tab[] = ['graphics', 'gameplay', 'keybinds', 'attribution']
+  const tabs: typeof tab[] = ['graphics', 'gameplay', 'title', 'data', 'keybinds', 'attribution']
   return (
     <div style={S.modal} onClick={() => setSettingsOpen(false)}>
       <div className="pop-in" style={S.settingsCard} onClick={(e) => e.stopPropagation()}>
@@ -1573,11 +1653,13 @@ function SettingsModal() {
               </button>
             </>
           )}
+          {tab === 'title' && <TitleArtSettings />}
+          {tab === 'data' && <DataSettings />}
           {tab === 'keybinds' && (
             <div style={{ fontSize: 13, color: '#cdd2e0' }}>
               <div style={S.kbRow}><span><kbd style={S.kbd2}>P</kbd> <kbd style={S.kbd2}>Space</kbd></span><span style={S.kbDesc}>Pull ×1</span></div>
               <div style={S.kbRow}><kbd style={S.kbd2}>T</kbd><span style={S.kbDesc}>Pull ×10</span></div>
-              <div style={S.kbRow}><span><kbd style={S.kbd2}>1</kbd>–<kbd style={S.kbd2}>6</kbd></span><span style={S.kbDesc}>Pull · Gallery · Engine · Forge · Shop · Ledger</span></div>
+              <div style={S.kbRow}><span><kbd style={S.kbd2}>1</kbd>–<kbd style={S.kbd2}>9</kbd></span><span style={S.kbDesc}>Engine · Workshop · Pull · Room · Chatlas · Gallery · Forge · Shop · Ledger</span></div>
               <div style={S.kbRow}><kbd style={S.kbd2}>M</kbd><span style={S.kbDesc}>Toggle sound</span></div>
               <div style={S.kbRow}><kbd style={S.kbd2}>Esc</kbd><span style={S.kbDesc}>Close the open dialog</span></div>
               <p style={{ ...S.boardDesc, marginTop: 12 }}>In any 3D view: <b>drag</b> (left or right) to orbit, <b>scroll / pinch</b> to zoom.</p>
