@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Environment, Lightformer, Sparkles, Float, ContactShadows } from '@react-three/drei'
+import { Environment, Lightformer, Sparkles, Float, ContactShadows, Grid } from '@react-three/drei'
 import * as THREE from 'three'
 import { getGeometry } from './geometry'
 import { RARITY_COLOR } from './Gem'
@@ -57,6 +57,7 @@ export function ForgeAltar({ a, b, out, discovered }: { a?: ShapeRow; b?: ShapeR
   return (
     <Canvas dpr={[1, 1.8]} shadows camera={{ position: [0, 1.5, 5], fov: 42 }}>
       <color attach="background" args={['#0b0c16']} />
+      <fog attach="fog" args={['#0b0c16', 8, 28]} />
       <ambientLight intensity={0.7} />
       <hemisphereLight args={['#cfd6ff', '#1a1530', 0.6]} />
       <directionalLight position={[3, 6, 4]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} />
@@ -67,11 +68,23 @@ export function ForgeAltar({ a, b, out, discovered }: { a?: ShapeRow; b?: ShapeR
         <Lightformer intensity={1.6} color="#ffffff" position={[0, 4, 3]} scale={5} />
       </Environment>
 
-      {/* reflective forge floor */}
+      {/* endless reflective forge floor fading into the fog horizon + an infinite grid */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.84, 0]} receiveShadow>
-        <planeGeometry args={[20, 20]} />
-        <meshStandardMaterial color="#0d0e1a" metalness={0.7} roughness={0.35} />
+        <planeGeometry args={[400, 400]} />
+        <meshStandardMaterial color="#0d0e1a" metalness={0.7} roughness={0.4} />
       </mesh>
+      <Grid
+        position={[0, -0.83, 0]}
+        infiniteGrid
+        cellSize={0.6}
+        cellThickness={0.6}
+        cellColor="#2a2e40"
+        sectionSize={3}
+        sectionThickness={1}
+        sectionColor="#4a4063"
+        fadeDistance={28}
+        fadeStrength={1.5}
+      />
 
       <Pedestal pos={[-1.8, 0, 0]} color={aCol} />
       <AltarGem shape={a} pos={[-1.8, 0, 0]} scale={0.4} show />

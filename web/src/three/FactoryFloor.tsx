@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Environment, Lightformer, Sparkles, Float, ContactShadows, OrbitControls } from '@react-three/drei'
+import { Environment, Lightformer, Sparkles, Float, ContactShadows, OrbitControls, Grid } from '@react-three/drei'
 import * as THREE from 'three'
 import { getGeometry } from './geometry'
 import { RARITY_COLOR } from './Gem'
@@ -48,6 +48,7 @@ export function FactoryFloor({ shapes, loadout }: { shapes: ShapeRow[]; loadout:
   return (
     <Canvas dpr={[1, 1.8]} shadows camera={{ position: [0, 2.9, 5.6], fov: 42 }}>
       <color attach="background" args={['#0a0b14']} />
+      <fog attach="fog" args={['#0a0b14', 9, 30]} />
       <ambientLight intensity={0.6} />
       <hemisphereLight args={['#cfe0ff', '#181228', 0.7]} />
       <directionalLight position={[3, 7, 4]} intensity={1.8} castShadow shadow-mapSize={[1024, 1024]} />
@@ -58,12 +59,23 @@ export function FactoryFloor({ shapes, loadout }: { shapes: ShapeRow[]; loadout:
         <Lightformer intensity={1.6} color="#ffffff" position={[0, 5, 2]} scale={5} />
       </Environment>
 
-      {/* floor + grid */}
+      {/* endless floor: a huge plane that fades into the fog at the horizon + an infinite grid */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.42, 0]} receiveShadow>
-        <planeGeometry args={[18, 18]} />
-        <meshStandardMaterial color="#0d0e1a" metalness={0.6} roughness={0.4} />
+        <planeGeometry args={[400, 400]} />
+        <meshStandardMaterial color="#0d0e1a" metalness={0.6} roughness={0.45} />
       </mesh>
-      <gridHelper args={[18, 36, '#3a3f55', '#1c1e2a']} position={[0, -0.41, 0]} />
+      <Grid
+        position={[0, -0.41, 0]}
+        infiniteGrid
+        cellSize={0.6}
+        cellThickness={0.6}
+        cellColor="#2a2e40"
+        sectionSize={3}
+        sectionThickness={1}
+        sectionColor="#3f4663"
+        fadeDistance={30}
+        fadeStrength={1.5}
+      />
 
       {loadout.map((id, i) => {
         const s = shapes[id]
