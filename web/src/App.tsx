@@ -9,7 +9,7 @@ import { RARITY_COLOR } from './three/Gem'
 import { CODEX } from './content/codex'
 import { SCENES, sceneById } from './content/cosmetics'
 import { KINSHIP } from './content/kinship'
-import { SHIP_SCENES, useShips, hasShip } from './content/ships'
+import { SHIP_SCENES, useShips, hasShip, availableShips } from './content/ships'
 import { glyphOf } from './content/glyphs'
 import { fontOf } from './content/fonts'
 import { useGfx, type Quality } from './gfx'
@@ -95,6 +95,10 @@ export function App() {
   const inspect = useInspector((s) => s.id)
   const setInspect = useInspector((s) => s.set)
   const sceneId = useGame((s) => s.view?.scene ?? 0)
+  const navShapes = useGame((s) => s.shapes)
+  const navOwned = useGame((s) => s.view?.owned)
+  const shipSeen = useShips((s) => s.seen)
+  const newCutscenes = availableShips(navShapes, navOwned, shipSeen).length
   const tr = useT()
 
   // Keyboard shortcuts (hints shown on the pull buttons + Settings ▸ Keybinds).
@@ -136,6 +140,7 @@ export function App() {
           <button key={t} onClick={() => setTab(t)} title={`${tr('nav.shortcutTitle')}${i + 1}`} aria-current={tab === t ? 'page' : undefined} style={{ ...S.navBtn, ...(t === 'engine' ? S.navBtnImportant : {}), ...(tab === t ? S.navBtnActive : {}) }}>
             <TabIcon tab={t} />
             <span>{tr(t === 'gacha' ? 'nav.pull' : `nav.${t}`)}</span>
+            {t === 'gallery' && newCutscenes > 0 && <span style={S.navBadge}>♥{newCutscenes}</span>}
           </button>
         ))}
       </nav>
@@ -160,7 +165,6 @@ export function App() {
       <SettingsModal />
       <ShipCutscene />
       <DialogLogModal />
-      <ShipWatcher />
       <Nudge />
       <DevBar />
       <Floaters />
@@ -642,7 +646,7 @@ function PullHistory() {
   return (
     <div style={S.histList}>
       {pulls.map((p, i) => (
-        <div key={i} style={S.histRow}>
+        <div key={i} style={{ ...S.histRow, cursor: 'pointer' }} onClick={() => useInspector.getState().set(p.id)} title={tr('pull.history.inspectTip')}>
           <span style={{ ...S.tileDot, background: RARITY_COLOR[p.rarity] }} />
           <span style={{ flex: 1, color: '#cdd2e0' }}>{p.nick}</span>
           <span style={{ color: RARITY_COLOR[p.rarity], fontWeight: 700, fontSize: 12 }}>{p.rarity}</span>
@@ -830,11 +834,25 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
   const tr = useT()
   const [q, setQ] = useState('')
   const [hidden, setHidden] = useState<Set<string>>(new Set())
+  const shipSeen = useShips((s) => s.seen)
   if (!view) return null
+  const ships = availableShips(shapes, view.owned, shipSeen)
   const ql = q.trim().toLowerCase()
   const toggle = (r: string) => setHidden((h) => { const n = new Set(h); n.has(r) ? n.delete(r) : n.add(r); return n })
   return (
     <div style={S.gallery}>
+      {ships.length > 0 && (
+        <div style={S.shipNotice}>
+          <div style={S.shipNoticeHead}>♥ {tr('gallery.newCutscenes', { n: ships.length })}</div>
+          <div style={S.shipNoticeList}>
+            {ships.map((sp) => (
+              <button key={sp.key} style={S.shipNoticeBtn} onClick={() => useShips.getState().open(sp.a.family, sp.b.family)}>
+                {glyphOf(sp.a.family)} {sp.a.nick} <span style={{ opacity: 0.6 }}>&amp;</span> {sp.b.nick} {glyphOf(sp.b.family)} <span style={{ color: 'var(--c-accent-pink)' }}>▸</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div style={S.galleryControls}>
         <input style={S.search} placeholder={tr('gallery.searchPlaceholder')} value={q} onChange={(e) => setQ(e.target.value)} />
         <div style={S.filterChips}>
@@ -2221,33 +2239,6 @@ function ShipCutscene() {
   )
 }
 
-// Auto-plays a ship cutscene the first time a kin pair becomes united (both owned).
-function ShipWatcher() {
-  const owned = useGame((s) => s.view?.owned)
-  const shapes = useGame((s) => s.shapes)
-  // Don't pop a cutscene over a reveal/forge/offline modal or onboarding — queue it. When the blocker clears,
-  // `busy` flips and this effect re-runs, opening the next unseen pair. (open() marks it seen, so no repeats.)
-  const busy = useGame((s) => !!(s.lastReveal || s.lastForge || s.offline || s.settingsOpen || s.firstLaunch))
-  const tourRunning = useTour((s) => s.running)
-  const open = useShips((s) => s.open)
-  const seen = useShips((s) => s.seen)
-  const active = useShips((s) => s.active)
-  useEffect(() => {
-    if (!owned || shapes.length === 0 || active || busy || tourRunning) return
-    for (const k of Object.keys(SHIP_SCENES)) {
-      if (seen.includes(k)) continue
-      const ship = SHIP_SCENES[k]
-      const a = shapes.find((s) => s.family === ship.a)
-      const b = shapes.find((s) => s.family === ship.b)
-      if (a && b && owned[a.id] > 0 && owned[b.id] > 0) {
-        open(ship.a, ship.b)
-        break
-      }
-    }
-  }, [owned, shapes, seen, active, open, busy, tourRunning])
-  return null
-}
-
 // VITRINE skeuomorph — two reusable materials. RECESSED PANEL = a frosted pane sunk into a bezel;
 // RAISED CAP = a domed metal button that sits proud (and sinks on :active via juice.css). Spread these in,
 // then keep each element's own borderRadius/padding/layout.
@@ -2368,6 +2359,11 @@ const S: Record<string, CSSProperties> = {
   boardTitle: { margin: '0 0 6px', fontSize: 'var(--fs-h2)', color: 'var(--c-text)', fontFamily: 'var(--font-display)', letterSpacing: 0.3 },
   boardDesc: { margin: 0, fontSize: 'var(--fs-body-sm)', lineHeight: 1.5, color: 'var(--c-text-muted)' },
   helpClose: { position: 'absolute', top: -2, right: -4, background: 'none', border: 'none', color: 'var(--c-text-faint)', cursor: 'pointer', fontSize: 'var(--fs-h3)', lineHeight: 1, padding: 'var(--sp-1)' },
+  navBadge: { marginLeft: 4, fontSize: 9, fontWeight: 800, color: '#fff', background: 'var(--c-accent-pink)', borderRadius: 'var(--r-pill)', padding: '0 5px', lineHeight: 1.5, boxShadow: '0 0 8px rgba(255,93,143,0.6)' },
+  shipNotice: { background: 'linear-gradient(180deg, rgba(255,93,143,0.10), rgba(255,93,143,0.03))', border: '1px solid rgba(255,93,143,0.35)', borderRadius: 'var(--r-2xl)', padding: 'var(--sp-3)', marginBottom: 'var(--sp-3)' },
+  shipNoticeHead: { color: 'var(--c-accent-pink-bright)', fontWeight: 800, fontSize: 'var(--fs-h4)', marginBottom: 'var(--sp-2)' },
+  shipNoticeList: { display: 'flex', flexWrap: 'wrap', gap: 'var(--sp-2)' },
+  shipNoticeBtn: { background: 'var(--c-surface-3)', border: '1px solid rgba(255,93,143,0.4)', borderRadius: 'var(--r-pill)', color: 'var(--c-text-secondary)', padding: '5px 12px', fontSize: 'var(--fs-caption)', cursor: 'pointer' },
   shardBank: { marginTop: 'var(--sp-2)', fontSize: 'var(--fs-body-sm)', color: 'var(--c-text-secondary)', fontWeight: 600 },
   boardStats: { ...VITRINE, display: 'flex', gap: 'var(--sp-3)', alignItems: 'center', flexWrap: 'wrap', borderRadius: 'var(--r-xl)', padding: 'var(--sp-3_5)' },
   bigStat: { display: 'flex', flexDirection: 'column', minWidth: 120 },

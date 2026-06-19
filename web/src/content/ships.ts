@@ -64,6 +64,22 @@ const RAW: Ship[] = [
 export const SHIP_SCENES: Record<string, Ship> = Object.fromEntries(RAW.map((s) => [key(s.a, s.b), s]))
 export const hasShip = (x: string, y: string) => key(x, y) in SHIP_SCENES
 
+type ShipShape = { id: number; family: string; nick: string; rarity: string }
+// Cutscenes you've UNLOCKED (own both shapes) but not yet watched — surfaced as a Gallery notification so the
+// player starts them at leisure instead of having them pop up mid-play.
+export function availableShips(shapes: ShipShape[], owned: number[] | undefined, seen: string[]) {
+  const out: { key: string; a: ShipShape; b: ShipShape }[] = []
+  if (!owned) return out
+  for (const k of Object.keys(SHIP_SCENES)) {
+    if (seen.includes(k)) continue
+    const sc = SHIP_SCENES[k]
+    const a = shapes.find((s) => s.family === sc.a)
+    const b = shapes.find((s) => s.family === sc.b)
+    if (a && b && (owned[a.id] ?? 0) > 0 && (owned[b.id] ?? 0) > 0) out.push({ key: k, a, b })
+  }
+  return out
+}
+
 const SEEN_KEY = 'shipshape-ships-v1'
 function loadSeen(): string[] {
   try {

@@ -187,6 +187,7 @@ const STR: Dict = {
   'pull.autoLabel': { en: 'Auto-pull', ja: 'オート抽選', zh: '自动抽取' },
   'pull.history.empty': { en: 'No pulls yet — your gacha history will appear here.', ja: 'まだ抽選していません — 抽選履歴はここに表示されます。', zh: '还没有抽取记录 — 你的抽卡历史会显示在这里。' },
   'pull.history.new': { en: 'NEW', ja: 'NEW', zh: '新' },
+  'pull.history.inspectTip': { en: 'Inspect this shape', ja: 'このシェイプを見る', zh: '查看此形状' },
 
   'ledger.events.empty': { en: 'Nothing logged yet. Forge, summon, or recrystallize, and the moment lands here.', ja: 'まだ記録はなし。鍛冶・召喚・再結晶をすれば、その瞬間がここに残る。', zh: '还没有记录。熔炼、召唤或重结晶，那一刻就会留在这里。' },
 
@@ -203,6 +204,7 @@ const STR: Dict = {
   'chatlas.stickerTooltip': { en: 'Send this sticker', ja: 'このスタンプを送る', zh: '发送这个贴纸' },
 
   'gallery.searchPlaceholder': { en: '🔎 search owned shapes…', ja: '🔎 所持シェイプを検索…', zh: '🔎 搜索已拥有的形状…' },
+  'gallery.newCutscenes': { en: '{n} new cutscene(s) ready to watch', ja: '視聴できるカットシーンが{n}本', zh: '有 {n} 段可观看的过场动画' },
   'gallery.toggleTooltip': { en: 'toggle {r}', ja: '{r} の表示切替', zh: '切换 {r}' },
   'gallery.unknownTile': { en: '???', ja: '???', zh: '???' },
   'gallery.starTooltip': { en: '★{level} · ×{copies} copies', ja: '★{level} · ×{copies} 個', zh: '★{level} · ×{copies} 个' },
