@@ -404,6 +404,25 @@ function useIdleChatter(fire: () => void) {
 
 // Banner picker: Standard (always) + the currently-featured themed banner (rotates daily). Selecting sets
 // the rate-up steering in the core; a stale selection (a themed banner that rotated out) resets to Standard.
+// Live countdown to the next banner rotation (banners rotate at the UTC-day boundary).
+function BannerCountdown() {
+  const tr = useT()
+  const [ms, setMs] = useState(() => 86_400_000 - (Date.now() % 86_400_000))
+  useEffect(() => {
+    const id = setInterval(() => setMs(86_400_000 - (Date.now() % 86_400_000)), 1000)
+    return () => clearInterval(id)
+  }, [])
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const h = Math.floor(ms / 3_600_000)
+  const m = Math.floor((ms % 3_600_000) / 60_000)
+  const s = Math.floor((ms % 60_000) / 1000)
+  return (
+    <div style={S.bannerTimer} title={tr('banner.rotateTip')}>
+      ⏳ {tr('banner.rotatesIn')} {pad(h)}:{pad(m)}:{pad(s)}
+    </div>
+  )
+}
+
 function BannerSelector() {
   const { bannerDefs, view, setBanner, shapes } = useGame()
   const tr = useT()
@@ -437,6 +456,7 @@ function BannerSelector() {
                 ))
               )}
             </div>
+            {def.rotating && <BannerCountdown />}
           </button>
         )
       })}
@@ -1166,6 +1186,16 @@ function RevealModal() {
   const bestShape = best ? shapes[best.shape_id] : undefined
   const bestRank = bestShape ? RARITY_ORDER.indexOf(bestShape.rarity) : 0
   const chargeMs = 650 + bestRank * 240
+  // Rarity-scaled spark spectacle at the reveal moment: a base burst, then extra staggered ones for SSR/UR+.
+  const fireReveal = () => {
+    if (!bestShape) return
+    const cx = window.innerWidth / 2
+    const cy = window.innerHeight * 0.42
+    const hue = RARITY_COLOR[bestShape.rarity]
+    useSparks.getState().burst(cx, cy, { count: 14 + bestRank * 8, power: 1.3 + bestRank * 0.45, hues: [hue, '#ffffff', '#fff6dc', hue] })
+    if (bestRank >= 3) setTimeout(() => useSparks.getState().burst(cx, cy, { count: 12 + bestRank * 6, power: 1.1 + bestRank * 0.4, hues: [hue, '#ffffff'] }), 200)
+    if (bestRank >= 4) setTimeout(() => useSparks.getState().burst(cx, cy, { count: 26, power: 2.2, hues: [hue, '#fff6dc'] }), 430)
+  }
   useEffect(() => {
     if (!lastReveal) return
     setPhase('charge')
@@ -1173,6 +1203,7 @@ function RevealModal() {
     timer.current = setTimeout(() => {
       setPhase('show')
       sfxReveal(bestRank)
+      fireReveal()
     }, chargeMs)
     return () => {
       if (timer.current) clearTimeout(timer.current)
@@ -1185,6 +1216,7 @@ function RevealModal() {
     if (phase === 'charge') {
       setPhase('show')
       sfxReveal(bestRank)
+      fireReveal()
     }
   }
 
@@ -2129,6 +2161,7 @@ const S: Record<string, CSSProperties> = {
   bannerCardOn: { borderColor: '#5fe0c6', background: '#16201f', boxShadow: 'inset 0 -2px 0 #5fe0c6' },
   bannerName: { fontSize: 12.5, fontWeight: 700, color: '#e8eaf2', marginBottom: 4 },
   bannerRotate: { color: '#ff9d6b', fontSize: 10, fontWeight: 800 },
+  bannerTimer: { marginTop: 4, fontSize: 11, color: '#ff9d6b', fontVariantNumeric: 'tabular-nums', fontWeight: 700, letterSpacing: 0.3 },
   bannerFeat: { display: 'flex', gap: 4, alignItems: 'center', minHeight: 18 },
   talkBtn: { position: 'absolute', bottom: 8, right: 8, zIndex: 4, background: 'rgba(20,40,44,0.85)', border: '1px solid #2f6b6a', color: '#9ef0ff', borderRadius: 999, padding: '5px 12px', fontSize: 15, cursor: 'pointer' },
   bubble: { position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', maxWidth: '88%', background: 'rgba(18,19,28,0.97)', border: '1px solid #3a3d4f', borderRadius: 14, padding: '9px 14px', fontSize: 13.5, lineHeight: 1.5, color: '#e8eaf2', zIndex: 6, cursor: 'pointer', boxShadow: '0 6px 20px rgba(0,0,0,0.5)' },

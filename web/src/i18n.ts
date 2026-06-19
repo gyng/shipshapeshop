@@ -169,6 +169,8 @@ const STR: Dict = {
 
   'banner.rateUp': { en: 'rate-up', ja: 'ピックアップ', zh: '概率提升' },
   'banner.fullPool': { en: 'full pool · pity-steered', ja: '全プール · 天井誘導', zh: '全卡池 · 保底导向' },
+  'banner.rotatesIn': { en: 'rotates in', ja: '更新まで', zh: '轮换倒计时' },
+  'banner.rotateTip': { en: 'This banner rotates daily — a new featured set arrives when the timer reaches zero.', ja: 'このバナーは毎日更新。タイマーが0になると新しいピックアップに切り替わる。', zh: '此卡池每日轮换——倒计时归零即更换新的精选阵容。' },
 
   'gacha.featured': { en: 'featured', ja: 'ピックアップ', zh: '限定' },
   'gacha.secretaryTag': { en: 'secretary', ja: '秘書', zh: '秘书' },

@@ -67,7 +67,8 @@ const makeFrag = (STEPS: number, INNER: number) => /* glsl */ `
   }
 
   float map(vec3 p){
-    p = R * p;
+    // gentle float bob (visible even on a sphere, whose spin is otherwise invisible), then spin in place
+    p = R * (p - vec3(0.0, sin(uTime * 1.15) * 0.14, 0.0));
     if(uShape==0) return length(p)-1.0;                                   // sphere
     if(uShape==1){ vec3 q=abs(p)-vec3(0.82); return length(max(q,0.0))+min(max(q.x,max(q.y,q.z)),0.0)-0.09; } // round box
     if(uShape==2){ p=abs(p); return (p.x+p.y+p.z-1.35)*0.5773; }          // octahedron (planar approx)
