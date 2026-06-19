@@ -48,6 +48,14 @@ export interface View {
   relics_owned: number
   relic_count: number
   relic_cost: number
+  cosmetics: number[]
+  scene: number
+  lifetime_flux: number
+  lifetime_shards: number
+  total_forges: number
+  pulls_by_rarity: number[]
+  created_ms: number
+  last_seen_ms: number
 }
 
 export interface Recipe {
@@ -118,10 +126,15 @@ interface Store {
   claimRelic: () => void
   devOpen: boolean
   toggleDev: () => void
+  settingsOpen: boolean
+  setSettingsOpen: (v: boolean) => void
   devAddFlux: () => void
   devAddShards: () => void
   devUnlockAll: () => void
   resetSave: () => void
+  buyCosmetic: (id: number, cost: number) => void
+  selectScene: (id: number) => void
+  fluxHistory: number[]
   dismissReveal: () => void
   dismissForge: () => void
   dismissOffline: () => void
@@ -138,6 +151,8 @@ export const useGame = create<Store>((set, get) => ({
   lastForge: null,
   offline: null,
   devOpen: false,
+  settingsOpen: false,
+  fluxHistory: [],
 
   boot: async () => {
     await init()
@@ -166,6 +181,8 @@ export const useGame = create<Store>((set, get) => ({
       if (!game) return
       game.tick(now())
       get().refresh()
+      const v = get().view
+      if (v) set((s) => ({ fluxHistory: [...s.fluxHistory, v.flux].slice(-120) }))
     }, 1000)
     setInterval(persist, 5000)
     window.addEventListener('pagehide', persist)
@@ -251,6 +268,7 @@ export const useGame = create<Store>((set, get) => ({
     }
   },
   toggleDev: () => set((s) => ({ devOpen: !s.devOpen })),
+  setSettingsOpen: (v) => set({ settingsOpen: v }),
   devAddFlux: () => {
     game?.dev_add_flux(10000)
     get().refresh()
@@ -269,6 +287,18 @@ export const useGame = create<Store>((set, get) => ({
   resetSave: () => {
     localStorage.removeItem(SAVE_KEY)
     location.reload()
+  },
+  buyCosmetic: (id, cost) => {
+    if (game?.buy_cosmetic(id, cost)) {
+      get().refresh()
+      persist()
+    }
+  },
+  selectScene: (id) => {
+    if (game?.select_scene(id)) {
+      get().refresh()
+      persist()
+    }
   },
   dismissWelcome: () => set({ firstLaunch: false }),
   dismissReveal: () => set({ lastReveal: null }),

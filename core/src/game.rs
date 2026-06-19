@@ -54,6 +54,20 @@ pub struct GameState {
     pub bonds: Vec<u32>, // affinity per shape id (len = COUNT)
     #[serde(default)]
     pub discovered: Vec<bool>, // forge recipes discovered (len = RECIPES.len())
+    // ── cosmetics (Shop) ──
+    #[serde(default)]
+    pub cosmetics: Vec<u32>, // owned scene cosmetic ids (id 0 is the free default)
+    #[serde(default)]
+    pub scene: u32, // selected scene id
+    // ── lifetime telemetry (Ledger) ──
+    #[serde(default)]
+    pub lifetime_flux: f64,
+    #[serde(default)]
+    pub lifetime_shards: u64,
+    #[serde(default)]
+    pub total_forges: u32,
+    #[serde(default)]
+    pub pulls_by_rarity: Vec<u64>, // len 5: Common,Rare,Epic,Ssr,Ur
 }
 
 #[derive(Serialize)]
@@ -106,6 +120,14 @@ pub struct GameStateView {
     pub relics_owned: u32,
     pub relic_count: u32,
     pub relic_cost: u64,
+    pub cosmetics: Vec<u32>,
+    pub scene: u32,
+    pub lifetime_flux: f64,
+    pub lifetime_shards: u64,
+    pub total_forges: u32,
+    pub pulls_by_rarity: Vec<u64>,
+    pub created_ms: f64,
+    pub last_seen_ms: f64,
 }
 
 impl GameState {
@@ -126,6 +148,12 @@ impl GameState {
             prestige_mult: 1.0,
             bonds: vec![0; COUNT],
             discovered: vec![false; content::RECIPES.len()],
+            cosmetics: Vec::new(),
+            scene: 0,
+            lifetime_flux: 0.0,
+            lifetime_shards: 0,
+            total_forges: 0,
+            pulls_by_rarity: vec![0; 5],
         }
     }
 
@@ -186,12 +214,14 @@ impl GameState {
             return fail;
         }
         self.shards -= FORGE_COST;
+        self.total_forges += 1;
         let out = content::RECIPES[ri].out;
         self.grant(out, SHAPES[out].rarity);
         let is_discovery = !self.discovered[ri];
         self.discovered[ri] = true;
         if is_discovery {
             self.shards += 100; // discovery sting reward
+            self.lifetime_shards += 100;
         }
         ForgeResult { ok: true, out_id: out as i32, is_discovery }
     }
@@ -199,7 +229,9 @@ impl GameState {
     /// Foreground accumulation (rate is piecewise-constant between actions → O(1)).
     pub fn tick(&mut self, now_ms: f64) {
         let dt = (now_ms - self.last_seen_ms).max(0.0);
-        self.flux += self.rate_per_hr() * (dt / MS_PER_HOUR);
+        let gain = self.rate_per_hr() * (dt / MS_PER_HOUR);
+        self.flux += gain;
+        self.lifetime_flux += gain;
         self.add_affinity(dt);
         self.last_seen_ms = now_ms;
     }
@@ -210,6 +242,7 @@ impl GameState {
         let capped = elapsed.min(OFFLINE_CAP_MS);
         let gained = self.rate_per_hr() * (capped / MS_PER_HOUR);
         self.flux += gained;
+        self.lifetime_flux += gained;
         self.add_affinity(capped);
         self.last_seen_ms = now_ms;
         OfflineReport { elapsed_ms: elapsed, capped_ms: capped, gained_flux: gained }
@@ -227,6 +260,7 @@ impl GameState {
         } else {
             let s = shard_value(r);
             self.shards += s;
+            self.lifetime_shards += s;
             (false, s)
         }
     }
@@ -254,6 +288,16 @@ impl GameState {
             _ => range.start + shape_index(self.master_seed, c_before, range.len()),
         };
         let (is_new, dupe_shards) = self.grant(id, roll.rarity);
+        let ridx = match roll.rarity {
+            Rarity::Common => 0,
+            Rarity::Rare => 1,
+            Rarity::Epic => 2,
+            Rarity::Ssr => 3,
+            _ => 4,
+        };
+        if ridx < self.pulls_by_rarity.len() {
+            self.pulls_by_rarity[ridx] += 1;
+        }
 
         let (mut spark_shape_id, mut spark_is_new) = (-1i32, false);
         if roll.spark_fired {
@@ -376,6 +420,30 @@ impl GameState {
         }
     }
 
+    /// Buy a scene cosmetic with Flux (the endgame Flux sink) and equip it. Re-buying an owned scene just
+    /// equips it for free. Returns true on success.
+    pub fn buy_cosmetic(&mut self, id: u32, cost: f64) -> bool {
+        if id != 0 && !self.cosmetics.contains(&id) {
+            if self.flux < cost {
+                return false;
+            }
+            self.flux -= cost;
+            self.cosmetics.push(id);
+        }
+        self.scene = id;
+        true
+    }
+
+    /// Equip an already-owned scene (id 0 is always available).
+    pub fn select_scene(&mut self, id: u32) -> bool {
+        if id == 0 || self.cosmetics.contains(&id) {
+            self.scene = id;
+            true
+        } else {
+            false
+        }
+    }
+
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("GameState serializes")
     }
@@ -398,6 +466,9 @@ impl GameState {
         }
         if state.discovered.len() != content::RECIPES.len() {
             state.discovered.resize(content::RECIPES.len(), false);
+        }
+        if state.pulls_by_rarity.len() != 5 {
+            state.pulls_by_rarity.resize(5, 0);
         }
         state.loadout.retain(|&id| id < COUNT && state.owned[id] > 0);
         state.schema_version = SCHEMA_VERSION;
@@ -429,6 +500,14 @@ impl GameState {
             relics_owned: self.relics_owned(),
             relic_count: (content::COUNT - content::PULL_COUNT) as u32,
             relic_cost: RELIC_COST,
+            cosmetics: self.cosmetics.clone(),
+            scene: self.scene,
+            lifetime_flux: self.lifetime_flux,
+            lifetime_shards: self.lifetime_shards,
+            total_forges: self.total_forges,
+            pulls_by_rarity: self.pulls_by_rarity.clone(),
+            created_ms: self.created_ms,
+            last_seen_ms: self.last_seen_ms,
         }
     }
 }
@@ -506,6 +585,12 @@ impl Game {
     }
     pub fn dev_unlock_all(&mut self) {
         self.state.dev_unlock_all()
+    }
+    pub fn buy_cosmetic(&mut self, id: u32, cost: f64) -> bool {
+        self.state.buy_cosmetic(id, cost)
+    }
+    pub fn select_scene(&mut self, id: u32) -> bool {
+        self.state.select_scene(id)
     }
     pub fn serialize(&self) -> String {
         self.state.to_json()

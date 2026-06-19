@@ -4,12 +4,12 @@ import { Stage } from './Stage'
 import { HeroGem } from './Gem'
 import { RaymarchGem, RAYMARCH_SHAPES } from './RaymarchGem'
 import { ModelGem, MODEL_FILES } from './ModelGem'
-import type { RarityName } from '../game/store'
+import { useGame, type RarityName } from '../game/store'
 
 /**
- * The focused/hero gem. Shapes with an exact SDF are **raymarched** (true refraction, exact implicit
- * surfaces, no flicker — a bare Canvas; the shader draws its own cosmos). Everything else falls back to the
- * mesh + transmission Stage.
+ * The focused/hero gem. With the default scene, SDF shapes are **raymarched** (true refraction). When a Shop
+ * scene is equipped, raymarchable shapes route to the mesh + transmission Stage instead, so the chosen
+ * environment (incl. the Cornell box) applies to every shape.
  */
 export function HeroView({
   family,
@@ -22,7 +22,8 @@ export function HeroView({
   controls?: boolean
   spin?: number
 }) {
-  if (family in RAYMARCH_SHAPES) {
+  const sceneId = useGame((s) => s.view?.scene ?? 0)
+  if (sceneId === 0 && family in RAYMARCH_SHAPES) {
     return (
       <Canvas dpr={[1, 1.6]} gl={{ antialias: true }}>
         <RaymarchGem key={family + rarity} family={family} rarity={rarity} />

@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useGame, RARITY_ORDER, type ShapeRow } from './game/store'
 import { HeroView } from './three/HeroView'
 import { FactoryFloor } from './three/FactoryFloor'
 import { ForgeAltar } from './three/ForgeAltar'
 import { RARITY_COLOR } from './three/Gem'
 import { CODEX } from './content/codex'
+import { SCENES, sceneById } from './content/cosmetics'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
 import { useMute } from './audio'
@@ -39,7 +40,7 @@ function useFluxDisplay(): number {
   return disp
 }
 
-type Tab = 'gacha' | 'gallery' | 'engine' | 'forge'
+type Tab = 'gacha' | 'gallery' | 'engine' | 'forge' | 'shop' | 'ledger'
 
 export function App() {
   const { ready, boot } = useGame()
@@ -48,18 +49,19 @@ export function App() {
   }, [boot])
   const [tab, setTab] = useState<Tab>('gacha')
   const [inspect, setInspect] = useState<number | null>(null)
+  const sceneId = useGame((s) => s.view?.scene ?? 0)
   const tr = useT()
 
   if (!ready) {
     return <div style={S.loading}>Lighting the Atlas…</div>
   }
   return (
-    <div style={S.app}>
+    <div style={{ ...S.app, background: sceneById(sceneId).bg }}>
       <Hud />
       <nav style={S.nav}>
-        {(['gacha', 'gallery', 'engine', 'forge'] as Tab[]).map((t) => (
+        {(['gacha', 'gallery', 'engine', 'forge', 'shop', 'ledger'] as Tab[]).map((t) => (
           <button key={t} onClick={() => setTab(t)} style={{ ...S.navBtn, ...(tab === t ? S.navBtnActive : {}) }}>
-            {tr(`nav.${t === 'gacha' ? 'pull' : t}`)}
+            {t === 'gacha' ? tr('nav.pull') : t === 'shop' ? '🛍 Shop' : t === 'ledger' ? '📊 Ledger' : tr(`nav.${t}`)}
           </button>
         ))}
       </nav>
@@ -68,12 +70,15 @@ export function App() {
         {tab === 'gallery' && <GalleryView onInspect={setInspect} />}
         {tab === 'engine' && <EngineView />}
         {tab === 'forge' && <ForgeView />}
+        {tab === 'shop' && <ShopView />}
+        {tab === 'ledger' && <LedgerView />}
       </main>
       <RevealModal />
       <ForgeToast />
       <OfflineModal />
       <WelcomeModal />
       {inspect !== null && <Inspector id={inspect} onClose={() => setInspect(null)} />}
+      <SettingsModal />
       <Nudge />
       <DevBar />
       <Floaters />
@@ -147,6 +152,7 @@ function Hud() {
   const muted = useMute((s) => s.muted)
   const toggleMute = useMute((s) => s.toggle)
   const toggleDev = useGame((s) => s.toggleDev)
+  const openSettings = useGame((s) => s.setSettingsOpen)
   if (!view) return null
   return (
     <header style={S.hud}>
@@ -160,6 +166,7 @@ function Hud() {
         <span>{tr('hud.collection')} {view.distinct_owned}/41</span>
         <span>{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
         <button onClick={toggleMute} style={S.langBtn} aria-label="toggle sound">{muted ? '🔇' : '🔊'}</button>
+        <button onClick={() => openSettings(true)} style={S.langBtn} aria-label="settings">⚙</button>
         {DEV_MODE && <button onClick={toggleDev} style={S.langBtn} aria-label="dev tools">🛠</button>}
         <span style={S.langSwitch}>
           {LANGS.map((l) => (
@@ -524,6 +531,203 @@ function WelcomeModal() {
   )
 }
 
+function ShopView() {
+  const { view, buyCosmetic, selectScene } = useGame()
+  if (!view) return null
+  return (
+    <div style={S.board}>
+      <div style={S.boardIntro}>
+        <h3 style={S.boardTitle}>🛍 Shop — scenes &amp; environments</h3>
+        <p style={S.boardDesc}>
+          Spend <b style={S.fluxIcon}>✦ Flux</b> on swappable scenes that re-light the whole game — the patron sink for
+          late-game Flux. Owned scenes equip for free.
+        </p>
+        <div style={S.shardBank}><span style={S.fluxIcon}>✦</span> {fmt(view.flux)} Flux available</div>
+      </div>
+      <div style={S.recipeGrid}>
+        {SCENES.map((sc) => {
+          const owned = sc.id === 0 || view.cosmetics.includes(sc.id)
+          const equipped = view.scene === sc.id
+          const canBuy = !owned && view.flux >= sc.cost
+          return (
+            <div key={sc.id} className="chip" style={{ ...S.recipeCard, borderColor: equipped ? '#ffcf6b' : owned ? '#3a3d4f' : '#23252f' }}>
+              <div style={S.sceneSwatch}>{sc.env.map((c, i) => <span key={i} style={{ flex: 1, background: c }} />)}</div>
+              <div>
+                <strong style={{ color: '#e8eaf2' }}>{sc.name}{equipped ? ' ✓' : ''}</strong>
+                <p style={{ ...S.boardDesc, margin: '4px 0 0', fontSize: 12 }}>{sc.desc}</p>
+              </div>
+              {equipped ? (
+                <button style={{ ...S.forgeBtn, opacity: 0.6 }} disabled>Equipped</button>
+              ) : owned ? (
+                <button style={S.forgeBtn} onClick={() => selectScene(sc.id)}>Equip</button>
+              ) : (
+                <button style={{ ...S.summonBtn, opacity: canBuy ? 1 : 0.4 }} disabled={!canBuy} onClick={() => buyCosmetic(sc.id, sc.cost)}>Buy · {fmt(sc.cost)} ✦</button>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function FluxChart({ data }: { data: number[] }) {
+  if (data.length < 2) {
+    return <div style={{ ...S.boardIntro, height: 110, display: 'grid', placeItems: 'center', color: '#6b7088', fontSize: 13 }}>Flux trend will appear as you play…</div>
+  }
+  const w = 600, h = 120
+  const min = Math.min(...data), max = Math.max(...data)
+  const range = max - min || 1
+  const pts = data.map((v, i) => [(i / (data.length - 1)) * w, h - ((v - min) / range) * (h - 14) - 7])
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ')
+  const area = `${line} L ${w} ${h} L 0 ${h} Z`
+  return (
+    <div style={{ ...S.boardIntro, padding: 0, overflow: 'hidden' }}>
+      <svg viewBox={`0 0 ${w} ${h}`} style={{ width: '100%', height: 130, display: 'block' }} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="fluxgrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#ffcf6b" stopOpacity="0.5" />
+            <stop offset="100%" stopColor="#ffcf6b" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        <path d={area} fill="url(#fluxgrad)" />
+        <path d={line} fill="none" stroke="#ffcf6b" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+      </svg>
+    </div>
+  )
+}
+
+function LedgerView() {
+  const { view, fluxHistory } = useGame()
+  if (!view) return null
+  const playMin = Math.max(0, (view.last_seen_ms - view.created_ms) / 60000)
+  const playStr = playMin >= 60 ? (playMin / 60).toFixed(1) + 'h' : Math.floor(playMin) + 'm'
+  const stat = (label: string, value: string) => (
+    <div style={S.statCard}><span style={S.statVal}>{value}</span><span style={S.statLbl}>{label}</span></div>
+  )
+  const rarityNames = ['Common', 'Rare', 'Epic', 'SSR', 'UR']
+  return (
+    <div style={S.board}>
+      <div style={S.boardIntro}>
+        <h3 style={S.boardTitle}>📊 Ledger — your run in numbers</h3>
+        <p style={S.boardDesc}>Everything the Atlas has tallied. Flux over the last couple of minutes:</p>
+      </div>
+      <FluxChart data={fluxHistory} />
+      <h4 style={S.boardSub}>Economy</h4>
+      <div style={S.statGrid}>
+        {stat('Flux now', fmt(view.flux))}
+        {stat('Flux / hr', '+' + fmt(view.rate_per_hr))}
+        {stat('Lifetime Flux', fmt(view.lifetime_flux))}
+        {stat('Shards', fmt(view.shards))}
+        {stat('Lifetime shards', fmt(view.lifetime_shards))}
+        {stat('Total pulls', fmt(view.total_pulls))}
+        {stat('Forges', fmt(view.total_forges))}
+        {stat('Playtime', playStr)}
+      </div>
+      <h4 style={S.boardSub}>Collection &amp; progress</h4>
+      <div style={S.statGrid}>
+        {stat('Core shapes', view.distinct_owned + '/41')}
+        {stat('Relics', view.relics_owned + '/' + view.relic_count)}
+        {stat('Dimension', 'v' + view.viewport_dim)}
+        {stat('New Game+', '×' + view.ng_cycle)}
+        {stat('Prestige', '×' + view.prestige_mult.toFixed(2))}
+        {stat('Floor space', view.euler_used + '/' + view.euler_cap)}
+        {stat('Platonic set', view.platonic_set ? '✓ complete' : '—')}
+        {stat('Scenes', view.cosmetics.length + 1 + '/' + SCENES.length)}
+      </div>
+      <h4 style={S.boardSub}>Pulls by rarity</h4>
+      <div style={S.statGrid}>
+        {view.pulls_by_rarity.map((n, i) => (
+          <div key={i} style={{ ...S.statCard, borderColor: RARITY_COLOR[RARITY_ORDER[i]] }}>
+            <span style={{ ...S.statVal, color: RARITY_COLOR[RARITY_ORDER[i]] }}>{fmt(n)}</span>
+            <span style={S.statLbl}>{rarityNames[i]}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SettingRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div style={S.settingRow}>
+      <span>{label}</span>
+      {children}
+    </div>
+  )
+}
+
+function Attribution() {
+  return (
+    <div style={{ fontSize: 12.5, lineHeight: 1.6, color: '#9aa0b4' }}>
+      <p style={{ margin: '0 0 4px', color: '#cdd2e0', fontWeight: 700 }}>3D reference models</p>
+      <ul style={S.attrList}>
+        <li>Stanford Bunny · Dragon · Armadillo · Lucy — Stanford 3D Scanning Repository</li>
+        <li>Cow · Horse — Princeton “Suggestive Contours” gallery</li>
+        <li>Utah Teapot — Martin Newell, 1975 (procedural via three.js)</li>
+        <li>Spot &amp; Császár torus — Keenan Crane (CC0)</li>
+        <li>3DBenchy — CreativeTools (CC BY-ND)</li>
+      </ul>
+      <p style={{ margin: '8px 0 4px', color: '#cdd2e0', fontWeight: 700 }}>Built with</p>
+      <ul style={S.attrList}>
+        <li>three.js · React Three Fiber · drei</li>
+        <li>Rust → WebAssembly (deterministic game core)</li>
+        <li>React · Zustand · Vite · TypeScript</li>
+      </ul>
+      <p style={{ opacity: 0.7, marginTop: 8 }}>Shapes are mathematical objects; topology is public-domain mathematics. Verify each model’s licence before commercial use.</p>
+    </div>
+  )
+}
+
+function SettingsModal() {
+  const settingsOpen = useGame((s) => s.settingsOpen)
+  const setSettingsOpen = useGame((s) => s.setSettingsOpen)
+  const muted = useMute((s) => s.muted)
+  const toggleMute = useMute((s) => s.toggle)
+  const [tab, setTab] = useState<'graphics' | 'gameplay' | 'keybinds' | 'attribution'>('graphics')
+  if (!settingsOpen) return null
+  const tabs: typeof tab[] = ['graphics', 'gameplay', 'keybinds', 'attribution']
+  return (
+    <div style={S.modal} onClick={() => setSettingsOpen(false)}>
+      <div className="pop-in" style={S.settingsCard} onClick={(e) => e.stopPropagation()}>
+        <div style={S.settingsHead}>
+          <strong style={{ fontSize: 16 }}>⚙ Settings</strong>
+          <button style={S.langBtn} onClick={() => setSettingsOpen(false)}>✕</button>
+        </div>
+        <div style={S.settingsTabs}>
+          {tabs.map((t) => (
+            <button key={t} onClick={() => setTab(t)} style={{ ...S.navBtn, ...(tab === t ? S.navBtnActive : {}) }}>
+              {t[0].toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+        <div style={S.settingsBody}>
+          {tab === 'graphics' && (
+            <>
+              <SettingRow label="Sound effects"><button style={{ ...S.toggle, ...(muted ? {} : S.toggleOn) }} onClick={toggleMute}>{muted ? 'Off' : 'On'}</button></SettingRow>
+              <p style={S.hint}>3D quality auto-scales to your device (capped pixel ratio). Backgrounds &amp; environments are buyable in the 🛍 Shop.</p>
+            </>
+          )}
+          {tab === 'gameplay' && (
+            <p style={S.boardDesc}>
+              The loop: <b>pull</b> shapes → <b>deploy</b> them in the Engine to make Flux → <b>forge</b> rarer shapes →
+              <b> recrystallize</b> to ascend a dimension (New Game+). Edutainment (the real maths) lives in each owned
+              shape’s Codex — discovery-first, and it never gates the fun.
+            </p>
+          )}
+          {tab === 'keybinds' && (
+            <p style={S.boardDesc}>
+              Ship Shape Shop is pointer-driven. In any 3D view: <b>drag</b> (left or right) to orbit, <b>scroll / pinch</b>
+              to zoom. Top bar: 🔊 sound, ⚙ settings{DEV_MODE ? ', 🛠 dev tools' : ''}.
+            </p>
+          )}
+          {tab === 'attribution' && <Attribution />}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const S: Record<string, CSSProperties> = {
   loading: { color: '#9aa6c2', background: '#0d0d16', height: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'system-ui', fontSize: 18 },
   app: { background: '#0d0d16', color: '#e8e8f0', minHeight: '100vh', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' },
@@ -617,4 +821,17 @@ const S: Record<string, CSSProperties> = {
   gemChipName: { fontSize: 11, color: '#cdd2e0', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 56 },
   forgeBtn: { background: '#2a2c3a', color: '#fff', border: '1px solid #3a3d4f', borderRadius: 8, padding: 8, fontWeight: 700, cursor: 'pointer', fontSize: 13 },
   discoveredTag: { position: 'absolute', top: 8, right: 10, fontSize: 10, color: '#5fe0c6' },
+
+  // ── Shop / Ledger / Settings ──
+  sceneSwatch: { display: 'flex', height: 38, borderRadius: 8, overflow: 'hidden', border: '1px solid #23252f' },
+  statGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 8 },
+  statCard: { display: 'flex', flexDirection: 'column', gap: 2, background: '#14151c', border: '1px solid #23252f', borderRadius: 10, padding: '10px 12px' },
+  statVal: { fontSize: 20, fontWeight: 800, color: '#e8eaf2' },
+  statLbl: { fontSize: 11, color: '#8a90a8' },
+  settingsCard: { width: 'min(560px, 94vw)', maxHeight: '86vh', overflow: 'auto', background: '#101119', border: '1px solid #2a2c3a', borderRadius: 14, padding: 16 },
+  settingsHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  settingsTabs: { display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 },
+  settingsBody: { minHeight: 140 },
+  settingRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #1c1e2a', color: '#cdd2e0', fontSize: 14 },
+  attrList: { margin: '0 0 4px', paddingLeft: 18 },
 }
