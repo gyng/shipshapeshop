@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import init, { Game, shapes_json, recipes_json, upgrades_json, milestones_json, core_version } from 'shipshape-core'
-import { sfxPull, sfxReveal, sfxForge, rarityRank } from '../audio'
+import { sfxPull, sfxReveal, sfxForge, sfxMilestone, rarityRank } from '../audio'
 import { useFloaters } from '../juice'
 
 const SHARD_C = '#5ad4ff'
@@ -154,6 +154,8 @@ interface Store {
   buyUpgrade: (id: number) => void
   selectScene: (id: number) => void
   fluxHistory: number[]
+  milestoneToast: number | null
+  dismissMilestone: () => void
   dismissReveal: () => void
   dismissForge: () => void
   dismissOffline: () => void
@@ -174,6 +176,7 @@ export const useGame = create<Store>((set, get) => ({
   devOpen: false,
   settingsOpen: false,
   fluxHistory: [],
+  milestoneToast: null,
 
   boot: async () => {
     await init()
@@ -212,7 +215,19 @@ export const useGame = create<Store>((set, get) => ({
   },
 
   refresh: () => {
-    if (game) set({ view: JSON.parse(game.view()) as View })
+    if (!game) return
+    const v = JSON.parse(game.view()) as View
+    const prev = get().view?.milestones_done
+    if (prev) {
+      for (let i = 0; i < v.milestones_done.length; i++) {
+        if (v.milestones_done[i] && !prev[i]) {
+          useFloaters.getState().spawn('🏆', { color: '#ffd76b', big: true, y: 150 })
+          sfxMilestone()
+          set({ milestoneToast: i })
+        }
+      }
+    }
+    set({ view: v })
   },
 
   pull: () => {
@@ -336,6 +351,7 @@ export const useGame = create<Store>((set, get) => ({
     }
   },
   dismissWelcome: () => set({ firstLaunch: false }),
+  dismissMilestone: () => set({ milestoneToast: null }),
   dismissReveal: () => set({ lastReveal: null }),
   dismissForge: () => set({ lastForge: null }),
   dismissOffline: () => {

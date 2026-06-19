@@ -121,6 +121,7 @@ export function App() {
       <DevBar />
       <Floaters />
       <IdleFlux />
+      <MilestoneToast />
     </div>
   )
 }
@@ -980,6 +981,31 @@ function SettingsModal() {
   )
 }
 
+// A non-blocking celebratory banner when a milestone latches.
+function MilestoneToast() {
+  const idx = useGame((s) => s.milestoneToast)
+  const dismiss = useGame((s) => s.dismissMilestone)
+  const defs = useGame((s) => s.milestoneDefs)
+  useEffect(() => {
+    if (idx === null) return
+    const t = setTimeout(dismiss, 3800)
+    return () => clearTimeout(t)
+  }, [idx, dismiss])
+  if (idx === null) return null
+  const def = defs[idx]
+  const info = MILESTONE_INFO[def?.key] ?? { name: 'Milestone', icon: '🏆' }
+  return (
+    <div className="pop-in" style={S.mileToast} onClick={dismiss}>
+      <span style={{ fontSize: 24 }}>{info.icon}</span>
+      <div>
+        <div style={{ color: '#ffd76b', fontWeight: 800, fontSize: 11, letterSpacing: 0.6 }}>★ MILESTONE</div>
+        <div style={{ color: '#e8eaf2', fontSize: 13 }}>{info.name}</div>
+      </div>
+      <span style={{ marginLeft: 'auto', color: '#5fe0c6', fontWeight: 800 }}>+{Math.round((def?.bonus ?? 0) * 100)}%</span>
+    </div>
+  )
+}
+
 // A two-character "ship" dialogue that plays when a kin pair first unites (and is re-watchable).
 function ShipCutscene() {
   const activeKey = useShips((s) => s.active)
@@ -1189,6 +1215,7 @@ const S: Record<string, CSSProperties> = {
   kbDesc: { color: '#9aa0b4', fontSize: 12.5 },
   kbd2: { fontFamily: 'ui-monospace, monospace', fontSize: 12, background: '#0c0d15', border: '1px solid #3a3d4f', borderRadius: 5, padding: '2px 7px', color: '#e8eaf2' },
   milestoneRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: '#0e0f17', border: '1px solid #23252f', borderRadius: 8, fontSize: 13 },
+  mileToast: { position: 'fixed', top: 58, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(30,24,12,0.96)', border: '1px solid #6b5a2a', borderRadius: 12, padding: '10px 16px', zIndex: 60, minWidth: 290, maxWidth: '92vw', boxShadow: '0 6px 24px rgba(0,0,0,0.55)', cursor: 'pointer' },
   patSurface: { position: 'absolute', inset: 0, cursor: 'grab', touchAction: 'none', zIndex: 3, overflow: 'hidden' },
   patGlow: { position: 'absolute', width: 130, height: 130, transform: 'translate(-50%, -50%)', borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,222,150,0.55), rgba(255,180,220,0.18) 45%, transparent 72%)', pointerEvents: 'none' },
   patBtn: { position: 'absolute', top: 8, right: 8, zIndex: 4, background: 'rgba(40,24,44,0.85)', border: '1px solid #6b3a7a', color: '#ff9ecf', borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' },

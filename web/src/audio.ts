@@ -72,6 +72,12 @@ export function sfxForge() {
   tone(330, 0.3, 0.06, 'sine', 0.08)
 }
 
+// A bright, triumphant major arpeggio for completing a milestone.
+export function sfxMilestone() {
+  ;[523, 659, 784, 1047].forEach((f, i) => tone(f, 0.45, i * 0.08, 'triangle', 0.1))
+  tone(1568, 0.5, 0.32, 'sine', 0.07) // shimmer up top
+}
+
 // A rising arpeggio that gets taller/brighter the bigger the upgrade (intensity ~1..6).
 export function sfxUpgrade(intensity: number) {
   const base = 330
