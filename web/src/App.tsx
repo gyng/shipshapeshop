@@ -10,6 +10,7 @@ import { SCENES, sceneById } from './content/cosmetics'
 import { KINSHIP } from './content/kinship'
 import { SHIP_SCENES, useShips, hasShip } from './content/ships'
 import { glyphOf } from './content/glyphs'
+import { fontOf } from './content/fonts'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints } from './onboarding'
 import { useMute } from './audio'
@@ -454,9 +455,57 @@ function vagueHint(rarity: string, genus: number): string {
   return `${tier} ${holes}`
 }
 
+let patSparkId = 0
+// The "pat" surface (a gentle parody of you-know-what genre): rub the model → a soft glow follows + shine
+// particles spawn → a rate-limited, very minor bond bump.
+function PatSurface({ id }: { id: number }) {
+  const pat = useGame((s) => s.pat)
+  const [glow, setGlow] = useState<{ x: number; y: number } | null>(null)
+  const [sparks, setSparks] = useState<{ k: number; x: number; y: number }[]>([])
+  const rubbing = useRef(false)
+  const lastPat = useRef(0)
+  const lastSpark = useRef(0)
+  const move = (e: React.PointerEvent) => {
+    if (!rubbing.current) return
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const x = e.clientX - r.left
+    const y = e.clientY - r.top
+    setGlow({ x, y })
+    const now = performance.now()
+    if (now - lastSpark.current > 55) {
+      lastSpark.current = now
+      const k = ++patSparkId
+      setSparks((s) => [...s.slice(-16), { k, x: x + (Math.random() * 28 - 14), y: y + (Math.random() * 28 - 14) }])
+      setTimeout(() => setSparks((s) => s.filter((p) => p.k !== k)), 700)
+    }
+    if (now - lastPat.current > 550) {
+      lastPat.current = now
+      pat(id)
+      useFloaters.getState().spawn('♥', { color: '#ff9ecf', x: e.clientX, y: e.clientY })
+    }
+  }
+  const start = (e: React.PointerEvent) => {
+    rubbing.current = true
+    move(e)
+  }
+  const end = () => {
+    rubbing.current = false
+    setGlow(null)
+  }
+  return (
+    <div style={S.patSurface} onPointerDown={start} onPointerMove={move} onPointerUp={end} onPointerLeave={end}>
+      {glow && <div style={{ ...S.patGlow, left: glow.x, top: glow.y }} />}
+      {sparks.map((sp) => (
+        <span key={sp.k} className="floater" style={{ position: 'absolute', left: sp.x, top: sp.y, color: '#fff3b0', fontSize: 13, pointerEvents: 'none' }}>✦</span>
+      ))}
+    </div>
+  )
+}
+
 function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
   const { shapes, view, inspect } = useGame()
   const tr = useT()
+  const [patMode, setPatMode] = useState(false)
   const s = shapes[id]
   const owned = !!view && view.owned[id] > 0
   // Inspecting an owned shape grants affinity — the calm idler's path to bonds.
@@ -472,7 +521,13 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
       <div className="pop-in" style={S.revealCard} onClick={(e) => e.stopPropagation()}>
         {owned ? (
           <>
-            <div style={S.revealStage}><HeroView key={s.family} family={s.family} rarity={s.rarity} controls /></div>
+            <div style={{ ...S.revealStage, position: 'relative' }}>
+              <HeroView key={s.family} family={s.family} rarity={s.rarity} controls={!patMode} />
+              {patMode && <PatSurface id={id} />}
+              <button style={S.patBtn} onClick={() => setPatMode((p) => !p)} title="Pat / rub for a tiny bond boost">
+                {patMode ? '↺ orbit' : '✋ pat'}
+              </button>
+            </div>
             <h2 style={{ color: RARITY_COLOR[s.rarity] }}>{s.nick}</h2>
             <p style={S.revealSub}>{rarityLabel(s.rarity)} · {s.family.replace(/_/g, ' ')}</p>
             <p style={S.bondRow}>
@@ -480,8 +535,8 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
               <span style={{ color: '#3b2b38', letterSpacing: 2 }}>{'♡'.repeat(Math.max(0, 5 - bond))}</span>
               <span style={S.bondHint}>Bond {bond}/5 · inspect &amp; keep deployed to raise</span>
             </p>
-            {codex && <p style={{ ...S.hint, fontStyle: 'italic', color: '#cdd2e0' }}>“{codex.blurb}”</p>}
-            {codex && bond >= 1 && <p style={{ ...S.hint, color: RARITY_COLOR[s.rarity] }}>{codex.bond}</p>}
+            {codex && <p style={{ ...S.hint, fontStyle: 'italic', color: '#cdd2e0', fontFamily: fontOf(s.family) }}>“{codex.blurb}”</p>}
+            {codex && bond >= 1 && <p style={{ ...S.hint, color: RARITY_COLOR[s.rarity], fontFamily: fontOf(s.family) }}>{codex.bond}</p>}
             {codex && bond < 1 && <p style={{ ...S.hint, opacity: 0.7 }}>🔒 Reach Bond 1 (inspect a few times) to hear them speak.</p>}
             <p style={S.hint}>
               {s.genus > 0 ? `${s.genus} hole${s.genus > 1 ? 's' : ''} → ${s.genus} production lane${s.genus > 1 ? 's' : ''}. ` : 'No holes — free to deploy. '}
@@ -862,7 +917,7 @@ function ShipCutscene() {
         </div>
         <div style={S.shipLineBox}>
           <strong style={{ color: speakerA ? aCol : bCol }}>{speakerA ? a?.nick : b?.nick}</strong>
-          <p style={S.shipText}>“{line.text}”</p>
+          <p style={{ ...S.shipText, fontFamily: fontOf(speakerA ? ship.a : ship.b) }}>{line.text}</p>
         </div>
         <button style={S.pullBtn} onClick={advance}>{last ? 'Close ♥' : 'Next ▸'}</button>
         <div style={S.shipDots}>{ship.lines.map((_, j) => <span key={j} style={{ ...S.shipDot, opacity: j === i ? 1 : 0.3 }} />)}</div>
@@ -1037,4 +1092,7 @@ const S: Record<string, CSSProperties> = {
   kbRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', borderBottom: '1px solid #1c1e2a' },
   kbDesc: { color: '#9aa0b4', fontSize: 12.5 },
   kbd2: { fontFamily: 'ui-monospace, monospace', fontSize: 12, background: '#0c0d15', border: '1px solid #3a3d4f', borderRadius: 5, padding: '2px 7px', color: '#e8eaf2' },
+  patSurface: { position: 'absolute', inset: 0, cursor: 'grab', touchAction: 'none', zIndex: 3, overflow: 'hidden' },
+  patGlow: { position: 'absolute', width: 130, height: 130, transform: 'translate(-50%, -50%)', borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,222,150,0.55), rgba(255,180,220,0.18) 45%, transparent 72%)', pointerEvents: 'none' },
+  patBtn: { position: 'absolute', top: 8, right: 8, zIndex: 4, background: 'rgba(40,24,44,0.85)', border: '1px solid #6b3a7a', color: '#ff9ecf', borderRadius: 999, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' },
 }

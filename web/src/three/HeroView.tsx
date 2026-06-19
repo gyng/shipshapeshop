@@ -32,7 +32,7 @@ export function HeroView({
   }
   if (family in MODEL_FILES) {
     return (
-      <Stage controls={controls}>
+      <Stage controls={controls} rarity={rarity}>
         <Suspense fallback={null}>
           <ModelGem family={family} rarity={rarity} spin={spin} />
         </Suspense>
@@ -40,7 +40,7 @@ export function HeroView({
     )
   }
   return (
-    <Stage controls={controls}>
+    <Stage controls={controls} rarity={rarity}>
       <HeroGem family={family} rarity={rarity} spin={spin} />
     </Stage>
   )

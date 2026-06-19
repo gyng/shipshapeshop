@@ -123,6 +123,7 @@ interface Store {
   autoArrange: () => void
   recrystallize: () => void
   inspect: (id: number) => void
+  pat: (id: number) => void
   forge: (a: number, b: number) => void
   claimRelic: () => void
   devOpen: boolean
@@ -246,6 +247,12 @@ export const useGame = create<Store>((set, get) => ({
     game?.inspect(id)
     get().refresh()
     persist()
+  },
+  pat: (id) => {
+    if (game) {
+      game.pat(id)
+      get().refresh() // rate-limited in the UI; the 5s autosave persists it
+    }
   },
   forge: (a, b) => {
     if (!game) return

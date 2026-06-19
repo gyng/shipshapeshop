@@ -20,6 +20,7 @@ const RELIC_COST: u64 = 500; // shards to summon a Relic (the prestigious dupe-s
 const MS_PER_HOUR: f64 = 3_600_000.0;
 const FORGE_COST: u64 = 50; // shards to forge
 const BOND_INSPECT_GAIN: u32 = 25; // affinity per inspect (the calm idler's path to bonds)
+const BOND_PAT_GAIN: u32 = 5; // affinity per pat/rub (very minor; rate-limited in the UI)
 const BOND_THRESHOLDS: [u32; 6] = [0, 100, 300, 700, 1500, 3000]; // levels 0..5
 const PLATONIC_SET_MULT: f64 = 0.15; // +15% global for completing the Platonic set
 const SYNERGY_BONUS: f64 = 0.08; // +8% per deployed kin pair (duals/soulmates)
@@ -218,6 +219,14 @@ impl GameState {
         if id < COUNT && self.owned[id] > 0 {
             let cap = *BOND_THRESHOLDS.last().unwrap();
             self.bonds[id] = (self.bonds[id] + BOND_INSPECT_GAIN).min(cap);
+        }
+    }
+
+    /// A "pat" — a very minor affinity bump (rate-limited by the UI).
+    pub fn pat(&mut self, id: usize) {
+        if id < COUNT && self.owned[id] > 0 {
+            let cap = *BOND_THRESHOLDS.last().unwrap();
+            self.bonds[id] = (self.bonds[id] + BOND_PAT_GAIN).min(cap);
         }
     }
 
@@ -588,6 +597,9 @@ impl Game {
     }
     pub fn inspect(&mut self, id: usize) {
         self.state.inspect(id)
+    }
+    pub fn pat(&mut self, id: usize) {
+        self.state.pat(id)
     }
     pub fn forge(&mut self, a: usize, b: usize) -> String {
         serde_json::to_string(&self.state.forge(a, b)).unwrap()

@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
-import { Environment, Lightformer, Float, ContactShadows } from '@react-three/drei'
+import { Environment, Lightformer, Float, ContactShadows, Stars, Sparkles } from '@react-three/drei'
 import * as THREE from 'three'
 import { getGeometry } from './geometry'
 import { RARITY_COLOR } from './Gem'
@@ -15,8 +15,8 @@ function SceneGem({ shape, side, speaking }: { shape: ShapeRow; side: -1 | 1; sp
     if (ref.current) ref.current.rotation.y += dt * 0.5
   })
   const col = RARITY_COLOR[shape.rarity]
-  // active character steps toward the centre + forward (toward camera); the listener recedes and dims
-  const x = side * (speaking ? 1.25 : 1.75)
+  // symmetric placement (keeps the composition centred); emphasis comes from depth, scale + light, not x
+  const x = side * 1.55
   const z = speaking ? 1.0 : -0.5
   return (
     <>
@@ -42,10 +42,13 @@ function SceneGem({ shape, side, speaking }: { shape: ShapeRow; side: -1 | 1; sp
 
 export function ShipScene({ a, b, speakerA }: { a?: ShapeRow; b?: ShapeRow; speakerA: boolean }) {
   const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
+  const cornell = scene.special === 'cornell'
   const [backdrop, key, cool, warm] = scene.env
   return (
     <Canvas dpr={[1, 1.8]} shadows camera={{ position: [0, 0.4, 5], fov: 42 }}>
-      <color attach="background" args={['#0b0c16']} />
+      <color attach="background" args={[cornell ? '#0a0a0a' : '#0a0a14']} />
+      {!cornell && <Stars radius={50} depth={40} count={900} factor={3} saturation={0.6} fade speed={0.2} />}
+      {!cornell && <Sparkles count={30} scale={[9, 5, 5]} size={2} speed={0.25} color={scene.stars} />}
       <ambientLight intensity={0.6} />
       <directionalLight position={[2, 5, 4]} intensity={1.4} castShadow shadow-mapSize={[1024, 1024]} />
       <Environment resolution={128}>

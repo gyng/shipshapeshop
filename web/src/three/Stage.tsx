@@ -2,8 +2,11 @@ import { Canvas } from '@react-three/fiber'
 import { Environment, Lightformer, OrbitControls, Stars, Sparkles } from '@react-three/drei'
 import { Suspense, type ReactNode } from 'react'
 import * as THREE from 'three'
-import { useGame } from '../game/store'
+import { useGame, type RarityName } from '../game/store'
 import { sceneById } from '../content/cosmetics'
+import { RARITY_COLOR } from './Gem'
+
+const RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4 }
 
 /** The classic Cornell box: red left wall, green right wall, white others, a bright area light on the ceiling.
  *  The glass gem inside refracts the coloured walls (transmission samples the scene). */
@@ -35,9 +38,10 @@ function CornellRoom() {
  * Cornell-box scene swaps the nebula dome for the famous test room. No EffectComposer/Bloom and no animated
  * distortion on the glass — both flicker with transmission.
  */
-export function Stage({ children, controls = false }: { children: ReactNode; controls?: boolean }) {
+export function Stage({ children, controls = false, rarity = 'Common' }: { children: ReactNode; controls?: boolean; rarity?: RarityName }) {
   const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
   const cornell = scene.special === 'cornell'
+  const rank = RANK[rarity]
   const [backdrop, key, cool, warm] = scene.env
   return (
     <Canvas camera={{ position: [0, 0, 5], fov: 42 }} dpr={[1, 2]} gl={{ antialias: true }}>
@@ -52,7 +56,9 @@ export function Stage({ children, controls = false }: { children: ReactNode; con
       ) : (
         <>
           <Stars radius={60} depth={50} count={1800} factor={4} saturation={0.7} fade speed={0.3} />
-          <Sparkles count={40} scale={[8, 6, 6]} size={2.4} speed={0.15} opacity={0.6} color={scene.stars} />
+          {/* rarer shapes get markedly more (and bigger) sparkles, plus a rarity-coloured halo of motes */}
+          <Sparkles count={36 + rank * 28} scale={[8, 6, 6]} size={2.2 + rank * 0.5} speed={0.18} opacity={0.7} color={scene.stars} />
+          {rank >= 2 && <Sparkles count={20 + rank * 22} scale={[4.5, 4.5, 4.5]} size={3.4} speed={0.5} opacity={0.9} color={RARITY_COLOR[rarity]} />}
           <Suspense fallback={null}>
             {children}
             <Environment resolution={256} background backgroundBlurriness={0.75} backgroundIntensity={0.5} environmentIntensity={1.15}>
