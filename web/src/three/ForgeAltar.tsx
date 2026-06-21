@@ -2,8 +2,11 @@ import { useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Environment, Lightformer, Sparkles, Float, ContactShadows, Grid } from '@react-three/drei'
 import * as THREE from 'three'
-import { getGeometry, OPEN_FAMILIES } from './geometry'
-import { RARITY_COLOR } from './Gem'
+import { OPEN_FAMILIES } from './geometry'
+import { shapeGeometry, useRelics } from './relics'
+import { RARITY_COLOR, RARITY_RANK, sceneGemMatProps, sceneGemEmissiveBase } from './Gem'
+import { ScenePostFX } from './ScenePostFX'
+import { RenderTechBadge } from './RenderTechBadge'
 import { useGame, type ShapeRow } from '../game/store'
 import { sceneById } from '../content/cosmetics'
 import { useGfxPreset } from '../gfx'
@@ -28,8 +31,11 @@ function Pedestal({ pos, color, intensity = 3 }: { pos: [number, number, number]
 function AltarGem({ shape, pos, scale, show }: { shape?: ShapeRow; pos: [number, number, number]; scale: number; show: boolean }) {
   const ref = useRef<THREE.Mesh>(null)
   const matRef = useRef<THREE.MeshPhysicalMaterial>(null)
+  const g = useGfxPreset()
   const known = show && !!shape
-  const baseE = known ? 0.55 : 0.3
+  const rank = known ? RARITY_RANK[shape!.rarity] : 0
+  const baseE = known ? sceneGemEmissiveBase(rank, g.sceneGlass) : g.sceneGlass ? 0.16 : 0.3
+  useRelics() // real Relic mesh once loaded
   useFrame((state, dt) => {
     if (ref.current) ref.current.rotation.y += dt * 0.8
     if (matRef.current) {
@@ -38,22 +44,12 @@ function AltarGem({ shape, pos, scale, show }: { shape?: ShapeRow; pos: [number,
     }
   })
   const col = known ? RARITY_COLOR[shape!.rarity] : '#a98bff'
-  const geom = getGeometry(known ? shape!.family : 'icosahedron')
+  const geom = shapeGeometry(known ? shape!.family : 'icosahedron')
   return (
     <Float speed={2} rotationIntensity={0} floatIntensity={0.5} floatingRange={[0, 0.14]}>
       <mesh ref={ref} geometry={geom} position={pos} scale={scale} castShadow>
-        <meshPhysicalMaterial
-          ref={matRef}
-          color={col}
-          metalness={0.3}
-          roughness={0.08}
-          clearcoat={1}
-          clearcoatRoughness={0.08}
-          emissive={col}
-          emissiveIntensity={baseE}
-          envMapIntensity={1.6}
-          side={known && OPEN_FAMILIES.has(shape!.family) ? THREE.DoubleSide : THREE.FrontSide}
-        />
+        {/* shared glass/opaque recipe; matRef animates emissiveIntensity each frame (glass-aware base) */}
+        <meshPhysicalMaterial ref={matRef} {...sceneGemMatProps(col, rank, known && OPEN_FAMILIES.has(shape!.family), g.sceneGlass)} emissiveIntensity={baseE} />
       </mesh>
     </Float>
   )
@@ -88,6 +84,7 @@ export function ForgeAltar({ a, b, out, discovered }: { a?: ShapeRow; b?: ShapeR
   const bCol = b ? RARITY_COLOR[b.rarity] : '#b985ff'
   const outCol = discovered && out ? RARITY_COLOR[out.rarity] : '#a98bff'
   return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
     <Canvas dpr={g.dpr} shadows={g.shadows} gl={{ powerPreference: 'high-performance' }} camera={{ position: [0, 1.5, 5], fov: 42 }}>
       <color attach="background" args={['#0b0c16']} />
       <fog attach="fog" args={['#0b0c16', 8, 28]} />
@@ -131,6 +128,9 @@ export function ForgeAltar({ a, b, out, discovered }: { a?: ShapeRow; b?: ShapeR
 
       <Sparkles count={Math.round(50 * g.sparkle)} scale={[5, 2.6, 2.6]} position={[0, 0.5, -0.2]} size={2.6} speed={0.7} color="#ffce5c" />
       <ContactShadows position={[0, -0.83, 0]} opacity={0.5} scale={12} blur={2.4} far={3} />
+      <ScenePostFX />
     </Canvas>
+      <RenderTechBadge tech="mesh" />
+    </div>
   )
 }

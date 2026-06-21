@@ -52,6 +52,7 @@ export function Button({
   style,
   ...rest
 }: { variant?: ButtonVariant; size?: ButtonSize; fontWeight?: number } & ButtonHTMLAttributes<HTMLButtonElement>) {
+  // 'pull-cap' caps get the cursor-sheen + click-ripple juice (wired globally in buttonJuice.ts via delegation).
   const press = DEEP_PRESS.includes(variant) ? 'pull-cap' : 'forge-cap'
   return (
     <button

@@ -10,6 +10,82 @@
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-3px); }
 }
+
+/* Chatlas Plus reaction/wave: an emoji drifts up and fades. --dx/--rot are randomised per float for organic
+   variety (set inline). */
+@keyframes chatlas-float {
+  0% { opacity: 0; transform: translate(var(--dx, 0px), 6px) scale(0.6) rotate(0deg); }
+  18% { opacity: 1; transform: translate(var(--dx, 0px), 0) scale(1.18) rotate(var(--rot, 0deg)); }
+  100% { opacity: 0; transform: translate(var(--dx, 0px), -56px) scale(1.05) rotate(var(--rot, 0deg)); }
+}
+.chatlas-float { animation: chatlas-float 1.25s ease-out forwards; will-change: transform, opacity; }
+
+/* A chat/event line easing in: a gentle rise + fade (cozier than a bare fade). */
+@keyframes chatlas-rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: translateY(0); } }
+.chatlas-rise { animation: chatlas-rise 0.34s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* A sticker popping in with a soft overshoot. */
+@keyframes chatlas-pop { 0% { opacity: 0; transform: scale(0.55); } 62% { opacity: 1; transform: scale(1.09); } 100% { transform: scale(1); } }
+.chatlas-pop { animation: chatlas-pop 0.42s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+/* The "live" presence dot breathing while collectors are around. */
+@keyframes chatlas-livepulse { 0%, 100% { box-shadow: 0 0 5px var(--c-accent-teal); } 50% { box-shadow: 0 0 13px var(--c-accent-teal); } }
+.chatlas-livedot { animation: chatlas-livepulse 2.4s ease-in-out infinite; }
+
+/* The "searching" dot gently breathing while waiting for collectors (amber, calmer than live). */
+@keyframes chatlas-waitpulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+.chatlas-waitdot { animation: chatlas-waitpulse 1.8s ease-in-out infinite; }
+
+/* Sticker tray buttons: lift on hover, squish on press. */
+.chatlas-sticker-btn { transition: transform 0.12s ease, filter 0.12s ease; }
+.chatlas-sticker-btn:hover { transform: translateY(-3px) scale(1.07); filter: brightness(1.12); }
+.chatlas-sticker-btn:active { transform: translateY(0) scale(0.93); }
+
+/* Small icon buttons (react ♡, mute, reroll 🎲): grow on hover, squish on press. */
+.chatlas-icon-btn { transition: transform 0.12s ease, opacity 0.12s ease; display: inline-flex; }
+.chatlas-icon-btn:hover { transform: scale(1.28); opacity: 1; }
+.chatlas-icon-btn:active { transform: scale(0.82); }
+.chatlas-reroll { transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1); display: inline-flex; }
+.chatlas-reroll:hover { transform: rotate(180deg) scale(1.15); }
+.chatlas-reroll:active { transform: rotate(180deg) scale(0.9); }
+
+/* Chat input focus glow. */
+.chatlas-input { transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.chatlas-input:focus { border-color: var(--c-accent-teal); box-shadow: 0 0 0 2px rgba(95, 224, 198, 0.18); }
+
+/* Roster chips: gentle lift on hover (they're tappable to wave). */
+.chatlas-wave-chip { transition: transform 0.12s ease, border-color 0.12s ease; }
+.chatlas-wave-chip:hover { transform: translateY(-2px); border-color: var(--c-accent-teal); }
+.chatlas-wave-chip:active { transform: translateY(0) scale(0.96); }
+
+/* A handle glows in its own colour on hover (currentColor = the inline-set handle colour). */
+.chatlas-handle { transition: text-shadow 0.15s ease; cursor: default; }
+.chatlas-handle:hover { text-shadow: 0 0 9px currentColor; }
+
+/* Inspector prev/next buttons: brighten + lift on hover, squish on press. */
+.insp-nav { transition: transform 0.12s ease, background 0.12s ease, color 0.12s ease, border-color 0.12s ease; }
+.insp-nav:hover { transform: scale(1.12); background: var(--c-surface-5); color: var(--c-text-bright); border-color: var(--c-accent-teal); }
+.insp-nav:active { transform: scale(0.9); }
+
+/* The typing "…" gently breathing. */
+@keyframes chatlas-dots { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.chatlas-dots { animation: chatlas-dots 1.1s ease-in-out infinite; margin-inline-start: 1px; letter-spacing: 1px; }
+
+/* Short-absence "welcome back" toast: slide in from the top, hold, then fade out (self-dismisses at 4s). */
+@keyframes offline-toast {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-16px); }
+  8% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  86% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-12px); }
+}
+.offline-toast { animation: offline-toast 4s ease forwards; will-change: opacity, transform; }
+
+/* "New shape!" badge over the pull preview — breathes + glows (currentColor = the shape's rarity hue). */
+@keyframes reveal-new-badge {
+  0%, 100% { transform: translateX(-50%) scale(1); filter: drop-shadow(0 0 5px currentColor); }
+  50% { transform: translateX(-50%) scale(1.09); filter: drop-shadow(0 0 16px currentColor); }
+}
+.reveal-new-badge { animation: reveal-new-badge 1.15s ease-in-out infinite; text-shadow: 0 2px 7px rgba(0, 0, 0, 0.75); will-change: transform, filter; }
 @keyframes rarity-flash {
   0% { opacity: 0; transform: scale(0.45); }
   22% { opacity: 1; }
@@ -50,6 +126,20 @@
 /* Each gem of a 10-pull haul pops in staggered, so the player scans the row for rares. */
 @keyframes haul-in { from { opacity: 0; transform: scale(0.5) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
 .haul-in { opacity: 0; animation: haul-in 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.3) forwards; }
+/* Haul tiles are clickable (tap for details): lift + brighten on hover. */
+.haul-tile-btn:hover { transform: translateY(-3px) scale(1.06); filter: brightness(1.18); }
+.haul-tile-btn:active { transform: scale(0.94); }
+/* SSR+ ("legendary") haul tiles get a slow breathing glow + a sweeping shimmer. */
+@keyframes haul-breathe { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.28); } }
+.haul-shine { animation: haul-in 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.3) forwards, haul-breathe 1.7s ease-in-out 0.5s infinite; overflow: hidden; }
+.haul-shine::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,0.55) 50%, transparent 70%); transform: translateX(-130%); animation: haul-sheen 2.4s ease-in-out 0.6s infinite; pointer-events: none; }
+@keyframes haul-sheen { 0% { transform: translateX(-130%); } 55%, 100% { transform: translateX(130%); } }
+/* The little ✦ that twinkles in the corner of a legendary tile. */
+@keyframes haul-spark { 0%, 100% { opacity: 0.2; transform: scale(0.7) rotate(0deg); } 50% { opacity: 1; transform: scale(1.15) rotate(90deg); } }
+.haul-spark { position: absolute; top: -5px; left: -5px; font-size: 12px; pointer-events: none; animation: haul-spark 1.5s ease-in-out infinite; text-shadow: 0 0 6px currentColor; }
+/* The NEW! pill on a fresh haul tile gives a quick pop. */
+@keyframes haul-new-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.16); } }
+.haul-new-pulse { animation: haul-new-pulse 1.05s ease-in-out infinite; }
 /* A top-rarity (SSR+) reveal gets a celebratory shake on top of the pop-in. */
 @keyframes reveal-shake { 0%, 100% { transform: translateX(0); } 20% { transform: translateX(-7px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-4px); } 80% { transform: translateX(3px); } }
 .reveal-shake { animation: pop-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.25), reveal-shake 0.55s ease 0.12s; }
@@ -210,6 +300,52 @@ button.forge-cap:not(:disabled):active {
 
 /* Hover sheen on caps (lit by case lighting), softer than the global brightness(1.09). */
 button:not(:disabled):hover { filter: brightness(1.06); }
+/* Primary CTAs: a warm glow on hover (pairs with the gold spark trickle the hover listener emits). */
+.btn-primary:not(:disabled):hover, .pull-cap:not(:disabled):hover { box-shadow: 0 4px 18px rgba(255, 207, 107, 0.3), 0 0 0 1px rgba(255, 207, 107, 0.28); }
+
+/* ── Primary/CTA caps (.pull-cap): cursor-tracking sheen + click ripple (JS feeds --mx/--my; ripple appended) ── */
+.pull-cap { position: relative; overflow: hidden; }
+/* a soft specular highlight that follows the pointer across the button face (soft-light = sheen, not a wash) */
+.pull-cap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(150px circle at var(--mx, 50%) var(--my, 50%), rgba(255, 255, 255, 0.45), transparent 55%);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+}
+.pull-cap:hover::after { opacity: 1; }
+/* ripple ring from the exact click point — expands and fades */
+.btn-ripple {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 70%);
+  transform: scale(0);
+  opacity: 0.85;
+  pointer-events: none;
+  animation: btn-ripple 0.6s ease-out forwards;
+}
+@keyframes btn-ripple {
+  to {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn-ripple { animation-duration: 0.01ms; }
+  .pull-cap::after { transition: none; }
+}
+
+/* "Now playing" mini equalizer — three bars dancing in `currentColor` (inherits the pill's teal). */
+.np-eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 11px; flex: 0 0 auto; }
+.np-eq i { width: 2px; height: 100%; background: currentColor; border-radius: 1px; transform-origin: bottom; animation: np-eq 0.9s ease-in-out infinite; }
+.np-eq i:nth-child(2) { animation-delay: 0.3s; }
+.np-eq i:nth-child(3) { animation-delay: 0.6s; }
+@keyframes np-eq { 0%, 100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .np-eq i { animation: none; transform: scaleY(0.7); } }
 
 /* ── Specimen card hover — overrides the .chip lift above to add a brass edge. ── */
 .chip:hover {
@@ -298,7 +434,7 @@ body, button, input, textarea, select { font-family: var(--font-app); }
    Desktop: library left, active right, mults top, timeline bottom.
    Mobile: library + active drop to two half-width panels at the bottom.
    ───────────────────────────────────────────────────────────── */
-.orrery-wrap { position: relative; width: 100%; height: min(74vh, 660px); border-radius: var(--r-3xl); overflow: hidden; border: 1px solid var(--c-border); background: var(--c-bg-stage); }
+.orrery-wrap { position: relative; width: 100%; flex: 1; min-height: 420px; border-radius: var(--r-3xl); overflow: hidden; border: 1px solid var(--c-border); background: var(--c-bg-stage); }
 .orrery-canvas { position: absolute; inset: 0; }
 .orrery-panel { background: var(--c-surface-glass); backdrop-filter: blur(var(--blur-panel)); border: 1px solid var(--c-border); border-radius: var(--r-2xl); box-shadow: inset 0 1px 0 var(--edge-2), 0 8px 24px var(--ink-3); }
 .orrery-top { position: absolute; top: var(--sp-2); left: 50%; transform: translateX(-50%); display: flex; gap: var(--sp-1_5); flex-wrap: wrap; justify-content: center; max-width: 80%; z-index: 3; pointer-events: none; }
@@ -306,10 +442,111 @@ body, button, input, textarea, select { font-family: var(--font-app); }
 .orrery-left { left: var(--sp-2); }
 .orrery-right { right: var(--sp-2); }
 .orrery-bottom { position: absolute; left: var(--sp-2); right: var(--sp-2); bottom: var(--sp-2); z-index: 3; padding: var(--sp-1_5) var(--sp-2_5); }
+/* 2D-view flux beams: marching dashes that read as flowing flux */
+@keyframes flux-flow { to { stroke-dashoffset: -10; } }
+
+/* Workshop tech-tree edges: a marching dash so "potential" flows down each branch from a prereq to the node
+   it unlocks. The stagger pop-in uses backwards fill so nodes stay hidden during their delay (no flash). */
+.wt-edge { stroke-dasharray: 4 8; animation: wt-flow 1.1s linear infinite; }
+@keyframes wt-flow { to { stroke-dashoffset: -12; } }
+/* a just-bought node sends a faster, fuller surge down the branches it powers */
+.wt-edge-surge { animation-duration: 0.4s; }
+
+/* purchase reactions (inner wrapper, so they never collide with the stagger pop-in on the outer node):
+   wt-pop = the node you bought; wt-reveal = a node the purchase just unlocked (lock opens with a flash). */
+@keyframes wt-pop { 0% { transform: scale(1); } 28% { transform: scale(1.05); filter: brightness(1.35); } 100% { transform: scale(1); filter: brightness(1); } }
+.wt-pop { animation: wt-pop 0.8s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+@keyframes wt-reveal { 0% { transform: scale(0.9); filter: brightness(2.1) saturate(1.4); } 42% { transform: scale(1.04); } 100% { transform: scale(1); filter: brightness(1); } }
+.wt-reveal { animation: wt-reveal 0.85s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+@media (prefers-reduced-motion: reduce) { .wt-edge, .wt-pop, .wt-reveal { animation: none; } }
+
+/* The corner mascot is decorative chatter; on phones it overlaps the bottom cards, so hide it there. */
+@media (max-width: 760px) { .mascot-overlay { display: none !important; } }
+
+/* Centered wordmark in the top bar — desktop only (narrower layouts have no middle room). pointer-events
+   off so it floats above the HUD without ever blocking the controls on either side of it. */
+.app-title { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; font-family: var(--font-display); font-weight: var(--fw-heavy); font-size: var(--fs-h4); letter-spacing: 1.5px; color: var(--c-text-secondary); opacity: 0.92; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); }
+@media (max-width: 1179px) { .app-title { display: none; } }
+
+/* The "Ascend / Recrystallize" prompt — breathes a purple halo so a core-complete player can't miss it. */
+@keyframes ascend-glow { 0%, 100% { box-shadow: 0 0 10px rgba(179, 136, 255, 0.6), 0 0 22px rgba(179, 136, 255, 0.35); transform: translateX(-50%) scale(1); } 50% { box-shadow: 0 0 18px rgba(179, 136, 255, 0.95), 0 0 40px rgba(179, 136, 255, 0.6); transform: translateX(-50%) scale(1.04); } }
+.ascend-glow { animation: ascend-glow 1.5s ease-in-out infinite; }
+.ascend-glow:hover { filter: brightness(1.12); }
+
+/* "Orrery is empty" nudge dot: a gentle attention pulse so the player notices their board is idle. */
+@keyframes nav-dot-pulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 7px rgba(255,207,107,0.6); } 50% { transform: scale(1.15); box-shadow: 0 0 13px 2px rgba(255,207,107,0.85); } }
+.nav-dot { animation: nav-dot-pulse 1.7s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .nav-dot { animation: none; } }
+
+/* Audio-mix volume sliders — pill track + glowing pink thumb (native chrome stripped per-engine). */
+.range-mix { -webkit-appearance: none; appearance: none; height: 16px; background: transparent; cursor: pointer; }
+.range-mix:disabled { cursor: not-allowed; }
+.range-mix::-webkit-slider-runnable-track { height: 5px; border-radius: 999px; background: var(--c-surface-4); border: 1px solid var(--c-border); }
+.range-mix::-webkit-slider-thumb { -webkit-appearance: none; margin-top: -6px; width: 15px; height: 15px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #ffb9d2, var(--c-accent-pink)); border: 1.5px solid var(--c-bg-base); box-shadow: 0 0 7px rgba(255,93,143,0.55); transition: transform 0.1s ease; }
+.range-mix::-webkit-slider-thumb:hover { transform: scale(1.15); }
+.range-mix::-moz-range-track { height: 5px; border-radius: 999px; background: var(--c-surface-4); border: 1px solid var(--c-border); }
+.range-mix::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: var(--c-accent-pink); border: 1.5px solid var(--c-bg-base); box-shadow: 0 0 7px rgba(255,93,143,0.55); }
+.range-mix:focus { outline: none; }
+.range-mix:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(255,93,143,0.3), 0 0 7px rgba(255,93,143,0.55); }
+/* hover/select effect card — pinned bottom-centre between the side panels (desktop); top strip on mobile. */
+.orrery-preview { position: absolute; z-index: 4; bottom: 64px; left: 184px; right: 184px; max-width: 380px; margin: 0 auto; display: flex; flex-direction: column; gap: 3px; padding: var(--sp-1_5) var(--sp-2_5); pointer-events: none; }
 @media (max-width: 760px) {
   .orrery-wrap { height: min(82vh, 600px); }
   .orrery-left, .orrery-right { top: auto; bottom: 56px; width: calc(50% - var(--sp-3)); max-height: 40%; }
+  .orrery-preview { bottom: auto; top: 44px; left: var(--sp-2); right: var(--sp-2); max-width: none; margin: 0; }
   .orrery-left { left: var(--sp-2); }
   .orrery-right { right: var(--sp-2); }
   .orrery-top { max-width: 96%; }
+  /* nudge the ascend prompt below the top rate/controls row + shrink it so it never collides on a phone */
+  .ascend-glow { top: 52px !important; font-size: var(--fs-body-sm) !important; padding: 8px 14px !important; }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   APP SHELL — the page itself never scrolls; only inner containers do.
+   Fixes: stray default <body> margin, ugly white OS scrollbars, wheel-over-canvas
+   scrolling the page, and any incidental vertical overflow (it becomes an inner scroll).
+   ───────────────────────────────────────────────────────────── */
+html, body, #root { height: 100%; }
+body { margin: 0; overscroll-behavior: none; background: var(--c-bg-base); }
+
+/* Custom scrollbars — replace the stark white Windows default with the Vitrine ramp.
+   Firefox keys off scrollbar-width/color; Chromium/WebKit use the ::-webkit pseudo-elements. */
+* { scrollbar-width: thin; scrollbar-color: var(--c-surface-6) transparent; }
+::-webkit-scrollbar { width: 11px; height: 11px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--c-surface-5); border-radius: var(--r-pill);
+  border: 3px solid transparent; background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--c-border-raised-lit); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* 3D canvases own their pointer gestures: touch-pan won't steal the orbit drag, and
+   (with OrbitControls' non-passive wheel handler) the wheel zooms instead of scrolling. */
+canvas { touch-action: none; }
+
+/* UI chrome isn't text — dragging gems, tapping buttons, or scrubbing a slider must never highlight labels.
+   Content that's meant to be read/copied (codex, dialogue, inputs) stays selectable. */
+button, nav, header, kbd, canvas, .orrery-wrap, .nav-rail, [role='button'] {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Cursor affordance for an interactive (orbitable) gem stage — grab, then grabbing while dragging. */
+.orbit-canvas { cursor: grab; }
+.orbit-canvas:active { cursor: grabbing; }
+
+/* ── Horizontal nav rail: fade whichever edge has more content off-screen, as a scroll hint. ── */
+.nav-rail { position: relative; }
+.nav-rail::before, .nav-rail::after {
+  content: ''; position: absolute; top: 0; bottom: 1px; width: 26px; z-index: 2;
+  pointer-events: none; opacity: 0; transition: opacity 0.18s ease;
+}
+.nav-rail::before { left: 0; background: linear-gradient(90deg, #101119, rgba(16,17,25,0)); }
+.nav-rail::after { right: 0; background: linear-gradient(270deg, #101119, rgba(16,17,25,0)); }
+.nav-rail[data-l='1']::before { opacity: 1; }
+.nav-rail[data-r='1']::after { opacity: 1; }
+.nav-scroll { display: flex; gap: var(--sp-1); padding: 8px 16px; overflow-x: auto; overflow-y: hidden; }
+/* the rail's own thin scrollbar would clutter the chrome — hide it, the edge fades signal scrollability */
+.nav-scroll { scrollbar-width: none; }
+.nav-scroll::-webkit-scrollbar { display: none; }

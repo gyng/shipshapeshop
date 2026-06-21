@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Build the Rust→WASM core + web app and run the full test suite ──────────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (with wasm target + clippy)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Rust — clippy (warnings are errors)
+        run: cargo clippy --manifest-path core/Cargo.toml --all-targets -- -D warnings
+
+      - name: Rust — tests + balance sim
+        run: cargo test --manifest-path core/Cargo.toml
+
+      - name: Build WASM core (release)
+        run: pnpm run build:core:release
+
+      - name: Install web deps
+        run: pnpm -C web install --frozen-lockfile
+
+      - name: Web — typecheck
+        run: pnpm -C web run typecheck
+
+      - name: Web — tests
+        run: pnpm -C web test
+
+      - name: Web — production build
+        run: pnpm -C web build
+
+  # ── Deploy the static web bundle to GitHub Pages (main only) ────────────────────────────────────────────
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (with wasm target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: core
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - name: Build WASM core (release)
+        run: pnpm run build:core:release
+
+      - name: Install web deps
+        run: pnpm -C web install --frozen-lockfile
+
+      - name: Build web (scoped to the Pages sub-path)
+        run: pnpm -C web build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+
+      - name: SPA fallback (Pages serves 404.html for unknown routes)
+        run: cp web/dist/index.html web/dist/404.html
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -9,6 +9,7 @@
     "dev": "pnpm -C web dev",
     "build": "pnpm run build:core:release && pnpm -C web build",
     "test": "cargo test --manifest-path core/Cargo.toml && pnpm -C web test",
-    "lint": "cargo clippy --manifest-path core/Cargo.toml -- -D warnings"
+    "lint": "cargo clippy --manifest-path core/Cargo.toml -- -D warnings",
+    "screenshots": "pnpm run build && pnpm -C web run screenshots"
   }
 }

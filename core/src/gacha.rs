@@ -20,6 +20,9 @@ pub enum Rarity {
     Ur,
     /// Famous CG reference models — a bonus tier, never rolled by the gacha (summoned with shards).
     Relic,
+    /// NG+ "metashapes" — higher-order forms that enter the gacha ONLY once you ascend to their dimension.
+    Meta,
+    Transcendent,
 }
 
 /// Launch pool sizes per tier (DESIGN.md §8): 10 / 8 / 8 / 7 / 8 = 41 named shapes.
@@ -37,6 +40,13 @@ const HARD_PITY: u32 = 30; // guaranteed top by the 30th dry pull
 const EPIC_FLOOR: u32 = 10; // guaranteed Epic-or-better at least every 10
 const UR_WITHIN_TOP: f64 = 0.30; // 30% UR / 70% SSR within a top pull
 const SPARK_AT: u32 = 40; // Resonance Spark threshold
+
+// NG+ metashape overlay: once unlocked (by ascending to its dimension), a top pull can instead surface a
+// Meta/Transcendent shape. Drawn on a SEPARATE rng stream so locked (pre-ascension) rolls are bit-identical
+// to the launch gacha — every existing distribution test holds unchanged.
+const META_STREAM: u64 = 4;
+const P_TRANSCENDENT_TOP: f64 = 0.03; // 3% of top pulls → Transcendent (once 5D)
+const P_META_TOP: f64 = 0.12; // a further 9% (0.03..0.12) → Meta (once 4D)
 
 // C/R/E split conditional on "not a top pull" (50/30/14 renormalised over 94).
 const P_COMMON_GIVEN_LOW: f64 = 50.0 / 94.0;
@@ -92,7 +102,9 @@ impl Collection {
             Rarity::Epic => 2,
             Rarity::Ssr => 3,
             Rarity::Ur => 4,
-            Rarity::Relic => 4, // never reached — the gacha never rolls Relics
+            // never reached by the 5-tier simulate Collection — Relics are summoned, and metashapes are
+            // granted by the game layer (not this coupon-collector harness).
+            Rarity::Relic | Rarity::Meta | Rarity::Transcendent => 4,
         }
     }
     fn first_missing(&self, r: Rarity) -> Option<usize> {
@@ -126,7 +138,7 @@ pub struct Roll {
 /// Roll one pull's rarity and advance all pity/resonance counters. Pure function of `(seed, pity.counter)`.
 /// The caller decides which concrete shape is granted, so this is reused by both the simulate harness and
 /// the real game layer (which steers to a missing "wanted" shape).
-pub fn roll_rarity(seed: u64, pity: &mut PityState) -> Roll {
+pub fn roll_rarity(seed: u64, pity: &mut PityState, meta_unlocked: bool, transcendent_unlocked: bool) -> Roll {
     let c = pity.counter;
     let u_top = rand_unit(seed, BANNER, c * 4);
     let u_split = rand_unit(seed, BANNER, c * 4 + 1);
@@ -135,20 +147,28 @@ pub fn roll_rarity(seed: u64, pity: &mut PityState) -> Roll {
     let rarity = if u_top < pity.p_top() {
         pity.since_top = 0;
         pity.since_epic = 0;
-        let is_ur = if pity.guaranteed_featured_top {
-            pity.guaranteed_featured_top = false;
-            true
-        } else if u_split < UR_WITHIN_TOP {
-            true
+        // metashape overlay (separate stream — no effect on the base rolls above when locked)
+        let u_meta = rand_unit(seed, META_STREAM, c);
+        if transcendent_unlocked && u_meta < P_TRANSCENDENT_TOP {
+            Rarity::Transcendent
+        } else if meta_unlocked && u_meta < P_META_TOP {
+            Rarity::Meta
         } else {
-            // lost the featured (UR) roll → next top is guaranteed the featured UR
-            pity.guaranteed_featured_top = true;
-            false
-        };
-        if is_ur {
-            Rarity::Ur
-        } else {
-            Rarity::Ssr
+            let is_ur = if pity.guaranteed_featured_top {
+                pity.guaranteed_featured_top = false;
+                true
+            } else if u_split < UR_WITHIN_TOP {
+                true
+            } else {
+                // lost the featured (UR) roll → next top is guaranteed the featured UR
+                pity.guaranteed_featured_top = true;
+                false
+            };
+            if is_ur {
+                Rarity::Ur
+            } else {
+                Rarity::Ssr
+            }
         }
     } else {
         pity.since_top += 1;
@@ -205,7 +225,8 @@ pub fn pull(
     spark_spills_to_ssr: bool,
 ) -> Rarity {
     let c = pity.counter;
-    let roll = roll_rarity(seed, pity);
+    // The simulate harness models the LAUNCH core (pre-ascension): metashapes are locked.
+    let roll = roll_rarity(seed, pity, false, false);
     match roll.rarity {
         r @ (Rarity::Ur | Rarity::Ssr) => {
             let idx = coll.first_missing(r).unwrap_or(0);
@@ -302,6 +323,41 @@ mod tests {
             max_gap <= EPIC_FLOOR,
             "max non-epic streak {max_gap} exceeded floor {EPIC_FLOOR}"
         );
+    }
+
+    #[test]
+    fn metashapes_gate_on_dimension() {
+        // LOCKED (launch / pre-ascension): a metashape must never roll.
+        let mut pity = PityState::default();
+        for _ in 0..200_000 {
+            let r = roll_rarity(13, &mut pity, false, false).rarity;
+            assert!(!matches!(r, Rarity::Meta | Rarity::Transcendent), "metashape rolled while locked");
+        }
+        // UNLOCKED: both appear, and Transcendent is rarer than Meta.
+        let mut pity = PityState::default();
+        let (mut meta, mut trans) = (0u32, 0u32);
+        for _ in 0..1_000_000 {
+            match roll_rarity(13, &mut pity, true, true).rarity {
+                Rarity::Meta => meta += 1,
+                Rarity::Transcendent => trans += 1,
+                _ => {}
+            }
+        }
+        assert!(meta > 0, "Meta never rolled while unlocked");
+        assert!(trans > 0, "Transcendent never rolled while unlocked");
+        assert!(trans < meta, "Transcendent ({trans}) should be rarer than Meta ({meta})");
+    }
+
+    #[test]
+    fn locking_metashapes_leaves_base_rolls_bit_identical() {
+        // The overlay draws on a separate stream, so a LOCKED roll stream must match the pre-metashape gacha.
+        let (mut a, mut b) = (PityState::default(), PityState::default());
+        for _ in 0..50_000 {
+            assert_eq!(
+                roll_rarity(2024, &mut a, false, false).rarity,
+                roll_rarity(2024, &mut b, false, false).rarity
+            );
+        }
     }
 
     #[test]

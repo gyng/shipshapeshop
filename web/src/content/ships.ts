@@ -59,6 +59,39 @@ const RAW: Ship[] = [
     { who: 'b', text: 'A cathedral? Pretty. I am the WEATHER.' },
     { who: 'a', text: 'When she rattles the windows it’s only ever my house. She’d never crack a pane.' },
   ] },
+  // warped classics ⇄ their parent shape
+  { a: 'torus', b: 'twisted_torus', lines: [
+    { who: 'a', text: 'Do sit still, dear. You’re making my tea slosh.' },
+    { who: 'b', text: 'Can’t! Same hole as you — just wound up twice on the way round.' },
+    { who: 'a', text: 'Still my little donut under all that fidgeting. …Mind the hole.' },
+  ] },
+  { a: 'sphere', b: 'cut_hollow_sphere', lines: [
+    { who: 'a', text: 'You used to be round like me! All the way round.' },
+    { who: 'b', text: 'Then someone took a slice. Now I’m open — and I can hold things. Pour something in?' },
+    { who: 'a', text: 'A bowl made from a ball. You kept the best curve and gave the rest away.' },
+  ] },
+  { a: 'sphere', b: 'blobby', lines: [
+    { who: 'b', text: 'Look! I grew arms. Six of them — every direction at once.' },
+    { who: 'a', text: 'You’re still a ball, though. I can tell. Round right at your middle.' },
+    { who: 'b', text: 'Round at heart, arms out wide. Squish me and I’d just be you again.' },
+  ] },
+  // the fractal family (Transcendent)
+  { a: 'mandelbulb', b: 'mandelbox', lines: [
+    { who: 'a', text: 'We came from the same little sum, you and I. Square it, add it back, again, again…' },
+    { who: 'b', text: 'You bloomed outward. I folded inward. Same seed, different architecture.' },
+    { who: 'a', text: 'Fall into me and you drift forever. Fall into you, and the hallways rebuild ahead of every step.' },
+    { who: 'b', text: 'Two answers to one question. Neither of us ever finishes asking it.' },
+  ] },
+  { a: 'mandelbulb', b: 'julia', lines: [
+    { who: 'b', text: 'You sweep the seed across every value. I pick just one and live inside it.' },
+    { who: 'a', text: 'So you’re a single page of my whole book. A lovely page.' },
+    { who: 'b', text: 'A page in four dimensions. What you hold is only my shadow — and even that has no end.' },
+  ] },
+  { a: 'apollonian', b: 'kleinian', lines: [
+    { who: 'a', text: 'There’s always a gap for one more circle. Come — there’s room. There’s always room.' },
+    { who: 'b', text: 'I fill mine with mirrors instead. Every reflection makes another arch.' },
+    { who: 'a', text: 'Packed spheres and your endless spires. Cousins from the same bottomless idea.' },
+  ] },
 ]
 
 export const SHIP_SCENES: Record<string, Ship> = Object.fromEntries(RAW.map((s) => [key(s.a, s.b), s]))

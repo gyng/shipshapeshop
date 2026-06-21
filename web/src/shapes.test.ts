@@ -13,24 +13,27 @@ const FAMILIES = [
   // Epic
   'klein_bottle', 'rp2', 'boys_surface', 'cross_cap', 'figure8_knot', 'torus_knot_2_5', 'gyroid', 'schwarz_p',
   // SSR
-  'heptoroid', 'costa', 'borromean', 'seifert', 'lorenz', 'schwarz_d', 'triple_torus',
+  'heptoroid', 'costa', 'borromean', 'seifert', 'lorenz', 'schwarz_d', 'triple_torus', 'twisted_torus', 'cut_hollow_sphere', 'blobby',
   // UR
   'tesseract', 'cell_16', 'cell_24', 'cell_120', 'cell_600', 'klein_quartic', 'hopf', 'mazur',
   // Relics (Reference Wing)
   'utah_teapot', 'stanford_bunny', 'benchy', 'stanford_dragon', 'suzanne', 'spot', 'cow', 'armadillo', 'lucy', 'csaszar',
   // Relics — fractals & classical surfaces (procedurally generated)
   'menger', 'sierpinski', 'dini', 'torus_knot_2_7',
+  // NG+ metashapes (Meta) + the Transcendent fractal capstone cohort
+  'clifford_torus', 'cable_knot', 'mandelbulb', 'mandelbox', 'julia', 'apollonian', 'kleinian',
 ]
 
-// Relic families backed by a real downloaded mesh (loaded on demand by ModelGem).
+// Relic families backed by a real downloaded mesh (loaded once by the shared relics layer → src/three/relics.ts
+// RELIC_MODELS, then used across the gallery, Orrery, dioramas, and hero).
 const MODEL_FILES_ON_DISK = [
-  'bunny.ply', 'cow.obj', 'spot.obj', 'armadillo.ply', 'lucy.ply', 'dragon.ply', 'heptoroid.ply', 'csaszar.obj', 'benchy.ply',
+  'bunny.ply', 'cow.obj', 'spot.obj', 'armadillo.ply', 'lucy.ply', 'dragon.ply', 'heptoroid.ply', 'csaszar.obj', 'benchy.ply', 'suzanne.obj',
 ]
 
 describe('shape content validation', () => {
-  it('has 55 families with no duplicates', () => {
-    expect(FAMILIES.length).toBe(55)
-    expect(new Set(FAMILIES).size).toBe(55)
+  it('has 65 families with no duplicates', () => {
+    expect(FAMILIES.length).toBe(65)
+    expect(new Set(FAMILIES).size).toBe(65)
   })
 
   it('every family has a complete codex entry', () => {

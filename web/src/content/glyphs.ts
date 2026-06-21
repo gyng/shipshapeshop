@@ -16,6 +16,10 @@ export const SHAPE_GLYPH: Record<string, string> = {
   // Relics
   utah_teapot: '🫖', stanford_bunny: '🐰', benchy: '🚤', stanford_dragon: '🐉', suzanne: '🐵', spot: '🐮', cow: '🐄', armadillo: '🦔', lucy: '👼', csaszar: '🍩',
   menger: '🔲', sierpinski: '🔻', dini: '🐚', torus_knot_2_7: '✴️',
+  // NG+ metashapes (Meta + the Transcendent fractal cohort)
+  clifford_torus: '🛟', cable_knot: '🧶', mandelbulb: '🪸',
+  mandelbox: '📦', julia: '🌌', apollonian: '🫧', kleinian: '🏛️',
+  twisted_torus: '➰', cut_hollow_sphere: '🥣', blobby: '🦠',
 }
 
 export const glyphOf = (family: string): string => SHAPE_GLYPH[family] ?? '✦'

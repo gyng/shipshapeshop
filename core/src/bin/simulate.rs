@@ -1,5 +1,6 @@
-//! Headless economy simulator — answers "does a run still complete the 41-shape core in ~1–2 days?"
-//! after all the multipliers (bonds, synergy, genus, milestones, Facets, prestige) stacked up.
+//! Headless economy simulator — answers "does a first run complete the 44-shape pullable core in ~4h
+//! (greedy) / ~1 day (casual)?" after all the multipliers (bonds, synergy, genus, milestones, Facets) stack up.
+//! (2026-06 first-run retune: base_prod + RATE_CAP scaled ~12×; see content.rs / game.rs.)
 //! Run: `cargo run --release --bin simulate`.
 
 use shipshape_core::content;
@@ -17,7 +18,6 @@ fn greedy(seed: u64) -> (f64, u64, f64) {
     while !g.core_complete() && minutes < cap {
         now += MIN_MS;
         g.tick(now);
-        g.auto_arrange();
         let mut guard = 0;
         while g.flux >= 100.0 && guard < 200 {
             if !g.pull(now).ok {
@@ -28,6 +28,7 @@ fn greedy(seed: u64) -> (f64, u64, f64) {
         for r in content::RECIPES.iter() {
             g.forge(r.a, r.b); // no-op unless owned + affordable
         }
+        g.auto_arrange(); // deploy AFTER pulling, so this cycle's new shapes produce next tick (a real player re-arranges before leaving)
         minutes += 1;
     }
     (minutes as f64 / 60.0, g.pity.counter, g.rate_per_hr())
@@ -42,7 +43,6 @@ fn casual(seed: u64, every_h: f64) -> f64 {
     while !g.core_complete() && checks < cap {
         now += every_h * 60.0 * MIN_MS;
         g.compute_offline(now);
-        g.auto_arrange();
         let mut guard = 0;
         while g.flux >= 100.0 && guard < 500 {
             if !g.pull(now).ok {
@@ -53,6 +53,7 @@ fn casual(seed: u64, every_h: f64) -> f64 {
         for r in content::RECIPES.iter() {
             g.forge(r.a, r.b);
         }
+        g.auto_arrange(); // deploy AFTER pulling so this check-in's new shapes produce during the NEXT offline span
         checks += 1;
     }
     checks as f64 * every_h
@@ -60,7 +61,7 @@ fn casual(seed: u64, every_h: f64) -> f64 {
 
 fn main() {
     println!(
-        "Shape Gacha — economy simulation (target: complete the 41-shape core in ~1–2 days)\n"
+        "Shape Gacha — economy simulation (target: complete the 44-shape core in ~4h greedy / ~1 day casual)\n"
     );
     let mut gh = vec![];
     for seed in [1u64, 7, 42, 99, 2024] {
@@ -94,19 +95,19 @@ mod tests {
         for seed in [1u64, 42, 2024] {
             let (h, _, _) = greedy(seed);
             assert!(
-                (8.0..48.0).contains(&h),
-                "seed {seed}: greedy core completion {h:.1}h is outside the sane 8–48h band — economy may be broken"
+                (1.0..8.0).contains(&h),
+                "seed {seed}: greedy core completion {h:.1}h is outside the sane 1–8h first-run band — economy may be broken"
             );
         }
     }
 
-    /// A casual idler (checks ~twice a day) should land in the intended ~1–3 day window.
+    /// A casual idler (checks ~twice a day, 12h) should complete the first run in about a day.
     #[test]
-    fn casual_idler_in_one_to_three_days() {
+    fn casual_idler_completes_in_about_a_day() {
         let h = casual(42, 12.0);
         assert!(
-            (24.0..=72.0).contains(&h),
-            "casual 12h-check completion {h:.1}h outside 1–3 days"
+            (12.0..=36.0).contains(&h),
+            "casual 12h-check completion {h:.1}h outside the ~0.5–1.5 day first-run band"
         );
     }
 }

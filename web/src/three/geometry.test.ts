@@ -12,8 +12,12 @@ const ALL_FAMILIES = [
   'klein_bottle', 'rp2', 'boys_surface', 'cross_cap', 'figure8_knot', 'torus_knot_2_5', 'gyroid', 'schwarz_p',
   'heptoroid', 'costa', 'borromean', 'seifert', 'lorenz', 'schwarz_d', 'triple_torus', 'tesseract', 'cell_16',
   'cell_24', 'cell_120', 'cell_600', 'klein_quartic', 'hopf', 'mazur',
-  // Relics (gallery-thumbnail geometry; real meshes load via ModelGem at runtime)
+  // Relics (procedural fallback geometry; real meshes load via the shared relics layer at runtime)
   'utah_teapot', 'stanford_bunny', 'benchy', 'stanford_dragon', 'suzanne', 'spot', 'cow', 'armadillo', 'lucy', 'csaszar',
+  // NG+ metashapes + the fractal capstone cohort
+  'clifford_torus', 'cable_knot', 'mandelbulb', 'mandelbox', 'julia', 'apollonian', 'kleinian',
+  // warped classics (Ssr)
+  'twisted_torus', 'cut_hollow_sphere', 'blobby',
 ]
 
 // Euler characteristic V−E+F, welding by POSITION only (three duplicates verts per face for flat shading,

@@ -6,6 +6,7 @@ export const BANNER_INFO: Record<string, { name: string; blurb: string; icon: st
   knots: { name: 'Knots & Links', blurb: 'Rate-up on tangled things — trefoils, the figure-eight, Borromean rings, the Hopf link.', icon: '🪢' },
   fourth_dim: { name: 'The Fourth Dimension', blurb: 'Rate-up on the 4D polytopes — tesseract, 24-cell, the 120- and 600-cell.', icon: '🧩' },
   nonorientable: { name: 'Non-Orientable', blurb: 'Rate-up on one-sided wonders — Möbius, Klein, Boy’s surface, the Klein quartic.', icon: '🍶' },
+  fractals: { name: 'Fractal Depths', blurb: 'Rate-up on the capstone fractals — the Mandelbulb, Mandelbox, quaternion Julia, Apollonian gasket and Kleinian limit set. Endless structure from finite rules.', icon: '🪸' },
 }
 
 // Which themed banner (id 1..themedCount) is featured right now — rotates once per day. Standard (0) is always on.

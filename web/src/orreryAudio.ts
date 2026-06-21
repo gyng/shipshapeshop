@@ -1,13 +1,9 @@
-import { useEffect, useRef } from 'react'
-import { useGame } from './game/store'
-import { useOrreryUi } from './orreryUi'
-import { useMute, sharedAudioContext } from './audio'
-
-// ── Orrery music engine ───────────────────────────────────────────────────────
-// When shapes MEET on the hex grid (≥2 share a cell at a tick) they sing. The FEEL layer decides how it
-// sounds; the truth (which meetings happen) comes from the Rust-authored orbit paths. Notes are pentatonic
-// BY CONSTRUCTION (you index into a scale table — an out-of-scale pitch is unrepresentable), polyphony is
-// hard-capped, and a master limiter guarantees stacked chords can't clip. So the orrery is always pleasant.
+// ── Orrery music — the PURE shape→sound derivation library ───────────────────────────────────────────────
+// The numbers here are derived from shape TRUTH (descriptors authored in Rust): a shape's pitch and instrument
+// are pure functions of its topology. Notes are pentatonic BY CONSTRUCTION (you index a scale table — an
+// out-of-scale pitch is unrepresentable). The continuous lofi bed in `orreryBed.ts`/`orreryBedDriver.tsx`
+// consumes `SCALE`, `instrumentForShape`, and the descriptor types from here. (No playback lives in this file:
+// the old on-intersect chord synth was removed when the orrery dropped meeting-triggered sound.)
 
 const ROOT_MIDI = 57 // A3 — a calm register that sits under the ASMR layer
 const PENTATONIC = [0, 2, 4, 7, 9] // major-pentatonic scale degrees (no semitone clashes ⇒ always consonant)
@@ -29,30 +25,110 @@ export const LOUDNESS_CEILING = 0.6 // a max chord's summed pre-master gain must
 export const mixPeak = (nVoices: number) => Math.min(Math.max(0, nVoices), MAX_POLY) * VOICE_GAIN
 
 const mod = (n: number, m: number) => ((n % m) + m) % m
-
-/** Deterministic, always-in-scale note for a shape. */
-export function noteForShape(shapeId: number): number {
-  return SCALE[mod(shapeId, SCALE.length)]
+const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x)
+function hash(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0
+  return Math.abs(h)
 }
 
-// Eigenmode timbre: a soft waveform chosen deterministically per shape (sine-leaning so it stays gentle).
-const WAVES: OscillatorType[] = ['sine', 'triangle', 'sine', 'sine', 'triangle']
-export function timbreForShape(shapeId: number): OscillatorType {
-  return WAVES[mod(shapeId, WAVES.length)]
+// ── Eigenmode instrument: the TIMBRE is derived from the shape's DESCRIPTOR, not its id ───────────────────
+// A shape "rings" at its own modes, so its instrument is a pure function of the declared invariants (truth,
+// authored in Rust): family → which instrument, genus → register, orientability → the mirror "flip", Euler
+// cost → brightness, rarity → space. The id only seeds tiny intra-family variety so two cubes aren't clones.
+// Backend-agnostic: today an InstrumentVoice renders on oscillators; the SAME voice maps to a Tone.Sampler
+// patch later (see `patch`) with zero change to the derivation.
+
+/** The minimal shape descriptor the audio layer reads (ShapeRow is a superset). */
+export interface AudioShape {
+  id: number
+  family: string
+  genus: number
+  rarity: string
+  euler_cost: number
+  orientable?: boolean // optional: until the WASM is rebuilt the field is absent ⇒ treat as orientable
+}
+
+export interface InstrumentVoice {
+  patch: string // family-derived instrument id — the future Tone.Sampler sample set ("rhodes","nylon"…)
+  wave: OscillatorType // the current oscillator-backend timbre (sine/triangle-leaning ⇒ stays ASMR-gentle)
+  detune: number // cents — id-seeded micro-detune so same-family shapes differ slightly
+  bright: number // 0..1 lowpass openness, from Euler cost (exotic shapes shimmer brighter)
+  space: number // 0..1 reverb/tail amount, from rarity (rarer = more spacious)
+  flip: boolean // non-orientable ⇒ a mirrored "chorus" double (the Orientability flip, made audible)
+}
+
+// Hand-picked hero instruments (by family) — warm/plucky/glassy to match each character; everyone else
+// derives a stable instrument from a hash of the family. Waves stay sine/triangle so the orrery never bites.
+const PATCH: Record<string, { patch: string; wave: OscillatorType }> = {
+  sphere: { patch: 'rhodes', wave: 'sine' }, // Pip — warm e-piano
+  cube: { patch: 'mallet', wave: 'triangle' }, // Boxy — boxy mallet
+  tetrahedron: { patch: 'pluck', wave: 'triangle' },
+  octahedron: { patch: 'glass', wave: 'triangle' }, // Spike — bright
+  dodecahedron: { patch: 'keys', wave: 'sine' }, // Dodi — courtly keys
+  icosahedron: { patch: 'keys', wave: 'sine' },
+  torus: { patch: 'pad', wave: 'sine' },
+  trefoil: { patch: 'nylon', wave: 'triangle' }, // Trey — plucked knot
+  klein_bottle: { patch: 'pad', wave: 'sine' }, // Kleine — burbling pad
+  mobius: { patch: 'pad', wave: 'triangle' }, // Mo — mirror pad
+  tesseract: { patch: 'celesta', wave: 'sine' }, // Tess — glassy 4D
+  cell_16: { patch: 'glass', wave: 'sine' }, // Hex — angular
+  lorenz: { patch: 'bell', wave: 'sine' }, // Lorrie — shimmer bell
+  utah_teapot: { patch: 'rhodes', wave: 'sine' },
+  // warped classics (Ssr) — timbre echoes their host shape
+  twisted_torus: { patch: 'pad', wave: 'sine' }, // Twirl — torus kin, a wound pad
+  cut_hollow_sphere: { patch: 'glass', wave: 'sine' }, // Dish — an open bowl rings glassy
+  blobby: { patch: 'pad', wave: 'sine' }, // Blobby — soft no-edges metaball
+  // fractal capstones (Transcendent)
+  mandelbox: { patch: 'bell', wave: 'sine' }, // Foldy — a metallic folded city
+  julia: { patch: 'celesta', wave: 'sine' }, // Jules — glassy 4D-shadow celesta
+  apollonian: { patch: 'glass', wave: 'sine' }, // Bubbles — a froth of nested spheres
+  kleinian: { patch: 'pad', wave: 'sine' }, // Spire — a spacious reflective cathedral pad
+}
+const FALLBACK_PATCHES = ['rhodes', 'keys', 'pluck', 'pad', 'mallet', 'glass', 'bell', 'nylon', 'celesta']
+const FALLBACK_WAVES: OscillatorType[] = ['sine', 'triangle', 'sine', 'triangle', 'sine']
+const RARITY_RANK: Record<string, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 5, Meta: 6, Transcendent: 7 }
+
+/** Deterministic instrument for a shape, derived purely from its topology descriptor. */
+export function instrumentForShape(s: AudioShape): InstrumentVoice {
+  const hero = PATCH[s.family]
+  const h = hash(s.family)
+  const variant = mod(s.id * 2654435761, 997) // id-seeded (Knuth) — stable per shape, no Math.random
+  return {
+    patch: hero?.patch ?? FALLBACK_PATCHES[h % FALLBACK_PATCHES.length],
+    wave: hero?.wave ?? FALLBACK_WAVES[h % FALLBACK_WAVES.length],
+    detune: (variant % 11) - 5, // ±5 cents
+    bright: clamp01(0.35 + 0.13 * s.euler_cost), // higher Euler cost (exotic) ⇒ brighter
+    space: clamp01((RARITY_RANK[s.rarity] ?? 0) / 5), // rarer ⇒ more reverb/tail
+    flip: s.orientable === false, // absent ⇒ orientable ⇒ no flip
+  }
+}
+
+const PENTA = PENTATONIC.length // 5 scale steps per octave
+
+/**
+ * Deterministic, always-in-scale note for a shape. The scale DEGREE comes from the id (spread across the
+ * 3-octave table); GENUS pulls the register down a whole octave per hole (heavier shapes sit lower), so a
+ * varied-genus loadout spreads across the register and chords read fuller. Still indexes SCALE ⇒ in-scale.
+ */
+export function noteForShape(s: AudioShape): number {
+  const base = mod(s.id, SCALE.length)
+  const drop = Math.min(s.genus, 2) * PENTA // genus → octaves down (capped at 2 so we stay on the table)
+  return SCALE[mod(base - drop, SCALE.length)]
 }
 
 /**
- * Build a meeting's chord: dedupe by pitch (keeping each pitch's first shape's timbre), sort low→high, and
- * cap to MAX_POLY. Pure + deterministic.
+ * Build a meeting's chord: dedupe by pitch (keeping each pitch's first shape's instrument), sort low→high,
+ * and cap to MAX_POLY. Pure + deterministic.
  */
-export function chordForMeeting(shapeIds: number[]): { midis: number[]; timbres: OscillatorType[] } {
-  const byPitch = new Map<number, OscillatorType>()
-  for (const id of shapeIds) {
-    const m = noteForShape(id)
-    if (!byPitch.has(m)) byPitch.set(m, timbreForShape(id))
+export function chordForMeeting(shapes: AudioShape[]): { midis: number[]; voices: InstrumentVoice[] } {
+  const byPitch = new Map<number, InstrumentVoice>()
+  for (const s of shapes) {
+    const m = noteForShape(s)
+    if (!byPitch.has(m)) byPitch.set(m, instrumentForShape(s))
   }
   const entries = [...byPitch.entries()].sort((a, b) => a[0] - b[0]).slice(0, MAX_POLY)
-  return { midis: entries.map((e) => e[0]), timbres: entries.map((e) => e[1]) }
+  return { midis: entries.map((e) => e[0]), voices: entries.map((e) => e[1]) }
 }
 
 /** Meetings at a given tick: groups (of shape ids) that share a cell, ≥2 each. Pure (mirrors the timeline). */
@@ -74,102 +150,5 @@ export function meetingsAtTick(
   return [...byCell.values()].filter((g) => g.length >= 2)
 }
 
-const midiToFreq = (m: number) => 440 * Math.pow(2, (m - 69) / 12)
-
-// ── Web Audio layer (shared context + master limiter + global voice cap) ──
-let master: GainNode | null = null
-let activeVoices: { osc: OscillatorNode; end: number }[] = []
-
-function masterChain(ac: AudioContext): GainNode {
-  if (master) return master
-  const g = ac.createGain()
-  g.gain.value = 0.55
-  // hard limiter — stacked chords are squeezed under the ceiling, never clip
-  const comp = ac.createDynamicsCompressor()
-  comp.threshold.value = -14
-  comp.knee.value = 6
-  comp.ratio.value = 12
-  comp.attack.value = 0.003
-  comp.release.value = 0.18
-  g.connect(comp).connect(ac.destination)
-  master = g
-  return g
-}
-
-/** Play a meeting chord on the shared context (plucky, quiet). Mute-aware; global polyphony-capped. */
-export function playChord(midis: number[], timbres: OscillatorType[]) {
-  if (useMute.getState().muted || midis.length === 0) return
-  try {
-    const ac = sharedAudioContext()
-    const out = masterChain(ac)
-    const t0 = ac.currentTime + 0.001
-    activeVoices = activeVoices.filter((v) => v.end > ac.currentTime) // reap finished
-    if (activeVoices.length > GLOBAL_POLY) {
-      // steal oldest
-      const steal = activeVoices.splice(0, activeVoices.length - GLOBAL_POLY)
-      for (const v of steal) try { v.osc.stop() } catch { /* already stopped */ }
-    }
-    const room = Math.max(1, GLOBAL_POLY - activeVoices.length)
-    midis.slice(0, room).forEach((m, i) => {
-      const osc = ac.createOscillator()
-      const g = ac.createGain()
-      osc.type = timbres[i] ?? 'sine'
-      osc.frequency.value = midiToFreq(m)
-      const dur = 0.6
-      g.gain.setValueAtTime(0, t0)
-      g.gain.linearRampToValueAtTime(VOICE_GAIN, t0 + 0.012)
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
-      osc.connect(g).connect(out)
-      osc.start(t0)
-      osc.stop(t0 + dur + 0.02)
-      activeVoices.push({ osc, end: t0 + dur })
-    })
-  } catch {
-    /* audio unavailable (no gesture / muted) — silent */
-  }
-}
-
-/**
- * The driver: mounted in the Orrery engine. Advances a tick accumulator in real time (paused via orreryUi,
- * silent when muted), and on each NEW integer tick plays the meeting chords for that tick — once per tick.
- */
-export function OrreryAudioDriver() {
-  const tickMs = useGame((s) => s.view?.orrery_tick_ms ?? 1000)
-  const orbits = useGame((s) => s.view?.orrery_orbits)
-  const loadout = useGame((s) => s.view?.loadout)
-  const orbitsRef = useRef(orbits)
-  orbitsRef.current = orbits
-  const loadoutRef = useRef(loadout)
-  loadoutRef.current = loadout
-  const paused = useOrreryUi((s) => s.paused)
-  const pausedRef = useRef(paused)
-  pausedRef.current = paused
-
-  useEffect(() => {
-    let raf = 0
-    let prev = performance.now()
-    let t = 0
-    let last = -1
-    const loop = (now: number) => {
-      const dt = now - prev
-      prev = now
-      if (!pausedRef.current && !useMute.getState().muted) t += dt / tickMs
-      const tick = Math.floor(t)
-      if (tick !== last) {
-        last = tick
-        const orbs = orbitsRef.current
-        const lo = loadoutRef.current
-        if (orbs && lo && orbs.length) {
-          for (const ids of meetingsAtTick(orbs, lo, tick)) {
-            const { midis, timbres } = chordForMeeting(ids)
-            playChord(midis, timbres)
-          }
-        }
-      }
-      raf = requestAnimationFrame(loop)
-    }
-    raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
-  }, [tickMs])
-  return null
-}
+/** MIDI note → frequency (Hz). Render-only; not used by the economy. */
+export const midiToFreq = (m: number) => 440 * Math.pow(2, (m - 69) / 12)

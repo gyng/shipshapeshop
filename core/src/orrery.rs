@@ -69,6 +69,10 @@ pub fn hex_region(radius: i32) -> Vec<(i32, i32)> {
             }
         }
     }
+    // Order CENTRE-OUT (ring by ring from the middle). Both the default placement and the auto-solver seed from
+    // the front of this list, so deployed shapes cluster in the centre instead of marching out from a far corner
+    // (which made Auto look like it "expanded" the floor). Stable tie-break keeps it deterministic.
+    out.sort_by_key(|&(q, r)| (hex_dist(q, r), q, r));
     out
 }
 /// A straight back-and-forth lane of `len` cells from `anchor` along `axis`: `anchor`, +1·d, …, +(len-1)·d,
@@ -83,6 +87,27 @@ pub fn lane_path(anchor: (i32, i32), axis: usize, len: u32) -> Vec<Cell> {
     offsets
         .into_iter()
         .map(|k| pack(anchor.0 + dq * k, anchor.1 + dr * k))
+        .collect()
+}
+
+/// A tight triangle loop: anchor → +axis → +(axis+1) → back. The three cells are pairwise adjacent (each
+/// consecutive step is a unit hex move), so the gem walks a clean 3-cell cycle. Period 3.
+pub fn triangle_path(anchor: (i32, i32), axis: usize) -> Vec<Cell> {
+    let (d0q, d0r) = HEX_DIRS[axis % 6];
+    let (d1q, d1r) = HEX_DIRS[(axis + 1) % 6];
+    vec![
+        pack(anchor.0, anchor.1),
+        pack(anchor.0 + d0q, anchor.1 + d0r),
+        pack(anchor.0 + d1q, anchor.1 + d1r),
+    ]
+}
+
+/// A hexagonal loop around the anchor: its six neighbours walked in order (each consecutive pair is adjacent).
+/// The anchor cell is the empty centre the gem circles. Period 6.
+pub fn ring_path(anchor: (i32, i32)) -> Vec<Cell> {
+    HEX_DIRS
+        .iter()
+        .map(|&(dq, dr)| pack(anchor.0 + dq, anchor.1 + dr))
         .collect()
 }
 

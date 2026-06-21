@@ -13,6 +13,9 @@ export interface Floater {
 
 let _id = 0
 
+// A tiny pulse the Shop/Workshop fire on a purchase so their corner mascot reacts (cheer line + flux burst).
+export const useMascotCheer = create<{ n: number; cheer: () => void }>((set) => ({ n: 0, cheer: () => set((s) => ({ n: s.n + 1 })) }))
+
 interface FloaterStore {
   items: Floater[]
   spawn: (text: string, opts?: { color?: string; x?: number; y?: number; big?: boolean }) => void
@@ -99,6 +102,14 @@ export const useSparks = create<SparkStore>((set) => ({
     setTimeout(() => set((s) => ({ sparks: s.sparks.filter((p) => !ids.has(p.id)) })), 1900)
   },
 }))
+
+// Celebratory spark burst centred on a button/element — the shared "you bought it" pop for the Shop and the
+// Workshop. Centralises the getBoundingClientRect → burst so every purchase reads the same.
+export function purchaseBurst(el: HTMLElement | null | undefined, opts: { hues?: string[]; count?: number; power?: number } = {}) {
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  useSparks.getState().burst(r.left + r.width / 2, r.top + r.height / 2, opts)
+}
 
 export function Sparks() {
   const sparks = useSparks((s) => s.sparks)

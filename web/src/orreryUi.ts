@@ -11,6 +11,11 @@ interface OrreryUi {
   toggleAllLines: () => void
 }
 
+// Live screen positions (as % of the orrery canvas) of each deployed gem — written by the 3D scene every
+// frame, read by the DOM flux-number overlay so a "+N ✦" pops over an actual shape rather than a fixed spot.
+// A plain ref (not store state) so the per-frame writes never trigger a React re-render.
+export const gemScreens: { current: { x: number; y: number }[] } = { current: [] }
+
 export const useOrreryUi = create<OrreryUi>((set) => ({
   paused: false,
   togglePause: () => set((s) => ({ paused: !s.paused })),

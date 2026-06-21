@@ -23,6 +23,11 @@ const HERO: Record<string, VoiceSignature> = {
   lorenz: { baseFreq: 286, waveform: 'triangle', jitter: 5.0, rate: 54 }, // Lorrie — chaotic, fluttery
   trefoil: { baseFreq: 256, waveform: 'triangle', jitter: 2.4, rate: 74 }, // Trey — self-interrupting knot
   utah_teapot: { baseFreq: 226, waveform: 'sine', jitter: 1.4, rate: 86 }, // Teapot — venerable
+  // Transcendent fractal capstones — bespoke voices for the headline tier
+  mandelbox: { baseFreq: 180, waveform: 'sine', jitter: 1.0, rate: 80 }, // Foldy — deep, cool, deliberate
+  julia: { baseFreq: 300, waveform: 'sine', jitter: 2.6, rate: 70 }, // Jules — ethereal, ever-shifting
+  apollonian: { baseFreq: 340, waveform: 'sine', jitter: 2.2, rate: 66 }, // Bubbles — bright, bubbly, inviting
+  kleinian: { baseFreq: 220, waveform: 'sine', jitter: 1.8, rate: 78 }, // Spire — resonant, cavernous, reflected
 }
 
 function hash(s: string): number {

@@ -2,13 +2,16 @@ import { useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Environment, Lightformer, Sparkles, Float, ContactShadows, OrbitControls, Grid } from '@react-three/drei'
 import * as THREE from 'three'
-import { getGeometry, OPEN_FAMILIES } from './geometry'
-import { RARITY_COLOR } from './Gem'
+import { OPEN_FAMILIES } from './geometry'
+import { shapeGeometry, useRelics } from './relics'
+import { RARITY_COLOR, sceneGemMatProps, sceneGemEmissiveBase } from './Gem'
+import { ScenePostFX } from './ScenePostFX'
+import { RenderTechBadge } from './RenderTechBadge'
 import { useGame, type ShapeRow } from '../game/store'
 import { sceneById } from '../content/cosmetics'
 import { useGfxPreset } from '../gfx'
 
-const RANK: Record<keyof typeof RARITY_COLOR, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4 }
+const RANK: Record<keyof typeof RARITY_COLOR, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4, Meta: 4, Transcendent: 4 }
 
 // A deployed gem on the floor: a jewel on a glowing ring, lit by its own coloured light, with rising Flux.
 // The ring + emissive "breathe" at a rarity-scaled rate (rarer = livelier), offset per-gem so they don't sync.
@@ -17,8 +20,10 @@ function FloorGem({ family, rarity, pos, id, onTap }: { family: string; rarity: 
   const ringRef = useRef<THREE.MeshBasicMaterial>(null)
   const gemRef = useRef<THREE.MeshPhysicalMaterial>(null)
   const rank = RANK[rarity]
+  const g = useGfxPreset()
   const freq = 1.2 + rank * 0.3
-  const baseEmissive = 0.45 + rank * 0.12
+  const baseEmissive = sceneGemEmissiveBase(rank, g.sceneGlass)
+  useRelics() // real Relic mesh once loaded
   useFrame((state, dt) => {
     if (ref.current) ref.current.rotation.y += dt * 0.7
     const w = 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * freq + pos[0] * 1.7)
@@ -37,7 +42,7 @@ function FloorGem({ family, rarity, pos, id, onTap }: { family: string; rarity: 
       <Float speed={2.2} rotationIntensity={0} floatIntensity={0.7} floatingRange={[0, 0.16]}>
         <mesh
           ref={ref}
-          geometry={getGeometry(family)}
+          geometry={shapeGeometry(family)}
           scale={0.4}
           castShadow
           onClick={(e) => {
@@ -47,18 +52,9 @@ function FloorGem({ family, rarity, pos, id, onTap }: { family: string; rarity: 
           onPointerOver={() => onTap && (document.body.style.cursor = 'pointer')}
           onPointerOut={() => (document.body.style.cursor = 'auto')}
         >
-          <meshPhysicalMaterial
-            ref={gemRef}
-            color={col}
-            metalness={0.3 + rank * 0.06}
-            roughness={0.08}
-            clearcoat={1}
-            clearcoatRoughness={0.08}
-            emissive={col}
-            emissiveIntensity={baseEmissive}
-            envMapIntensity={1.6}
-            side={OPEN_FAMILIES.has(family) ? THREE.DoubleSide : THREE.FrontSide}
-          />
+          {/* transmission glass (when gfx.sceneGlass) or opaque emissive PBR — shared recipe; the breathing
+              animation overrides emissiveIntensity via gemRef each frame (glass-aware base). */}
+          <meshPhysicalMaterial ref={gemRef} {...sceneGemMatProps(col, rank, OPEN_FAMILIES.has(family), g.sceneGlass)} emissiveIntensity={baseEmissive} />
         </mesh>
       </Float>
       <Sparkles count={10} scale={[0.5, 1.7, 0.5]} position={[0, 0.8, 0]} size={2.6} speed={0.7} noise={0.5} color="#ffcf6b" />
@@ -95,6 +91,7 @@ export function FactoryFloor({ shapes, loadout, boardCells = [], boardW = 5, boa
   const free: number[] = []
   for (let cell = 0; cell < boardW * boardH && free.length < openSlots; cell++) if (!used.has(cell)) free.push(cell)
   return (
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
     <Canvas dpr={g.dpr} shadows={g.shadows} gl={{ powerPreference: 'high-performance' }} camera={{ position: [0, 3.6, 6.2], fov: 42 }}>
       <color attach="background" args={['#0a0b14']} />
       <fog attach="fog" args={['#0a0b14', 9, 30]} />
@@ -146,6 +143,9 @@ export function FactoryFloor({ shapes, loadout, boardCells = [], boardW = 5, boa
         mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
         touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.ROTATE }}
       />
+      <ScenePostFX />
     </Canvas>
+      <RenderTechBadge tech="mesh" />
+    </div>
   )
 }

@@ -26,6 +26,10 @@ Cargo.lock
 .env
 .env.*
 !.env.example
+.dev.vars
+
+# Tooling artifacts (Playwright-MCP browser logs/screenshots — ephemeral, ~tens of MB)
+.playwright-mcp/
 
 # Source title art (large raw PNGs) — optimized WebP derivatives ship in web/public/titles
 assets/*.png

@@ -50,7 +50,7 @@ const TEMPLATES: ((a: ShapeRow, b: ShapeRow) => string)[] = [
   () => `offline cap is so generous now, came back to a MOUNTAIN of flux`,
   (a) => `${a.nick} said something profound just now or maybe i need sleep`,
   (a, b) => `${a.nick} ➜ ${b.nick} pipeline is the only economy i trust`,
-  () => `recrystallized again. the fourth dimension hits different`,
+  () => `ascended again. the fourth dimension hits different`,
   (a) => `is it just me or is ${a.nick} kind of… the blueprint`,
   (a) => `genuinely emotional about owning ${a.nick}, what a shape`,
 ]

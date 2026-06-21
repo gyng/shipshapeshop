@@ -15,7 +15,12 @@ export const MAT_RECESSED: CSSProperties = {
  *  the hundreds of small buttons stay pixel-identical.) Press physics live in juice.css. */
 export const MAT_CAP: CSSProperties = {
   background: 'linear-gradient(180deg, #2a2d3b 0%, #20222e 52%, #181922 100%)',
-  border: '1px solid var(--c-border-raised)',
+  // All-longhand borders (no `border` shorthand): callers that toggle a selected state set `borderColor`,
+  // which must be a value *change* here — if the base only had the shorthand, that toggle would ADD then
+  // REMOVE borderColor while borderTopColor stayed put, and React warns about the shorthand/longhand mix.
+  borderWidth: '1px',
+  borderStyle: 'solid',
+  borderColor: 'var(--c-border-raised)',
   borderTopColor: 'var(--c-border-raised-lit)',
   borderBottomColor: '#14151d',
   color: 'var(--c-text)',

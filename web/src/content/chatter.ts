@@ -27,6 +27,14 @@ export const CHATTER: Record<string, string[]> = {
   suzanne: ['Press the button and I appear.', 'Tested more than anyone alive. Monkey’s honour.'],
   spot: ['Moo — conformally, of course.', 'Parameterised with love.'],
   menger: ['I’m mostly holes. The rest is optional.', 'Infinite surface. Zero volume. Hold me.'],
+  mandelbulb: ['Zoom in close. There I am again — and again, and again.', 'Bulbs of bulbs of bulbs. It’s bulbs all the way down.', 'Folded eight times into myself. I never quite end.'],
+  mandelbox: ['Fold the box. Fold it again. Now you live in the creases.', 'An infinite city, and every street folds back into the last.'],
+  julia: ['Change one number and I become someone else entirely.', 'I’m the Mandelbrot’s daydream, spun through the fourth dimension.'],
+  apollonian: ['A circle, kissed by three more — then do it forever, smaller.', 'There’s always room for one more bubble. Always.'],
+  kleinian: ['Mirrors facing mirrors, building a cathedral with no final room.', 'Walk inward. The arches never run out.'],
+  twisted_torus: ['Same loop you know — I just gave it a half-turn of attitude.', 'Round and round, and my ribbon turns twice on the way.'],
+  cut_hollow_sphere: ['I’m a sphere that gave up on being whole. Now I hold things.', 'Half a shell, wide open. Pour something in.'],
+  blobby: ['Six arms, one heart — I reach out in every direction at once.', 'I bulge where I please. It’s very freeing.'],
   dini: ['I curve the wrong way at every point. On purpose.', 'Spiralling since before you looked.'],
 }
 

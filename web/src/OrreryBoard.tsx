@@ -1,13 +1,16 @@
-import { useEffect, useRef, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useGame } from './game/store'
 import { useOrreryUi } from './orreryUi'
 import { glyphOf } from './content/glyphs'
 import { RARITY_COLOR } from './three/Gem'
 
-// 2D top-down hex view of the orrery — the lightweight toggle alternative to the 3D floor. Gems walk their
-// straight lanes (tweened); hovering a gem (or its list row) lights its path. Honors the shared pause + show-all.
+// 2D top-down hex view of the orrery — the lightweight toggle alternative to the 3D floor. Shapes are
+// stationary on their cells; hovering one (or its list row) outlines it. The 3D view animates the flux itself.
 const SQ3 = Math.sqrt(3)
 const HEXPX = 22
+const DIRS: [number, number][] = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]
+const hexDist = (q: number, r: number) => (Math.abs(q) + Math.abs(q + r) + Math.abs(r)) / 2
+const ACT_COL: Record<string, string> = { multiply: '#ffcf6b', amplify: '#ffcf6b', redirect: '#b98cff', split: '#5fe0c6', absorb: '#ff6b8a', pass: '#ffcf6b' }
 
 function hexPoints(cx: number, cy: number, r: number): string {
   const pts: string[] = []
@@ -21,25 +24,32 @@ function hexPoints(cx: number, cy: number, r: number): string {
 export function OrreryBoard() {
   const view = useGame((s) => s.view)
   const shapes = useGame((s) => s.shapes)
-  const paused = useOrreryUi((s) => s.paused)
   const hoverId = useOrreryUi((s) => s.hoverId)
   const setHover = useOrreryUi((s) => s.setHover)
-  const showAllLines = useOrreryUi((s) => s.showAllLines)
-  const orbits = view?.orrery_orbits ?? []
+  const emitters = view?.flux_emitters ?? []
   const cells = view?.orrery_cells ?? []
   const loadout = view?.loadout ?? []
-  const tickMs = view?.orrery_tick_ms ?? 1000
-  const groupRefs = useRef<(SVGGElement | null)[]>([])
-  const orbitsRef = useRef(orbits)
-  orbitsRef.current = orbits
-  const pausedRef = useRef(paused)
-  pausedRef.current = paused
+  const radius = view?.orrery_radius ?? 4
 
   const a2d = (q: number, r: number): [number, number] => [HEXPX * SQ3 * (q + r / 2), HEXPX * 1.5 * r]
-  const pathStr = (path: [number, number][]): string => {
-    const pts = path.map((c) => { const [x, y] = a2d(c[0], c[1]); return `${x.toFixed(1)},${y.toFixed(1)}` })
-    if (path.length) { const [x, y] = a2d(path[0][0], path[0][1]); pts.push(`${x.toFixed(1)},${y.toFixed(1)}`) }
-    return pts.join(' ')
+
+  // occupant lookup + a beam trace mirroring flux::trace, so the 2D view shows the same flowing flux as the 3D.
+  const occ = useMemo(() => { const m = new Map<string, (typeof emitters)[number]>(); for (const e of emitters) m.set(`${e.cell[0]},${e.cell[1]}`, e); return m }, [emitters])
+  const tracePts = (sq: number, sr: number, dir0: number): string => {
+    const out: string[] = [a2d(sq, sr).map((n) => n.toFixed(1)).join(',')]
+    let q = sq, r = sr, dir = dir0
+    for (let s = 0; s < 24; s++) {
+      q += DIRS[dir][0]; r += DIRS[dir][1]
+      out.push(a2d(q, r).map((n) => n.toFixed(1)).join(','))
+      if (hexDist(q, r) > radius) break
+      const e = occ.get(`${q},${r}`)
+      if (e) {
+        if (e.act === 'absorb' || e.act2 === 'absorb') break
+        const redir = e.act === 'redirect' ? e.act_turn : e.act2 === 'redirect' ? e.act2_turn : 0
+        if (redir) dir = (((dir + redir) % 6) + 6) % 6
+      }
+    }
+    return out.join(' ')
   }
 
   const view2 = useMemo(() => {
@@ -52,86 +62,60 @@ export function OrreryBoard() {
     return `${minX - pad} ${minY - pad} ${maxX - minX + pad * 2} ${maxY - minY + pad * 2}`
   }, [cells])
 
-  const litCells = useMemo(() => {
-    const set = new Set<string>()
-    if (hoverId == null) return set
-    orbits[loadout.indexOf(hoverId)]?.path.forEach((c) => set.add(`${c[0]},${c[1]}`))
-    return set
-  }, [hoverId, loadout, orbits])
-
-  useEffect(() => {
-    let raf = 0
-    let prev = performance.now()
-    let t = 0
-    const ease = (f: number) => f * f * (3 - 2 * f)
-    const loop = (now: number) => {
-      const dt = now - prev
-      prev = now
-      if (!pausedRef.current) t += dt / tickMs
-      const base = Math.floor(t)
-      const frac = ease(t - base)
-      const orbs = orbitsRef.current
-      for (let i = 0; i < orbs.length; i++) {
-        const orb = orbs[i]
-        const g = groupRefs.current[i]
-        if (!g || !orb || orb.period === 0 || orb.path.length === 0) continue
-        const tt = pausedRef.current ? 0 : base // paused → rest at start cell
-        const c0 = orb.path[(orb.phase + tt) % orb.period]
-        const c1 = orb.path[(orb.phase + tt + 1) % orb.period]
-        if (!c0 || !c1) continue
-        const [x0, y0] = a2d(c0[0], c0[1])
-        const [x1, y1] = a2d(c1[0], c1[1])
-        const x = x0 + (x1 - x0) * (pausedRef.current ? 0 : frac)
-        const y = y0 + (y1 - y0) * (pausedRef.current ? 0 : frac)
-        if (!Number.isFinite(x) || !Number.isFinite(y)) continue
-        g.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)})`)
-      }
-      raf = requestAnimationFrame(loop)
-    }
-    raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
-  }, [tickMs])
-
   return (
     <svg viewBox={view2} style={{ width: '100%', height: '100%', display: 'block', touchAction: 'none' }}>
-      {/* hex pads */}
+      {/* the placeable floor cells */}
       {cells.map(([q, r]) => {
         const [x, y] = a2d(q, r)
-        const lit = litCells.has(`${q},${r}`)
         return (
           <polygon
             key={`${q},${r}`}
             points={hexPoints(x, y, HEXPX * 0.96)}
-            fill={lit ? 'rgba(255,207,107,0.16)' : 'rgba(255,255,255,0.03)'}
-            stroke={lit ? '#ffcf6b' : 'rgba(255,255,255,0.10)'}
+            fill="rgba(255,255,255,0.03)"
+            stroke="rgba(255,255,255,0.10)"
             strokeWidth={1}
-            style={{ transition: 'fill 0.2s, stroke 0.2s' }}
           />
         )
       })}
-      {/* all lanes (subtle) when toggled on */}
-      {showAllLines && orbits.map((orb, i) =>
-        orb.path.length > 1 ? <polyline key={`all${loadout[i]}`} points={pathStr(orb.path)} fill="none" stroke="rgba(95,224,198,0.30)" strokeWidth={1.5} /> : null,
-      )}
-      {/* hovered lane (bright) */}
-      {hoverId != null && (() => {
-        const orb = orbits[loadout.indexOf(hoverId)]
-        const sh = shapes[hoverId]
-        return orb && sh && orb.path.length > 1 ? <polyline points={pathStr(orb.path)} fill="none" stroke={RARITY_COLOR[sh.rarity]} strokeWidth={2.5} opacity={0.95} /> : null
-      })()}
-      {/* gems */}
-      {orbits.map((_, i) => {
+      {/* flux beams — each emitter's traced path(s); round bodies/scatter fan all six, beams fire their facing */}
+      {emitters.map((e, i) => {
         const sh = shapes[loadout[i]]
         if (!sh) return null
+        const hov = hoverId === sh.id
+        const dirs = e.emit === 'rotating' || e.emit === 'scatter' ? [0, 1, 2, 3, 4, 5] : [e.dir]
+        const col = ACT_COL[e.act] ?? '#ffcf6b'
+        return (
+          <g key={`beam-${loadout[i]}`}>
+            {dirs.map((d) => (
+              <polyline
+                key={d}
+                points={tracePts(e.cell[0], e.cell[1], d)}
+                fill="none"
+                stroke={col}
+                strokeWidth={hov ? 2.4 : 1.3}
+                strokeOpacity={hov ? 0.9 : 0.38}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ strokeDasharray: '3 7', animation: 'flux-flow 0.7s linear infinite' }}
+              />
+            ))}
+          </g>
+        )
+      })}
+      {/* stationary gems at their placement cells */}
+      {emitters.map((e, i) => {
+        const sh = shapes[loadout[i]]
+        if (!sh) return null
+        const [x, y] = a2d(e.cell[0], e.cell[1])
         return (
           <g
             key={loadout[i]}
-            ref={(el) => { groupRefs.current[i] = el }}
+            transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`}
             onPointerOver={() => setHover(sh.id)}
             onPointerOut={() => setHover(null)}
             style={{ cursor: 'pointer' }}
           >
-            <circle r={13} fill="rgba(14,15,22,0.92)" stroke="rgba(255,255,255,0.22)" strokeWidth={1} />
+            <circle r={13} fill="rgba(14,15,22,0.92)" stroke={hoverId === sh.id ? RARITY_COLOR[sh.rarity] : 'rgba(255,255,255,0.22)'} strokeWidth={hoverId === sh.id ? 2 : 1} />
             <text textAnchor="middle" dominantBaseline="central" fontSize={16}>{glyphOf(sh.family)}</text>
           </g>
         )

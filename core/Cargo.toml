@@ -3,7 +3,7 @@ name = "shipshape-core"
 version = "0.0.0"
 edition = "2021"
 description = "Ship Shape Shop — deterministic simulation core (compiled to WASM)."
-license = "MIT"
+license = "MIT OR Apache-2.0"
 
 [lib]
 # cdylib → WASM for the web app; rlib → native `cargo test` of the same code.
