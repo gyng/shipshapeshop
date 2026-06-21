@@ -1,0 +1,24 @@
+{
+  // shape-gacha signalling relay — this file IS the infrastructure-as-code (no Terraform needed for a single
+  // Worker + Durable Object). `wrangler deploy` reconciles the deployed state to match this.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "shape-gacha-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-03-01",
+  // No custom `limits.cpu_ms` — that's a paid-only knob. The free plan auto-enforces its own per-invocation
+  // CPU cap (~10ms), which is a tighter runaway guard than we'd set anyway. (Add `limits` only on a paid plan.)
+  // Structured logs/metrics in the dashboard, so you can watch volume and set the billing alert intelligently.
+  "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [{ "name": "RELAY", "class_name": "RelayDO" }]
+  },
+  "migrations": [
+    // SQLite-backed DO class → eligible for the Durable Objects **free tier**. We never write to it (the relay
+    // stores nothing); the SQLite backend is purely what unlocks the free pricing tier.
+    { "tag": "v1", "new_sqlite_classes": ["RelayDO"] }
+  ],
+  // MAX_CONNECTIONS: bound concurrent sockets per instance (memory + fan-out cost).
+  // APP_KEY: soft app-scoping — clients must connect with `?k=<APP_KEY>`; the public Nostr network is turned
+  //   away. NOT a secret (it ships in the client bundle); it just stops this being an open public relay.
+  "vars": { "MAX_CONNECTIONS": "400", "APP_KEY": "sg-chatlas-relay-1" }
+}
