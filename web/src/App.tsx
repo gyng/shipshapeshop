@@ -336,7 +336,7 @@ function IdleFlux() {
 
 // Dev toolbar — compiled out at release via DEV_MODE (see devmode.ts).
 function DevBar() {
-  const { devOpen, toggleDev, devAddFlux, devAddShards, devUnlockAll, devOrreryPreset, recrystallize, resetSave, setBanner, bannerDefs, view } = useGame()
+  const { devOpen, toggleDev, devAddFlux, devAddShards, devUnlockAll, devResetUnlocks, devOrreryPreset, recrystallize, resetSave, setBanner, bannerDefs, view } = useGame()
   if (!DEV_MODE || !devOpen) return null
   const curBanner = bannerDefs[view?.current_banner ?? 0]
   const curBannerName = curBanner ? BANNER_INFO[curBanner.key]?.name ?? curBanner.key : '—'
@@ -346,6 +346,7 @@ function DevBar() {
       <button style={S.devBtn} onClick={devAddFlux}>+1M <span style={S.fluxIcon}>✦</span></button>
       <button style={S.devBtn} onClick={devAddShards}>+2k <span style={S.shardIcon}>◈</span></button>
       <button style={S.devBtn} onClick={devUnlockAll}>Unlock all</button>
+      <button style={S.devBtn} onClick={devResetUnlocks} title="reset the collection (shapes, recipes, achievements, bonds, ★, cosmetics) — keeps Flux/upgrades/prestige so you can re-pull and re-watch first-time moments">Reset unlocks</button>
       <span style={S.devTitle}>orrery:</span>
       <button style={S.devBtn} onClick={() => devOrreryPreset(0)} title="early-game loadout (2 commons)">Early</button>
       <button style={S.devBtn} onClick={() => devOrreryPreset(1)} title="mid-game loadout (5, to Epic)">Mid</button>

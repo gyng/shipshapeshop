@@ -263,6 +263,7 @@ interface Store {
   devAddFlux: () => void
   devAddShards: () => void
   devUnlockAll: () => void
+  devResetUnlocks: () => void
   devOrreryPreset: (tier: number) => void
   resetSave: () => void
   exportSave: () => string
@@ -596,6 +597,11 @@ export const useGame = create<Store>((set, get) => ({
   },
   devUnlockAll: () => {
     game?.dev_unlock_all()
+    get().refresh()
+    persist()
+  },
+  devResetUnlocks: () => {
+    game?.dev_reset_unlocks()
     get().refresh()
     persist()
   },
