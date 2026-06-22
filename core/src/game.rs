@@ -3196,6 +3196,38 @@ mod tests {
     }
 
     #[test]
+    fn dev_reset_unlocks_clears_collection_keeps_currency() {
+        let mut g = GameState::new(1, 0.0);
+        // build up a pile of progress
+        g.dev_unlock_all();
+        g.discovered.iter_mut().for_each(|d| *d = true);
+        g.forged.iter_mut().for_each(|f| *f = true);
+        g.milestones_done.iter_mut().for_each(|m| *m = true);
+        g.bonds[1] = 50;
+        g.cosmetics.push(5);
+        g.scene = 3;
+        g.total_forges = 12;
+        let flux = g.flux;
+        let upgrades = g.upgrades.clone();
+
+        g.dev_reset_unlocks();
+
+        // the collection is wiped back to the lone starter…
+        assert_eq!(g.distinct_owned(), 1, "only the starter remains owned");
+        assert_eq!(g.owned[STARTER_SHAPE], 1);
+        assert!(g.discovered.iter().all(|&d| !d), "recipes reset");
+        assert!(g.forged.iter().all(|&f| !f), "forged reset");
+        assert!(g.milestones_done.iter().all(|&m| !m), "achievements reset");
+        assert!(g.bonds.iter().all(|&b| b == 0), "bonds reset");
+        assert!(g.cosmetics.is_empty(), "cosmetics reset");
+        assert_eq!(g.scene, 0, "scene back to default");
+        assert_eq!(g.total_forges, 0);
+        // …but currency + upgrades are kept, so you can immediately re-pull
+        assert_eq!(g.flux, flux, "Flux is preserved");
+        assert_eq!(g.upgrades, upgrades, "upgrades preserved");
+    }
+
+    #[test]
     fn recrystallize_grants_facets_and_perks_apply() {
         let mut g = GameState::new(1, 0.0);
         for i in 0..content::PULL_COUNT {
