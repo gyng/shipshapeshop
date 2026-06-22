@@ -13,25 +13,35 @@ export interface BVHNode {
   triStart: number // first triangle (leaf) — else -1
   triCount: number // triangle count (leaf) — else 0
 }
-export interface Tri { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; cx: number; cy: number; cz: number; min: THREE.Vector3; max: THREE.Vector3 }
+// `na/nb/nc` = per-vertex NORMALS (smooth shading) carried alongside the positions so the GPU tracer can
+// barycentrically interpolate a smooth surface normal at the hit instead of using the flat face normal — the
+// relic meshes are 40-55k-tri scans, so a per-facet normal reads as low-poly/faceted, especially through the
+// refraction. If the source geometry lacks usable normals, these fall back to the geometric face normal.
+export interface Tri { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; na: THREE.Vector3; nb: THREE.Vector3; nc: THREE.Vector3; cx: number; cy: number; cz: number; min: THREE.Vector3; max: THREE.Vector3 }
 export interface BVHData { nodes: BVHNode[]; tris: Tri[] }
 export interface PackedBVH {
-  triTex: THREE.DataTexture // 3 texels/tri (a,b,c positions)
+  triTex: THREE.DataTexture // 6 texels/tri (a,b,c positions then na,nb,nc vertex normals)
   nodeTex: THREE.DataTexture // 2 texels/node
   texW: number
   triCount: number
   nodeCount: number
 }
 
-const MAX_LEAF = 2 // triangles per leaf
+// texels per triangle in triTex: 3 positions (a,b,c) + 3 vertex normals (na,nb,nc).
+export const TRI_TEXELS = 6
+
+const MAX_LEAF = 4 // triangles per leaf (the shader loops cnt tris/leaf, so this is pixel-identical; shallower tree → ~10-20% faster traversal + faster build)
 const MAX_DEPTH = 40
 
 /** Build the BVH tree (testable): a flat node array + the leaf-ordered triangle list. */
 export function buildBVHData(geo: THREE.BufferGeometry): BVHData {
   const pos = geo.attributes.position as THREE.BufferAttribute
+  const nrm = geo.attributes.normal as THREE.BufferAttribute | undefined // per-vertex smooth normals (may be absent)
   const index = geo.index
   const triCount = index ? index.count / 3 : Math.floor(pos.count / 3)
   const all: Tri[] = []
+  // a per-vertex normal from the attribute, or zero if there's none → packBVH falls back to the face normal.
+  const vn = (i: number): THREE.Vector3 => (nrm ? new THREE.Vector3(nrm.getX(i), nrm.getY(i), nrm.getZ(i)) : new THREE.Vector3())
   for (let f = 0; f < triCount; f++) {
     const ia = index ? index.getX(3 * f) : 3 * f
     const ib = index ? index.getX(3 * f + 1) : 3 * f + 1
@@ -41,7 +51,7 @@ export function buildBVHData(geo: THREE.BufferGeometry): BVHData {
     const c = new THREE.Vector3(pos.getX(ic), pos.getY(ic), pos.getZ(ic))
     const min = a.clone().min(b).min(c)
     const max = a.clone().max(b).max(c)
-    all.push({ a, b, c, cx: (a.x + b.x + c.x) / 3, cy: (a.y + b.y + c.y) / 3, cz: (a.z + b.z + c.z) / 3, min, max })
+    all.push({ a, b, c, na: vn(ia), nb: vn(ib), nc: vn(ic), cx: (a.x + b.x + c.x) / 3, cy: (a.y + b.y + c.y) / 3, cz: (a.z + b.z + c.z) / 3, min, max })
   }
 
   const nodes: BVHNode[] = []
@@ -99,11 +109,24 @@ function makeTex(texels: number, fill: (i: number, out: Float32Array, o: number)
 /** Pack a built BVH into the two float textures the shader reads. */
 export function packBVH(data: BVHData): PackedBVH {
   const { nodes, tris } = data
-  // triangle texture: 3 texels/tri = a, b, c positions
-  const triPacked = makeTex(tris.length * 3, (i, out, o) => {
-    const t = tris[(i / 3) | 0]
-    const v = i % 3 === 0 ? t.a : i % 3 === 1 ? t.b : t.c
-    out[o] = v.x; out[o + 1] = v.y; out[o + 2] = v.z; out[o + 3] = 0
+  // triangle texture: TRI_TEXELS (6) texels/tri = a, b, c positions then na, nb, nc vertex normals.
+  // For each triangle we precompute the geometric face normal so any missing/degenerate vertex normal
+  // (zero-length, as flagged by buildBVHData when the source geometry has no normal attribute) falls back to
+  // it — the GPU then interpolates real per-vertex normals where present and the flat normal where they aren't.
+  const triPacked = makeTex(tris.length * TRI_TEXELS, (i, out, o) => {
+    const t = tris[(i / TRI_TEXELS) | 0]
+    const slot = i % TRI_TEXELS // 0,1,2 = positions a,b,c ; 3,4,5 = normals na,nb,nc
+    if (slot < 3) {
+      const v = slot === 0 ? t.a : slot === 1 ? t.b : t.c
+      out[o] = v.x; out[o + 1] = v.y; out[o + 2] = v.z; out[o + 3] = 0
+    } else {
+      const n = slot === 3 ? t.na : slot === 4 ? t.nb : t.nc
+      // geometric (face) normal as the fallback when this vertex normal is absent/degenerate
+      const fn = t.b.clone().sub(t.a).cross(t.c.clone().sub(t.a))
+      const fl = fn.length()
+      const safe = n.lengthSq() > 1e-12 ? n : fl > 1e-12 ? fn.multiplyScalar(1 / fl) : new THREE.Vector3(0, 0, 1)
+      out[o] = safe.x; out[o + 1] = safe.y; out[o + 2] = safe.z; out[o + 3] = 0
+    }
   })
   // node texture: 2 texels/node.
   //   texel0 = (min.xyz, leaf ? triStart : leftChild)

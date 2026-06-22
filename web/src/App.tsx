@@ -17,9 +17,10 @@ import { KINSHIP } from './content/kinship'
 import { SHIP_SCENES, useShips, hasShip, availableShips } from './content/ships'
 import { glyphOf } from './content/glyphs'
 import { fontOf } from './content/fonts'
-import { useGfx, presetFor, PT_PRESETS, type Quality, type PathTraceScope, type PathTraceQuality } from './gfx'
+import { useGfx, presetFor, PT_PRESETS, useFpsWatchdog, type Quality, type PathTraceScope, type PathTraceQuality } from './gfx'
 import { UPGRADE_INFO, DOCTRINE_EXCLUSIONS } from './content/upgrades'
 import { WorkshopTree } from './WorkshopTree'
+import { ExpeditionView } from './ExpeditionView'
 import { MILESTONE_INFO, milestoneReward } from './content/milestones'
 import { FACET_INFO } from './content/facets'
 import { chatterFor } from './content/chatter'
@@ -79,8 +80,11 @@ function useFluxDisplay(): number {
   return disp
 }
 
-type Tab = 'engine' | 'workshop' | 'gacha' | 'room' | 'chatlas' | 'gallery' | 'forge' | 'shop' | 'ledger'
-const TABS: Tab[] = ['engine', 'workshop', 'gacha', 'room', 'chatlas', 'gallery', 'forge', 'shop', 'ledger']
+type Tab = 'engine' | 'workshop' | 'gacha' | 'room' | 'chatlas' | 'gallery' | 'forge' | 'shop' | 'ledger' | 'expedition'
+const TABS: Tab[] = ['engine', 'expedition', 'workshop', 'gacha', 'room', 'chatlas', 'gallery', 'forge', 'shop', 'ledger']
+// Expeditions (the opt-in idle RPG) is gated behind the "Charter Expeditions" Workshop upgrade — a deliberate
+// opt-in purchase, matching how auto-pull gates automation. The nav button stays hidden until it's bought.
+const CHARTER_KEY = 'charter_expeditions'
 
 // Proper line icons per tab (inherit currentColor, so active/inactive nav colour applies). No emoji.
 function TabIcon({ tab }: { tab: Tab }) {
@@ -94,6 +98,7 @@ function TabIcon({ tab }: { tab: Tab }) {
     forge: <><path d="M4 20l7.5-7.5" /><path d="M11.5 5.5l7 7-3 3-7-7z" /></>, // hammer
     shop: <><path d="M5 8h14l-1.2 12.5H6.2z" /><path d="M8.8 8V6.2a3.2 3.2 0 016.4 0V8" /></>, // shopping bag
     ledger: <><path d="M4 20.5h16" /><path d="M6.5 20.5V11M11 20.5V5M15.5 20.5v-6M20 20.5V8" /></>, // bar chart
+    expedition: <><path d="M14.5 4.5l5 5-9 9-5 1 1-5z" /><path d="M12.5 6.5l5 5" /><path d="M3.5 20.5l3-3" /></>, // explorer's blade
   }
   return (
     <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
@@ -138,6 +143,8 @@ export function App() {
   useEffect(() => {
     void boot()
   }, [boot])
+  // Passive FPS watchdog: if the frame rate stays low, auto-step graphics down ONCE (never raises). Mounted once.
+  useFpsWatchdog()
   // Equipped Soundscape (Shop cosmetic) pins the lofi bed's mood; null = auto. Applies at the next section.
   const soundscapeStyle = useGame((s) => soundscapeById(s.view?.equipped?.[SLOT_SOUNDSCAPE] ?? 0).style)
   useEffect(() => {
@@ -174,6 +181,12 @@ export function App() {
   const newCutscenes = availableShips(navShapes, navOwned, shipSeen).length
   // nudge the player to the Orrery when it's idle: they own shapes but have none deployed (so it earns nothing)
   const orreryEmpty = useGame((s) => !!s.view && s.view.loadout.length === 0 && s.view.distinct_owned > 0)
+  // Expeditions stays out of the nav until the "Charter Expeditions" Workshop upgrade is bought (opt-in depth).
+  const expUnlocked = useGame((s) => {
+    if (!s.view) return false
+    const idx = s.upgradeDefs.findIndex((u) => u.key === CHARTER_KEY)
+    return idx >= 0 && (s.view.upgrades[idx] ?? 0) > 0
+  })
   const tr = useT()
 
   // Cursor-sheen + click-ripple on the primary CTA caps (delegated once, app-wide).
@@ -207,15 +220,21 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // Primary-button CLICK juice: a satisfying gold spark burst off the button when pressed — reuses the game's
-  // own spark system so it reads as the same "particle" language everywhere. One delegated listener covers every
-  // primary button (.btn-primary / the main-CTA .pull-cap); disabled buttons don't dispatch click anyway.
+  // Primary-button CLICK juice: a celebratory mote firework radiating outward from the click point — reuses the
+  // game's own spark system so it reads as the same "particle" language everywhere, but bigger/brighter than the
+  // hover drips (the click is the engineered pop). One delegated listener covers every primary button
+  // (.btn-primary / the main-CTA .pull-cap); disabled buttons don't dispatch click anyway. Reduced-motion skips it.
   useEffect(() => {
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (reduce) return
     const onClick = (e: MouseEvent) => {
       const btn = (e.target as HTMLElement)?.closest?.('.btn-primary, .pull-cap') as HTMLElement | null
       if (!btn || btn.hasAttribute('disabled')) return
       const r = btn.getBoundingClientRect()
-      useSparks.getState().burst(r.left + r.width / 2, r.top + r.height * 0.4, { count: 14, power: 1.3, hues: ['#fff6dc', '#ffe6a8', '#ffcf6b', '#ffae3a'] })
+      // burst from the actual click point (falling back to the button centre for keyboard activation)
+      const cx = e.clientX || r.left + r.width / 2
+      const cy = e.clientY || r.top + r.height * 0.4
+      useSparks.getState().burst(cx, cy, { count: 14, power: 1.6, hues: ['#fff6dc', '#ffe6a8', '#ffcf6b', '#ffae3a'] })
     }
     window.addEventListener('click', onClick)
     return () => window.removeEventListener('click', onClick)
@@ -229,7 +248,8 @@ export function App() {
       <Hud />
       <OrreryBedDriver />{/* the generative lofi bed — mounted app-wide so it plays on every screen, not just the orrery */}
       <NavRail>
-        {TABS.map((t, i) => (
+        {TABS.map((t, i) =>
+          t === 'expedition' && !expUnlocked ? null : (
           <button key={t} onClick={() => { if (t !== tab) sfxTab(); setTab(t) }} title={`${tr('nav.shortcutTitle')}${i + 1}`} aria-current={tab === t ? 'page' : undefined} style={{ ...S.navBtn, ...(t === 'engine' ? S.navBtnImportant : {}), ...(tab === t ? S.navBtnActive : {}) }}>
             <TabIcon tab={t} />
             <span>{tr(t === 'gacha' ? 'nav.pull' : `nav.${t}`)}</span>
@@ -254,6 +274,7 @@ export function App() {
           {tab === 'chatlas' && <ChatlasView />}
           {tab === 'gallery' && <GalleryView onInspect={setInspect} />}
           {tab === 'engine' && <EngineView />}
+          {tab === 'expedition' && <><ExpeditionView /><MascotOverlay family="trefoil" name={tr('expedition.mascot.name')} lines={[tr('expedition.mascot.line'), tr('expedition.mascot.line2'), tr('expedition.mascot.line3')]} thanks={tr('expedition.mascot.thanks')} /></>}
           {tab === 'workshop' && <WorkshopView />}
           {tab === 'forge' && <ForgeView />}
           {tab === 'shop' && <ShopView />}
@@ -277,6 +298,7 @@ export function App() {
       <FpsMeter />
       <IdleFlux />
       <MilestoneToast />
+      <WatchdogToast />
       <ChatlasNetDriver />
       <ChatlasBroadcaster />
       <ChatlasChime />
@@ -597,8 +619,12 @@ function Hud() {
   if (!view) return null
   return (
     <header style={S.hud}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 'var(--sp-3)', minWidth: 0 }}>
-        <CuratorBadge compact />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', minWidth: 0 }}>
+        {/* rank badge with the wordmark tucked BENEATH it (was an absolutely-centered wordmark that overlapped the sides) */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 3 }}>
+          <CuratorBadge compact />
+          <div className="app-title" aria-hidden>{tr('app.title')}</div>
+        </div>
         <Tooltip content={<FluxTooltipContent />}>
           <div style={{ cursor: 'help' }}>
             <span style={S.fluxLabel}><span style={S.fluxIcon}>✦</span> {tr('hud.flux')}</span>
@@ -607,8 +633,6 @@ function Hud() {
           </div>
         </Tooltip>
       </div>
-      {/* centered wordmark — after the flux block in DOM, absolutely centered; desktop only (no middle room when narrow) */}
-      <div className="app-title" aria-hidden>{tr('app.title')}</div>
       <div style={S.hudStats}>
         <MusicTransport />
         <NowPlaying />{/* right-aligned, before the stat readouts */}
@@ -1973,7 +1997,7 @@ function UpgradesPanel() {
         </button>
         {!maxed && !can && (
           <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--c-text-faint)', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
-            {view.flux < flux && <>{tr('workshop.need', { n: fmt(flux - view.flux) })} <span style={S.fluxIcon}>✦</span></>}
+            {view.flux < flux && <>{tr('workshop.need', { n: fmt(flux - view.flux) })} <span style={S.fluxIcon}>✦</span>{view.rate_per_hr > 0 && <span style={{ opacity: 0.7 }}> · {fmtEta(flux - view.flux, view.rate_per_hr)}</span>}</>}
             {view.shards < shards && <>{view.flux < flux ? ' · ' : ''}{tr('workshop.need', { n: String(shards - view.shards) })} <span style={S.shardIcon}>◈</span></>}
           </span>
         )}
@@ -2152,7 +2176,49 @@ function WorkshopView() {
       <MascotOverlay family="cylinder" name={tr('workshop.mascot.name')} lines={[tr('workshop.mascot.line'), tr('workshop.mascot.line2'), tr('workshop.mascot.line3')]} thanks={tr('workshop.mascot.thanks')} />
       {/* day-to-day flux upgrades first; the prestige Facets meta-tree below (only shown after the first ascent) */}
       <UpgradesPanel />
+      <ExpeditionPerksPanel />
       <FacetsPanel />
+    </div>
+  )
+}
+
+// Echoes-bought expedition upgrades, surfaced in the Workshop (only once Expeditions is chartered). Inert to
+// the core economy — they affect expeditions only.
+function ExpeditionPerksPanel() {
+  const view = useGame((s) => s.view)
+  const exp = useGame((s) => s.expContent)
+  const upgradeDefs = useGame((s) => s.upgradeDefs)
+  const buyExpPerk = useGame((s) => s.buyExpPerk)
+  const tr = useT()
+  if (!view || !exp) return null
+  const charterIdx = upgradeDefs.findIndex((u) => u.key === 'charter_expeditions')
+  if (charterIdx < 0 || (view.upgrades[charterIdx] ?? 0) === 0) return null // hidden until chartered
+  return (
+    <div style={{ marginTop: 20 }}>
+      <h4 style={{ margin: '0 0 2px', fontSize: 'var(--fs-h4, 16px)' }}>✶ {tr('exp.perks')}</h4>
+      <p style={{ margin: '0 0 10px', fontSize: 'var(--fs-caption, 12px)', opacity: 0.65 }}>{tr('exp.perksHint')}</p>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {exp.perks.map((p, i) => {
+          const lvl = view.exp_perks[i] ?? 0
+          const maxed = lvl >= p.max_level
+          const cost = view.exp_perk_costs[i] ?? 0
+          const afford = view.echoes >= cost
+          return (
+            <div key={p.key} style={{ flex: '1 1 220px', display: 'flex', flexDirection: 'column', gap: 4, padding: 12, borderRadius: 10, border: '1px solid rgba(155,140,255,0.25)', background: 'rgba(155,140,255,0.06)' }}>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>{tr(`exp.perk.${p.key}`)}</span>
+              <span style={{ fontSize: 12, opacity: 0.7, minHeight: 32 }}>{tr(`exp.perk.${p.key}.desc`)}</span>
+              <span style={{ fontSize: 11, opacity: 0.6 }}>{tr('exp.lvl', { lvl, max: p.max_level })}</span>
+              <button
+                style={{ marginTop: 4, padding: '6px 8px', borderRadius: 8, border: '1px solid #9b8cff', background: maxed ? 'rgba(95,224,198,0.12)' : 'transparent', color: maxed ? '#5fe0c6' : '#9b8cff', cursor: maxed || !afford ? 'default' : 'pointer', opacity: maxed || !afford ? 0.5 : 1, fontWeight: 600 }}
+                disabled={maxed || !afford}
+                onClick={() => buyExpPerk(i)}
+              >
+                {maxed ? tr('exp.maxed') : `✶ ${cost.toLocaleString()}`}
+              </button>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -2564,6 +2630,19 @@ function fmtAway(ms: number): string {
   return `${m}m`
 }
 
+// Time to afford a Flux `deficit` at the live Flux/hr `rate` — the "~5m" estimate shown on purchasable cards.
+// Returns '' when already affordable, '—' when the rate is zero (no estimate possible).
+function fmtEta(deficit: number, rate: number): string {
+  if (deficit <= 0) return ''
+  if (rate <= 0) return '—'
+  const sec = (deficit / rate) * 3600
+  if (sec < 90) return `~${Math.max(1, Math.ceil(sec))}s`
+  if (sec < 5400) return `~${Math.round(sec / 60)}m`
+  const hours = sec / 3600
+  if (hours < 48) return `~${Math.round(hours)}h`
+  return `~${Math.round(hours / 24)}d`
+}
+
 // "Welcome back, Curator" — the gentle, positive *start/end* of a session (peak-end rule). Styled to match the
 // welcome screen: the hand-made title art, drifting motes, and the Flux you earned glowing front and centre.
 // Away ≥ this → the full "Welcome back, Curator" curation screen; shorter → a quiet self-dismissing toast
@@ -2611,6 +2690,9 @@ function OfflineModal() {
         <div style={{ margin: '0 auto 14px', padding: '14px 22px', borderRadius: 'var(--r-xl)', display: 'inline-block', background: 'radial-gradient(circle at 50% 0%, rgba(255,207,107,0.16), rgba(255,207,107,0.02))', border: '1px solid rgba(255,207,107,0.25)', boxShadow: '0 0 24px rgba(255,207,107,0.10)' }}>
           <div style={{ fontSize: 'var(--fs-eyebrow)', textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--c-text-dim)' }}>{tr('offline.awayFor', { time: away })}</div>
           <p style={{ margin: '5px 0 0', fontFamily: 'var(--font-display)', fontWeight: 'var(--fw-heavy)', fontSize: 40, lineHeight: 1.05, color: '#ffd76b', textShadow: '0 0 20px rgba(255,207,107,0.55), 0 2px 6px rgba(0,0,0,0.5)' }}>+{fmt(offline.gained_flux)} ✦</p>
+          {offline.gained_echoes > 0 && (
+            <p style={{ margin: '8px 0 0', fontWeight: 'var(--fw-heavy)', fontSize: 20, color: '#9b8cff', textShadow: '0 0 14px rgba(155,140,255,0.5)' }}>{tr('offline.echoes', { n: fmt(offline.gained_echoes) })}</p>
+          )}
         </div>
         {capped && <p style={{ ...S.hint, margin: '0 0 12px', opacity: 0.75 }}>{tr('offline.cappedNote', { h: capH })}</p>}
         <button className="btn-primary" style={{ ...S.pullBtn, display: 'block', width: '100%', marginTop: 4 }} onClick={dismissOffline}>{tr('offline.collect')}</button>
@@ -3321,7 +3403,10 @@ function ShopView() {
                 ) : owned ? (
                   <button className="forge-cap" style={S.forgeBtn} onClick={equip}>{tr('shop.equip')}</button>
                 ) : (
-                  <button className="pull-cap" style={{ ...S.summonBtn, opacity: canBuy ? 1 : 0.4 }} disabled={!canBuy} onClick={buy}>{tr('shop.buy')} · {fmt(it.cost)} ✦</button>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <button className="pull-cap" style={{ ...S.summonBtn, opacity: canBuy ? 1 : 0.4 }} disabled={!canBuy} onClick={buy}>{tr('shop.buy')} · {fmt(it.cost)} ✦</button>
+                    {!canBuy && view.rate_per_hr > 0 && <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--c-text-faint)', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{fmtEta(it.cost - view.flux, view.rate_per_hr)}</span>}
+                  </div>
                 )}
               </div>
             )
@@ -4006,6 +4091,24 @@ function MilestoneToast() {
   )
 }
 
+// One-line, self-dismissing notice when the FPS watchdog auto-lowers graphics (fires at most once per session).
+function WatchdogToast() {
+  const msgId = useGfx((s) => s.watchdogToast)
+  const dismiss = useGfx((s) => s.dismissWatchdog)
+  const tr = useT()
+  useEffect(() => {
+    if (!msgId) return
+    const t = setTimeout(dismiss, 4200)
+    return () => clearTimeout(t)
+  }, [msgId, dismiss])
+  if (!msgId) return null
+  return (
+    <div className="pop-in" style={S.watchdogToast} onClick={dismiss}>
+      <span style={{ color: '#e8eaf2', fontSize: 'var(--fs-body-sm)' }}>{tr(msgId)}</span>
+    </div>
+  )
+}
+
 // The global dialogue log — every line any shape has said (chatter, greetings, cutscenes), viewable anytime.
 function DialogLogModal() {
   const open = useDialogLog((s) => s.open)
@@ -4135,7 +4238,10 @@ const CAP: CSSProperties = {
 const S: Record<string, CSSProperties> = {
   loading: { color: 'var(--c-text-muted)', background: 'var(--c-bg-base)', height: '100vh', display: 'grid', placeItems: 'center', fontFamily: 'var(--font-app)', fontSize: 'var(--fs-h2)' },
   app: { background: 'var(--c-bg-base)', color: 'var(--c-text)', height: '100dvh', overflow: 'hidden', fontFamily: 'var(--font-app)', display: 'flex', flexDirection: 'column' },
-  hud: { position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', flexWrap: 'wrap', gap: 'var(--sp-2)', background: 'linear-gradient(180deg, #16131a 0%, #100f17 100%), linear-gradient(180deg, rgba(255,207,107,0.06), transparent)', borderBottom: '1px solid #2c2f3c', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -1px 0 rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.4)' },
+  // 3-column grid: equal 1fr sides keep the auto middle column (the wordmark) truly viewport-centered, so it can
+  // never overlap the flux block (left) or stats (right) no matter how wide they grow. Below 1180px the wordmark
+  // hides (juice.css media query) and the empty middle column collapses, leaving flux-left / stats-right.
+  hud: { position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', padding: '12px 20px', gap: 'var(--sp-2)', background: 'linear-gradient(180deg, #16131a 0%, #100f17 100%), linear-gradient(180deg, rgba(255,207,107,0.06), transparent)', borderBottom: '1px solid #2c2f3c', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.04), inset 0 -1px 0 rgba(0,0,0,0.55), 0 2px 6px rgba(0,0,0,0.4)' },
   fluxLabel: { color: 'var(--c-text-dim)', marginRight: 'var(--sp-2)', fontSize: 'var(--fs-body-sm)' },
   // inline-block + reserved min-width + right-align: digits fill the box (tabular, equal-width) instead of
   // widening it, so the +rate/hr label beside it never gets pushed as Flux climbs.
@@ -4230,7 +4336,7 @@ const S: Record<string, CSSProperties> = {
   histTime: { color: 'var(--c-text-faint)', fontSize: 'var(--fs-caption)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' },
   ledgerTabs: { display: 'flex', gap: 'var(--sp-1_5)', margin: 'var(--sp-3) 0 var(--sp-1)' },
   rankBadge: { display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-2)', background: 'linear-gradient(180deg, #1a1b24, #101119)', border: '1px solid #3a3320', borderRadius: 'var(--r-xl)', padding: '6px 12px 6px 8px', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,207,107,0.12), 0 2px 5px rgba(0,0,0,0.4)' },
-  rankLetter: { fontSize: 19, fontWeight: 'var(--fw-black)', border: '2px solid', borderRadius: 9, minWidth: 34, height: 34, padding: '0 4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
+  rankLetter: { fontSize: 19, lineHeight: 1, fontWeight: 'var(--fw-black)', border: '2px solid', borderRadius: 9, minWidth: 34, height: 34, padding: '1px 4px 0', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   multGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 'var(--sp-1_5)', marginBottom: 'var(--sp-2_5)' },
   multRow: { ...VITRINE, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderRadius: 'var(--r-md)', padding: '6px 10px' },
   engine: { maxWidth: 620, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-3)' },
@@ -4407,6 +4513,7 @@ const S: Record<string, CSSProperties> = {
   objNum: { fontSize: 'var(--fs-eyebrow)', color: 'var(--c-accent-teal)', fontWeight: 'var(--fw-bold)', flexShrink: 0 },
   mileToast: { position: 'fixed', top: 58, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 'var(--sp-3)', background: 'rgba(30,24,12,0.96)', border: '1px solid #6b5a2a', borderRadius: 'var(--r-xl)', padding: '10px 16px', zIndex: 60, minWidth: 290, maxWidth: '92vw', boxShadow: '0 6px 24px rgba(0,0,0,0.55)', cursor: 'pointer', overflow: 'hidden' },
   toastDrain: { position: 'absolute', left: 0, bottom: 0, height: 2, width: '100%', background: 'var(--c-accent-gold-deep)', borderRadius: 2 },
+  watchdogToast: { position: 'fixed', bottom: 70, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 'var(--sp-2)', background: 'rgba(18,20,30,0.96)', border: '1px solid #3a3d4e', borderRadius: 'var(--r-lg)', padding: '8px 14px', zIndex: 60, maxWidth: '92vw', boxShadow: '0 6px 24px rgba(0,0,0,0.5)', cursor: 'pointer' },
   tourWrap: { position: 'fixed', left: 0, right: 0, bottom: 0, display: 'flex', justifyContent: 'center', padding: '0 12px 18px', zIndex: 70, pointerEvents: 'none' },
   tourCard: { boxSizing: 'border-box', pointerEvents: 'auto', width: 'min(460px, calc(100vw - 28px))', background: 'rgba(18,19,26,0.97)', border: '1px solid #3a3d4f', borderRadius: 'var(--r-2xl)', padding: '14px 16px', boxShadow: '0 8px 30px rgba(0,0,0,0.6)' },
   patSurface: { position: 'absolute', inset: 0, cursor: 'grab', touchAction: 'none', zIndex: 3, overflow: 'hidden' },

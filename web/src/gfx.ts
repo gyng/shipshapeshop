@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { create } from 'zustand'
+import { detectGpuTier, tierDefaults } from './gfxProbe'
 
 // Graphics quality — scales the fidelity-affecting costs (DPR, transmission samples/resolution, raymarch
 // steps, shadows, particle density, star count). Persisted; surfaced in Settings ▸ Graphics. On top of the
@@ -97,10 +99,24 @@ const DEFAULTS: GfxSettings = { quality: 'medium', showFps: false, shadows: null
 // v2: reset persisted gfx once — earlier builds could persist a catastrophic path-trace preset (spp 80 / 32
 // bounces) that freezes the GPU on load. Bumping the key drops stale settings so everyone lands on safe defaults.
 const KEY = 'shipshape-gfx-v3' // v3: path tracing now defaults ON ('all' views) — drop stale 'off' persists so everyone lands on the new default
+
+// First-run defaults seeded from a coarse GPU-tier probe (gfxProbe.ts): a weak/mobile device opens on a lighter
+// path-trace scope + quality, a strong desktop keeps the full premium look. ONLY the path-trace scope + quality
+// are tier-seeded; everything else stays at DEFAULTS. PERSIST always wins — once the user has saved settings
+// (any `raw`), the probe is ignored entirely, so this never overrides a returning player's chosen look.
+function firstRunDefaults(): GfxSettings {
+  try {
+    const td = tierDefaults(detectGpuTier())
+    return { ...DEFAULTS, pathTrace: td.pathTrace, quality: td.quality }
+  } catch {
+    return DEFAULTS // probe failed (no WebGL/navigator) → ship the safe shipped defaults
+  }
+}
+
 function load(): GfxSettings {
   try {
     const raw = localStorage.getItem(KEY)
-    if (!raw) return DEFAULTS
+    if (!raw) return firstRunDefaults() // no persisted setting → seed scope+quality from the GPU tier
     if (raw === 'low' || raw === 'medium' || raw === 'high') return { ...DEFAULTS, quality: raw } // back-compat: bare quality string
     return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<GfxSettings>) }
   } catch {
@@ -108,22 +124,45 @@ function load(): GfxSettings {
   }
 }
 
+// ── FPS watchdog (auto-degrade, ratchet DOWN only) ───────────────────────────────────────────────────────────
+// A passive safety net: if the smoothed frame rate stays low for a sustained window, step graphics down ONCE
+// (quality high→medium→low, then path-trace scope all→hero) and surface a one-line toast — then NEVER touch it
+// again this session (it never auto-raises; the player stays in control via Settings). This protects weak
+// hardware the boot probe (item 6) under-estimated, without ever fighting a player who deliberately cranked it up.
+const WATCHDOG = {
+  ewma: 60, // smoothed fps (exponential moving average) — seeded optimistic so we don't trip on the first frame
+  lowMs: 0, // accumulated time the smoothed fps has been under the floor (resets the instant fps recovers → hysteresis)
+  warmupMs: 0, // skip the first ~second (first-frame shader compiles + tab-switch stalls would false-trigger)
+  fired: false, // one-shot latch: the watchdog degrades at most ONCE per session
+}
+const WD_FPS_FLOOR = 40 // smoothed fps below this is "struggling"
+const WD_SUSTAIN_MS = 2000 // must stay low this long before acting (hysteresis — a brief dip won't trip it)
+const WD_WARMUP_MS = 1000 // ignore the first second (compile/layout stalls)
+const WD_ALPHA = 0.1 // EWMA smoothing factor (≈ last ~10 frames dominate)
+
 interface GfxStore extends GfxSettings {
+  watchdogToast: string | null // a transient one-line message when graphics auto-step down (null = none). NOT persisted.
   setQuality: (q: Quality) => void
   update: (patch: Partial<GfxSettings>) => void
+  sampleFps: (dtMs: number) => void // per-frame tick: feeds the EWMA + may trip the one-shot auto-degrade
+  dismissWatchdog: () => void
 }
 export const useGfx = create<GfxStore>((set, get) => {
   const persist = (s: GfxSettings) => {
     try {
       // serialize the whole settings object (JSON.stringify drops the store's action fns) so a new GfxSettings
-      // field can't silently fail to persist — no hand-kept whitelist to drift out of sync.
-      localStorage.setItem(KEY, JSON.stringify(s))
+      // field can't silently fail to persist — no hand-kept whitelist to drift out of sync. The transient
+      // watchdogToast is stripped first so it never leaks into the saved blob.
+      const { watchdogToast: _t, ...rest } = s as GfxSettings & { watchdogToast?: string | null }
+      void _t
+      localStorage.setItem(KEY, JSON.stringify(rest))
     } catch {
       /* ignore */
     }
   }
   return {
     ...load(),
+    watchdogToast: null,
     setQuality: (q) => {
       // Picking a tier re-establishes it as the master: clear every per-feature override so the toggles below
       // follow the new preset again (back to "Auto"), and reset the density multipliers to 1× (= the preset).
@@ -134,6 +173,32 @@ export const useGfx = create<GfxStore>((set, get) => {
     update: (patch) => {
       persist({ ...get(), ...patch })
       set(patch)
+    },
+    dismissWatchdog: () => set({ watchdogToast: null }),
+    sampleFps: (dtMs) => {
+      if (WATCHDOG.fired) return // one-shot: already degraded this session
+      if (!(dtMs > 0) || dtMs > 1000) return // ignore zero/negative + huge gaps (tab was backgrounded → not a real stall)
+      // warm-up: ignore the first ~second so first-frame shader compiles / layout don't false-trigger.
+      if (WATCHDOG.warmupMs < WD_WARMUP_MS) { WATCHDOG.warmupMs += dtMs; return }
+      const inst = 1000 / dtMs
+      WATCHDOG.ewma = WATCHDOG.ewma + WD_ALPHA * (inst - WATCHDOG.ewma)
+      // hysteresis: only count CONTIGUOUS low time — the moment fps recovers above the floor, reset the timer.
+      if (WATCHDOG.ewma < WD_FPS_FLOOR) WATCHDOG.lowMs += dtMs
+      else { WATCHDOG.lowMs = 0; return }
+      if (WATCHDOG.lowMs < WD_SUSTAIN_MS) return
+      // sustained low → step DOWN once. quality high→medium→low first; if already at low, drop the PT scope all→hero.
+      WATCHDOG.fired = true
+      const s = get()
+      const patch: Partial<GfxSettings> = {}
+      if (s.quality === 'high') patch.quality = 'medium'
+      else if (s.quality === 'medium') patch.quality = 'low'
+      else if (s.pathTrace === 'all') patch.pathTrace = 'hero'
+      else return // already at the floor (low quality + hero scope) — nothing left to drop; stay quiet
+      // dropping the quality tier re-establishes it as master (clear per-feature overrides), matching setQuality.
+      if (patch.quality) Object.assign(patch, { shadows: null, bloom: null, sceneGlass: null, heroBackside: null, dof: null, ssao: null, hdri: null, particleScale: 1, starScale: 1 })
+      persist({ ...s, ...patch })
+      set(patch)
+      set({ watchdogToast: 'gfx.autoLowered' }) // message-ID; the renderer resolves it via i18n. NOT persisted.
     },
   }
 })
@@ -176,4 +241,26 @@ export function usePathTraceParams(): PathTraceParams {
   const sp = useGfx((s) => s.ptSpp)
   const p = PT_PRESETS[q]
   return { bounces: b ?? p.bounces, steps: st ?? p.steps, scale: sc ?? p.scale, spp: sp ?? p.spp }
+}
+
+/**
+ * Mount-once passive FPS watchdog. A standalone requestAnimationFrame loop (independent of any Canvas, like
+ * FpsMeter) that feeds each frame's delta into the gfx store's `sampleFps` — which smooths it (EWMA) and, if the
+ * frame rate stays low for a sustained window, auto-steps graphics DOWN once. Cheap (just a timestamp diff per
+ * frame) and self-disarming after one trip. Mount it ONCE near the app root.
+ */
+export function useFpsWatchdog(): void {
+  const sampleFps = useGfx((s) => s.sampleFps)
+  useEffect(() => {
+    let raf = 0
+    let last = performance.now()
+    const loop = (t: number) => {
+      const dt = t - last
+      last = t
+      sampleFps(dt)
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [sampleFps])
 }

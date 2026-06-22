@@ -1,10 +1,10 @@
 import { useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { RARITY_COLOR } from './Gem'
 import { sdfActiveGLSL } from './sdfShapes.glsl'
-import { sceneById, atmosphereById, lightingById, SLOT_ATMOSPHERE, SLOT_FINISH, SLOT_LIGHTING } from '../content/cosmetics'
+import { sceneById, atmosphereById, lightingById, heroCursorById, SLOT_ATMOSPHERE, SLOT_FINISH, SLOT_LIGHTING, SLOT_HERO_CURSOR } from '../content/cosmetics'
 import { finishSdf } from './finishSdf'
 import { useGame, type RarityName } from '../game/store'
 import { useGfxPreset, useGfx } from '../gfx'
@@ -122,6 +122,11 @@ const makeFrag = (STEPS: number, INNER: number, sdfGLSL: string) => /* glsl */ `
   uniform float uAtmoAmt;      // 0 = Clear (no tint)
   uniform samplerCube uEnvCube; // live cubemap of the atmosphere captured around the gem
   uniform float uEnvCubeAmt;   // 0 = procedural env only; >0 = refract/reflect the real atmosphere
+  // cursor follow-light (Gem Spotlight, slot 9 — default OFF): a soft specular/rim that tracks the pointer over
+  // the SDF gem, lit by a world-space direction toward the cursor. uCursorAmt = 0 → no-op (the default).
+  uniform vec3  uCursorDir;    // world-space direction FROM the gem TOWARD the cursor-light position
+  uniform vec3  uCursorCol;    // cursor light colour (linear)
+  uniform float uCursorAmt;    // 0 = off; otherwise the highlight strength
 
   mat3 R;
 
@@ -223,6 +228,16 @@ ${sdfGLSL}
     vec3 col = mix(refractGem(p,rd,n), reflCol, f) + reflCol*0.05;
     col += uColor * f * uRim;                                        // rarity rim-glow (HDR → blooms)
     col += uColor * uEmissive * 0.6;                                 // equipped finish inner glow (0 = none)
+    // cursor follow-light: a tracking specular highlight + a soft rim where the gem faces the cursor. Active only
+    // when the inspector enables it (uCursorAmt > 0). A tight Blinn-style lobe gives the "spot grazing the facet"
+    // read as you sweep the pointer; the rim term keeps it visible on edges too. HDR → it blooms in the post pass.
+    if(uCursorAmt > 0.0){
+      vec3 ld = normalize(uCursorDir);
+      vec3 h  = normalize(ld - rd);                                  // half-vector (view = -rd)
+      float spec = pow(max(dot(n, h), 0.0), 48.0);                  // crisp tracking highlight
+      float lit  = max(dot(n, ld), 0.0);                            // soft diffuse-ish wrap on the lit side
+      col += uCursorCol * uCursorAmt * (spec * 1.6 + lit * 0.12 + f * lit * 0.5);
+    }
     return col;
   }
 
@@ -277,9 +292,19 @@ export function RaymarchGem({ family, rarity, controls = true, autoRotate = fals
   const equippedFinish = useGame((s) => s.view?.equipped?.[SLOT_FINISH] ?? 0)
   const fin = finishSdf(previewFinish ?? equippedFinish)
   const L = lightingById(useGame((s) => s.view?.equipped?.[SLOT_LIGHTING] ?? 0)) // equipped Lighting mood — scales the env the gem is lit by
+  // hero cursor light (Gem Spotlight, slot 9 — default OFF). Only feeds the shader in the interactive inspector.
+  const cursorFx = heroCursorById(useGame((s) => s.view?.equipped?.[SLOT_HERO_CURSOR] ?? 0))
+  const cursorOn = controls && cursorFx.intensity > 0
+  const { pointer } = useThree()
+  // scratch objects reused per frame (no per-frame allocation in the hot loop). `baseCol` holds the cursor's
+  // linear-space colour (disco moods mutate it in HSL each frame before it's written into the uniform).
+  const cursorScratch = useMemo(() => ({ ray: new THREE.Raycaster(), plane: new THREE.Plane(), camDir: new THREE.Vector3(), hit: new THREE.Vector3(), dir: new THREE.Vector3(), origin: new THREE.Vector3(), col: new THREE.Color(cursorFx.color).convertSRGBToLinear() }), [cursorFx])
   const rarityCol = lin(RARITY_COLOR[rarity])
   const baseIor = 1.45 + RANK[rarity] * 0.05
   const baseAberr = 0.02 + RANK[rarity] * 0.02
+  // base rim/key the animated "Moving light ✦" moods breathe around (must match the uniforms' initial values)
+  const baseRim = (RANK[rarity] >= 3 ? 0.25 + (RANK[rarity] - 3) * 0.35 : 0.07 + RANK[rarity] * 0.05) * L.rim
+  const baseKeyVec = useMemo(() => lin(scene.env[1]).multiplyScalar(L.key), [scene, L])
   // Per-shape shader: inject ONLY this family's SDF (sdfActiveGLSL), so the program stays small. Rebuilds when
   // the shape changes (three caches compiled programs by source, so each shape compiles once).
   const frag = useMemo(() => makeFrag(g.raySteps, g.rayInner, sdfActiveGLSL(family)), [g.raySteps, g.rayInner, family])
@@ -311,6 +336,9 @@ export function RaymarchGem({ family, rarity, controls = true, autoRotate = fals
       uEmissive: { value: 0 },
       uAbsorbMul: { value: 1 },
       uReflMul: { value: 1 },
+      uCursorDir: { value: new THREE.Vector3(0, 0, 1) },
+      uCursorCol: { value: new THREE.Vector3(1, 1, 1) },
+      uCursorAmt: { value: 0 },
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [family, rarity, scene, L])
@@ -345,6 +373,35 @@ export function RaymarchGem({ family, rarity, controls = true, autoRotate = fals
     m.uniforms.uEmissive.value = fin.emissive
     m.uniforms.uAbsorbMul.value = fin.absorbMul
     m.uniforms.uReflMul.value = fin.reflMul
+    // "Moving light ✦" moods on the SDF hero: the env() is direction-baked, so we can't orbit a light here — but
+    // we breathe the rim glow + key intensity so the PULSE part of the motion reads (intensity/hue breathing).
+    const mot = L.motion
+    if (mot && (mot.pulseDepth || mot.hueShift)) {
+      const tt = state.clock.elapsedTime
+      const breath = 1 + Math.sin(tt * (mot.pulseRate ?? 0.3) * Math.PI * 2) * (mot.pulseDepth ?? 0)
+      m.uniforms.uRim.value = baseRim * breath
+      m.uniforms.uKey.value.copy(baseKeyVec).multiplyScalar(breath)
+    } else {
+      m.uniforms.uRim.value = baseRim
+    }
+    // cursor follow-light: map the pointer onto a camera-facing plane through the gem and feed the shader the
+    // world-space direction toward it. Active only in the interactive inspector when a Gem Spotlight is equipped.
+    if (cursorOn) {
+      const { ray, plane, camDir, hit, dir, origin, col } = cursorScratch
+      cam.getWorldDirection(camDir)
+      plane.setFromNormalAndCoplanarPoint(camDir, origin.set(0, 0, 0)) // plane through the gem, facing the camera
+      ray.setFromCamera(pointer, cam)
+      if (ray.ray.intersectPlane(plane, hit)) {
+        dir.copy(hit).addScaledVector(camDir, -1.6).normalize() // gem at origin → direction toward the cursor light
+        m.uniforms.uCursorDir.value.copy(dir)
+      }
+      if (cursorFx.disco) col.setHSL((state.clock.elapsedTime * 0.4) % 1, 0.85, 0.6)
+      const cc = m.uniforms.uCursorCol.value as THREE.Vector3
+      cc.set(col.r, col.g, col.b)
+      m.uniforms.uCursorAmt.value = cursorFx.intensity * 0.4 // scale the point-intensity into a shader rim gain
+    } else {
+      m.uniforms.uCursorAmt.value = 0
+    }
   })
 
   return (

@@ -24,18 +24,20 @@ const FAMILIES = [
   'clifford_torus', 'cable_knot', 'mandelbulb', 'mandelbox', 'julia', 'apollonian', 'kleinian',
   // NG+ cohort expansion: 4D cross-sections (Meta) + algebraic/attractor jewels (Transcendent)
   'spherinder_slice', 'duocylinder', 'cell24_section', 'ditorus', 'hyperbolic_honeycomb', 'aizawa_attractor', 'barth_sextic',
+  // Re-appended Relic — the classic CG test cow (restored at the tail; distinct from Spot the conformal-maps mascot)
+  'cow',
 ]
 
 // Relic families backed by a real downloaded mesh (loaded once by the shared relics layer → src/three/relics.ts
 // RELIC_MODELS, then used across the gallery, Orrery, dioramas, and hero).
 const MODEL_FILES_ON_DISK = [
-  'bunny.ply', 'spot.obj', 'armadillo.ply', 'lucy.ply', 'dragon.ply', 'heptoroid.ply', 'csaszar.obj', 'benchy.ply', 'suzanne.obj',
+  'bunny.ply', 'spot.obj', 'cow.obj', 'armadillo.ply', 'lucy.ply', 'dragon.ply', 'heptoroid.ply', 'csaszar.obj', 'benchy.ply', 'suzanne.obj',
 ]
 
 describe('shape content validation', () => {
-  it('has 72 families with no duplicates', () => {
-    expect(FAMILIES.length).toBe(72)
-    expect(new Set(FAMILIES).size).toBe(72)
+  it('has 73 families with no duplicates', () => {
+    expect(FAMILIES.length).toBe(73)
+    expect(new Set(FAMILIES).size).toBe(73)
   })
 
   it('every family has a complete codex entry', () => {

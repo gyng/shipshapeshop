@@ -14,7 +14,9 @@ import { usePathTraceParams, useGfxPreset, useGfx } from '../gfx'
 // The sibling of PathTraceGem for arbitrary triangle meshes (knots, Klein, relics, fractals): the CPU builds a
 // BVH (bvh.ts) packed into float textures; this GLSL3 shader walks it with a stack, intersects triangles
 // (Möller–Trumbore), and runs the same multi-bounce glass transport + progressive accumulation as the SDF
-// tracer. GLSL ES 3.00 is required (texelFetch + a dynamic traversal stack). Flat (geometric) normals for now.
+// tracer. GLSL ES 3.00 is required (texelFetch + a dynamic traversal stack). SMOOTH shading: the triangle data
+// carries the 3 per-vertex normals, and the hit normal is the barycentric interpolation of them (bvh.ts packs a
+// face-normal fallback per vertex), so 40-55k-tri relic scans refract organically instead of reading faceted.
 //
 // Feature parity with PathTraceGem (the SDF reference): this reads the equipped/previewed SCENE, ATMOSPHERE,
 // gem FINISH and LIGHTING and feeds them into the trace exactly as PathTraceGem does — atmosphere tint+amount
@@ -23,6 +25,13 @@ import { usePathTraceParams, useGfxPreset, useGfx } from '../gfx'
 // mood — so a MESH path-trace grades IDENTICALLY to an SDF path-trace.
 
 const RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4, Meta: 4, Transcendent: 4 }
+
+// converge-then-idle tuning (mirrors PathTraceGem): no interaction for IDLE_MS → freeze the auto-spin + start
+// converging the dead-but-now-live accumulation FBO; SPIN_RATE is the active auto-spin angular velocity (rad/s,
+// = the old uTime*0.15); ACCUM_TARGET frames of accumulation = "converged" → stop invalidating the demand loop.
+const IDLE_MS = 800
+const SPIN_RATE = 0.15
+const ACCUM_TARGET = 64
 
 const VERT = /* glsl */ `
   out vec2 vUv;
@@ -38,7 +47,7 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
   uniform vec2  uRes;
   uniform vec3  uColor;     // gem body tint (Beer absorption) — rarity colour or finish tint
   uniform float uIor;
-  uniform float uTime;     // gentle auto-spin (composes with the orbit)
+  uniform float uSpin;     // gentle auto-spin ANGLE (accumulated; frozen when idle so the accumulation converges) — composes with the orbit
   uniform float uYaw, uPitch, uZoom;
   uniform vec3  uBackdrop, uKey, uCool, uWarm, uStar; // env colours, already scaled by the Lighting mood (key/ambient)
   uniform vec3  uAtmoTint;     // equipped Atmosphere's hue, blended into env → the gem's refraction/reflection carries the atmosphere
@@ -48,7 +57,7 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
   uniform float uEmissive;     // equipped finish inner glow (0 = none)
   uniform float uAbsorbMul;    // equipped finish density (≥1 darkens a low-transmission finish; 1 = default)
   uniform float uHaze;     // volumetric single-scatter haze density (gfx setting + equipped Atmosphere; 0 = off)
-  uniform sampler2D uTriTex;   // 3 texels/tri (a,b,c)
+  uniform sampler2D uTriTex;   // 6 texels/tri: a,b,c positions then na,nb,nc vertex normals (TRI_TEXELS in bvh.ts)
   uniform sampler2D uNodeTex;  // 2 texels/node
   uniform int uTexW;
   uniform int uNodeCount;
@@ -84,8 +93,9 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
   vec4 ftri(int i){ return texelFetch(uTriTex, ivec2(i % uTexW, i / uTexW), 0); }
   vec4 fnode(int i){ return texelFetch(uNodeTex, ivec2(i % uTexW, i / uTexW), 0); }
 
-  // Möller–Trumbore; updates t + geometric normal on a nearer hit.
-  bool hitTri(vec3 ro, vec3 rd, vec3 v0, vec3 v1, vec3 v2, inout float t, inout vec3 n){
+  // Möller–Trumbore; on a nearer hit updates t, the geometric face normal, and the barycentric (u,v) of the hit
+  // (so the caller can interpolate the triangle's 3 vertex normals → smooth shading). u,v are the weights of v1,v2.
+  bool hitTri(vec3 ro, vec3 rd, vec3 v0, vec3 v1, vec3 v2, inout float t, inout vec3 n, inout vec2 bary){
     vec3 e1 = v1-v0, e2 = v2-v0;
     vec3 pv = cross(rd, e2);
     float det = dot(e1, pv);
@@ -96,7 +106,7 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
     vec3 qv = cross(tv, e1);
     float v = dot(rd, qv)*inv; if(v < 0.0 || u+v > 1.0) return false;
     float tt = dot(e2, qv)*inv;
-    if(tt > 0.0009 && tt < t){ t = tt; n = normalize(cross(e1, e2)); return true; }
+    if(tt > 0.0009 && tt < t){ t = tt; n = normalize(cross(e1, e2)); bary = vec2(u, v); return true; }
     return false;
   }
 
@@ -108,12 +118,17 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
     return tf >= max(tn, 0.0) && tn < tMax;
   }
 
-  // walk the BVH (explicit stack) for the nearest triangle hit
+  // walk the BVH (explicit stack) for the nearest triangle hit. Returns the SMOOTH (barycentrically interpolated
+  // per-vertex) normal in nHit, falling back to the geometric face normal when the interpolated normal is
+  // degenerate — so the refraction reads organic, not faceted, on the dense relic scans.
   bool intersect(vec3 ro, vec3 rd, out float tHit, out vec3 nHit){
     vec3 invRd = 1.0/rd;
     int stack[40];
     int sp = 0; stack[sp++] = 0;
     tHit = 1e9; bool hit = false;
+    vec3 nGeo = vec3(0.0, 0.0, 1.0); // geometric face normal of the winning triangle (smooth-normal fallback)
+    vec2 bary = vec2(0.0);           // barycentric (u,v) of the winning hit
+    int hitBase = -1;                // texel base index of the winning triangle (6 texels/tri)
     int guard = 0;
     while(sp > 0 && guard < 4096){
       guard++;
@@ -125,14 +140,21 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
         int start = int(a.w + 0.5);
         int cnt = int(-b.w + 0.5);
         for(int k=0;k<cnt;k++){
-          int ti = (start+k)*3;
+          int ti = (start+k)*6;                        // 6 texels/tri: a,b,c, na,nb,nc
           vec3 v0 = ftri(ti).xyz, v1 = ftri(ti+1).xyz, v2 = ftri(ti+2).xyz;
-          if(hitTri(ro, rd, v0, v1, v2, tHit, nHit)) hit = true;
+          if(hitTri(ro, rd, v0, v1, v2, tHit, nGeo, bary)){ hit = true; hitBase = ti; }
         }
       } else if(sp < 38){                              // internal: push both children
         stack[sp++] = int(a.w + 0.5);
         stack[sp++] = int(b.w + 0.5);
       }
+    }
+    if(hit){
+      // barycentric interpolation of the 3 vertex normals: w0=v0, u=v1, v=v2 (matches hitTri's bary).
+      vec3 n0 = ftri(hitBase + 3).xyz, n1 = ftri(hitBase + 4).xyz, n2 = ftri(hitBase + 5).xyz;
+      float u = bary.x, v = bary.y;
+      vec3 ns = n0 * (1.0 - u - v) + n1 * u + n2 * v;
+      nHit = dot(ns, ns) > 1e-10 ? normalize(ns) : nGeo; // fall back to the flat normal if degenerate
     }
     return hit;
   }
@@ -140,7 +162,7 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
   void main(){
     mat3 R = mat3(1.0);
     {
-      float yaw = uTime * 0.15 + uYaw;
+      float yaw = uSpin + uYaw;
       float cy=cos(yaw), sy=sin(yaw), cx=cos(0.4+uPitch), sx=sin(0.4+uPitch);
       mat3 ry = mat3(cy,0.,sy, 0.,1.,0., -sy,0.,cy);
       mat3 rx = mat3(1.,0.,0., 0.,cx,-sx, 0.,sx,cx);
@@ -227,7 +249,7 @@ const DISP = /* glsl */ `
 const lin = (hex: string) => { const k = new THREE.Color(hex).convertSRGBToLinear(); return new THREE.Vector3(k.r, k.g, k.b) }
 
 export function MeshPathTraceGem({ family, rarity, controls = true, previewScene, previewAtmosphere, previewFinish, envMap }: { family: string; rarity: RarityName; controls?: boolean; previewScene?: number; previewAtmosphere?: number; previewFinish?: number; envMap?: THREE.Texture | null }) {
-  const { gl, size } = useThree()
+  const { gl, size, invalidate } = useThree()
   // `previewScene`/`previewAtmosphere`/`previewFinish` (shop preview) render an UNequipped cosmetic without
   // touching the equipped one — mirrors PathTraceGem's preview props so the same hover-previews work on meshes.
   const storeScene = useGame((s) => s.view?.scene ?? 0)
@@ -269,7 +291,7 @@ export function MeshPathTraceGem({ family, rarity, controls = true, previewScene
       uniforms: {
         uSeed: { value: 0 }, uRes: { value: new THREE.Vector2(w, h) },
         uColor: { value: lin(RARITY_COLOR[rarity]) }, uIor: { value: 1.45 + RANK[rarity] * 0.05 },
-        uTime: { value: 0 }, uYaw: { value: 0 }, uPitch: { value: 0 }, uZoom: { value: 1 },
+        uSpin: { value: 0 }, uYaw: { value: 0 }, uPitch: { value: 0 }, uZoom: { value: 1 },
         uBackdrop: { value: lin(backdrop).multiplyScalar(L.ambient) }, uKey: { value: lin(key).multiplyScalar(L.key) }, uCool: { value: lin(cool).multiplyScalar(L.ambient) }, uWarm: { value: lin(warm).multiplyScalar(L.ambient) }, uStar: { value: lin(scene.stars) },
         uAtmoTint: { value: new THREE.Vector3() }, uAtmoAmt: { value: 0 },
         uEnvCube: { value: null as THREE.Texture | null }, uEnvCubeAmt: { value: 0 },
@@ -289,9 +311,27 @@ export function MeshPathTraceGem({ family, rarity, controls = true, previewScene
   const frame = useRef(0)
   const lastKey = useRef('')
 
+  // ── converge-then-idle state ──────────────────────────────────────────────────────────────────────────────
+  const spin = useRef(0) // accumulated auto-spin angle (replaces uTime*0.15)
+  const spinSpeed = useRef(1) // eased 0..1 multiplier — ramps to 0 when idle, to 1 when active (smooth settle)
+  const lastInteract = useRef(performance.now()) // any pointer/orbit event → active for IDLE_MS after
+  const lastT = useRef(performance.now())
+  // wake on interaction: reset the idle timer + re-render (OrbitControls 'change' also invalidates for us)
+  const wake = () => { lastInteract.current = performance.now(); invalidate() }
+
   useFrame((state) => {
+    const now = performance.now()
+    const dt = Math.min(0.05, (now - lastT.current) / 1000)
+    lastT.current = now
+    const active = now - lastInteract.current < IDLE_MS
+    // smoothly ease the auto-spin speed to 0 (idle) / 1 (active) — the gem settles to a STILL product shot, never
+    // a hard stop. Once eased to ~0 the spin angle stops advancing → the reset key holds → the FBO converges.
+    spinSpeed.current += ((active ? 1 : 0) - spinSpeed.current) * Math.min(1, dt * 4)
+    if (spinSpeed.current < 0.001) spinSpeed.current = 0
+    spin.current += dt * SPIN_RATE * spinSpeed.current
+
     const m = ptMat.uniforms
-    m.uTime.value = state.clock.elapsedTime
+    m.uSpin.value = spin.current
     m.uHaze.value = ptHaze + atmoHaze // gfx setting + equipped Atmosphere
     m.uAtmoTint.value.copy(atmoTint)
     m.uAtmoAmt.value = atmoAmt
@@ -309,11 +349,13 @@ export function MeshPathTraceGem({ family, rarity, controls = true, previewScene
     const polar = Math.acos(THREE.MathUtils.clamp(cam.position.y / dist, -1, 1))
     m.uPitch.value = THREE.MathUtils.clamp(Math.PI / 2 - polar, -1.4, 1.4)
 
-    // accumulation resets when the view OR any live-graded uniform (finish/atmosphere/haze) changes, so a
-    // hover-preview or equip re-converges instead of blending two looks.
-    const spin = m.uTime.value * 0.15 + m.uYaw.value
+    // Accumulation resets when ANY trace input changes: the orbit (yaw/pitch/zoom), the auto-spin ANGLE (which is
+    // now FROZEN when idle, so the key holds and `frame.current` actually climbs → uN averages → it converges;
+    // while active it advances each frame → 1 fresh sample/frame, so a spinning gem stays responsive without
+    // smearing), or any live-graded uniform (finish/atmosphere/haze). This was DEAD before: the old key folded in
+    // uTime*0.15 every frame, so it reset to 0 every frame and never accumulated past one sample.
     const fkey = `${(m.uIor.value as number).toFixed(3)}|${m.uEmissive.value}|${m.uAbsorbMul.value}|${m.uAtmoAmt.value}|${m.uEnvCubeAmt.value}`
-    const key = `${family}|${spin.toFixed(4)}|${m.uPitch.value.toFixed(4)}|${m.uZoom.value.toFixed(4)}|${(ptHaze + atmoHaze).toFixed(3)}|${fkey}`
+    const key = `${family}|${spin.current.toFixed(4)}|${m.uYaw.value.toFixed(4)}|${m.uPitch.value.toFixed(4)}|${m.uZoom.value.toFixed(4)}|${(ptHaze + atmoHaze).toFixed(3)}|${fkey}`
     const prevClear = gl.getClearColor(new THREE.Color()).getHex()
     if (key !== lastKey.current) {
       lastKey.current = key
@@ -338,15 +380,28 @@ export function MeshPathTraceGem({ family, rarity, controls = true, previewScene
     gl.render(state.scene, state.camera)
     gl.autoClear = prevAuto
     gl.setClearColor(prevClear)
+
+    // Keep the demand loop alive while still converging OR still easing the spin to rest — then go quiet.
+    if (frame.current < ACCUM_TARGET || spinSpeed.current > 0) invalidate()
   }, 1)
 
   return (
     <>
       <group />
+      {/* invisible interaction catcher (colorWrite off → never drawn, but still raycast for pointer events) so a
+          plain HOVER wakes the gem out of its converged idle, matching the SDF tracer's display-quad pointer wake.
+          OrbitControls' onStart/onChange below cover drag; this covers hover-without-drag. */}
+      {controls && (
+        <mesh onPointerMove={wake} onPointerDown={wake} renderOrder={-20}>
+          <sphereGeometry args={[20, 12, 12]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} side={THREE.BackSide} />
+        </mesh>
+      )}
       <Sparkles count={Math.round((36 + rank * 28) * g.sparkle)} scale={[8, 6, 6]} size={2.2 + rank * 0.5} speed={0.18} opacity={0.7} color={scene.stars} />
       {rank >= 2 && <Sparkles count={Math.round((20 + rank * 22) * g.sparkle)} scale={[4.5, 4.5, 4.5]} size={3.4} speed={0.5} opacity={0.9} color={RARITY_COLOR[rarity]} />}
       {controls && (
         <OrbitControls makeDefault enablePan={false} enableZoom minDistance={3} maxDistance={9} rotateSpeed={0.9}
+          onStart={wake} onChange={wake}
           mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
           touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }} />
       )}

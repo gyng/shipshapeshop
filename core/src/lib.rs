@@ -7,6 +7,7 @@
 use wasm_bindgen::prelude::*;
 
 pub mod content;
+pub mod expedition;
 pub mod flux;
 pub mod gacha;
 pub mod game;

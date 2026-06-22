@@ -28,6 +28,7 @@ export const CHATTER: Record<string, string[]> = {
   benchy: ['Built to be hard to print. I don’t mind.', 'Mind the overhangs.'],
   suzanne: ['Press the button and I appear.', 'Tested more than anyone alive. Monkey’s honour.'],
   spot: ['Moo — conformally, of course.', 'Parameterised with love.'],
+  cow: ['Moo. Rendered in every lab on Earth.', 'Low-poly and proud.', 'Pass me around like a textbook — I’ve met every renderer ever written.'],
   menger: ['I’m mostly holes. The rest is optional.', 'Infinite surface. Zero volume. Hold me.'],
   mandelbulb: ['Zoom in close. There I am again — and again, and again.', 'Bulbs of bulbs of bulbs. It’s bulbs all the way down.', 'Folded eight times into myself. I never quite end.'],
   mandelbox: ['Fold the box. Fold it again. Now you live in the creases.', 'An infinite city, and every street folds back into the last.'],

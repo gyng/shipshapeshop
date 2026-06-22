@@ -595,6 +595,10 @@ function build(family: string): THREE.BufferGeometry {
     case 'stanford_dragon': return new THREE.TorusKnotGeometry(0.58, 0.2, 200, 20, 3, 7)
     case 'suzanne': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.0, 0.88, 1.12); return g }
     case 'spot': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.35, 0.8, 0.9); return g }
+    // The classic CG test cow — a DISTINCT placeholder from Spot on purpose (the audit flagged that both read as
+    // identical squashed spheres before the .obj loads). Stockier & lower-poly: a longer, boxier capsule barrel
+    // (a beefier, more rectangular silhouette) so the two cows never look like twins pre-load.
+    case 'cow': { const g = new THREE.CapsuleGeometry(0.62, 0.95, 6, 12); g.rotateZ(Math.PI / 2); g.scale(1.0, 0.74, 0.82); return g }
     case 'armadillo': return new THREE.IcosahedronGeometry(1.05, 1)
     case 'lucy': return new THREE.CapsuleGeometry(0.34, 1.15, 8, 16)
     case 'csaszar': return new THREE.TorusGeometry(0.7, 0.3, 6, 14)

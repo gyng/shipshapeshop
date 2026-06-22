@@ -13,6 +13,7 @@ export const UPGRADE_INFO: Record<string, { name: string; desc: string; icon: st
   affinity_bloom: { name: 'Affinity Bloom', icon: '♥', short: 'Bonds +50% faster', desc: 'All bonds grow 50% faster — idle, inspect, and pat alike.' },
   overflow_cap: { name: 'Overflow Capacitor', icon: '⚡', short: '+8%/lvl ceiling', desc: '+8% to the production ceiling, per level — MULTIPLICATIVE, so the cap keeps scaling with your economy instead of falling behind.', step: 8, unit: '%' },
   auto_pull: { name: 'Auto-Pull Servo', icon: '🤖', short: 'Auto-pull toggle', desc: 'Unlocks an auto-pull toggle — the Atlas spends spare Flux on pulls for you (no reveal ceremony, just the haul).' },
+  charter_expeditions: { name: 'Charter Expeditions', icon: '⚔️', short: 'Unlock Expeditions', desc: 'Open the way below the Atlas — unlocks Expeditions, the optional party-RPG where your shapes delve to free those still lost and gather Echoes. Pure opt-in depth; the calm collector never needs it.' },
   // ── Orrery branch ──
   lens_polish: { name: 'Lens Polish', icon: '🔆', short: '+8%/lvl all lenses', desc: '+8% to EVERY multiplier lens on the orrery, per level — sharpens every ×amplify a shape applies to passing flux.', step: 8, unit: '%' },
   second_lens: { name: 'Second Lens', icon: '✨', short: 'C/R gain ×1.2', desc: 'Common & Rare shapes gain a gentle ×1.2 SECOND effect — the compound kit rares already enjoy, opened to the whole board.' },

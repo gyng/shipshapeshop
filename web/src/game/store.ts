@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import init, { Game, shapes_json, recipes_json, upgrades_json, milestones_json, facets_json, banners_json, core_version } from 'shipshape-core'
+import init, { Game, shapes_json, recipes_json, upgrades_json, milestones_json, facets_json, banners_json, expeditions_json, core_version } from 'shipshape-core'
 import { sfxPull, sfxForge, sfxMilestone, sfxAscend, sfxBondUp, sfxDeploy, sfxRecall, sfxTap, sfxPat, sfxDrop } from '../audio'
 import { useFloaters, useMascotCheer } from '../juice'
 import { glyphOf } from '../content/glyphs'
@@ -11,6 +11,7 @@ const screenCx = () => (typeof window !== 'undefined' ? window.innerWidth / 2 : 
 const SHARD_C = '#5ad4ff'
 const FLUX_C = '#ffcf6b'
 const RELIC_C = '#ffd76b'
+const ECHO_C = '#9b8cff' // Expeditions' Echoes currency — a soft violet, distinct from Flux/Shards
 const floatTopRight = () => (typeof window !== 'undefined' ? window.innerWidth - 130 : 600)
 const floatShards = (n: number) => {
   if (n > 0) useFloaters.getState().spawn(`+${n} ◈`, { color: SHARD_C, x: floatTopRight(), y: 64 })
@@ -106,6 +107,96 @@ export interface View {
   flux_emitters: FluxEmitter[]
   flux_contrib: number[]
   flux_amp: number[]
+  // ── Expeditions (the opt-in idle RPG) ──
+  echoes: number
+  lifetime_echoes: number
+  echo_rate_per_hr: number
+  exp_party: number[]
+  exp_party_max: number
+  exp_party_power: number
+  exp_cleared: boolean[]
+  exp_farms: ExpFarmView[] // active idle farms (the "multiple parties")
+  exp_max_farms: number
+  exp_flux_rate: number // total Flux/hr expeditions add to the idle economy (v2)
+  exp_perks: number[]
+  exp_perk_costs: number[]
+  exp_power: number[] // combat/farm power per shape id (Rust truth)
+}
+
+export interface ExpFarmView {
+  quest: number
+  party: number[]
+  rate_per_hr: number // Echoes/hr
+  flux_rate: number // Flux/hr (density-scaled)
+  power: number
+}
+
+// ── Expeditions content + battle types (mirrored from the Rust core) ──
+export type ExpElement = 'solid' | 'twisted' | 'woven'
+export interface ExpQuest {
+  key: string
+  nick: string
+  chapter: number
+  min_dim: number
+  tier: number
+  power_req: number
+  base_echo: number
+  enemy_nicks: string[]
+  boss_nick: string | null
+  recruit_id: number
+  recruit_nick: string | null
+  dom_element: ExpElement
+}
+export interface ExpPerk {
+  key: string
+  base_cost: number
+  max_level: number
+}
+export interface ExpContent {
+  quests: ExpQuest[]
+  perks: ExpPerk[]
+}
+export interface LogEvent {
+  round: number
+  actor: number
+  action: string
+  target: number
+  dmg: number
+  heal: number
+  status: string
+  fainted: number
+}
+export interface UnitInfo {
+  shape_id: number
+  nick: string
+  family: string
+  is_enemy: boolean
+  max_hp: number
+  element: ExpElement
+  role: string
+}
+export interface BattleResult {
+  win: boolean
+  rounds: number
+  party_size: number
+  party_survivors: number
+  units: UnitInfo[]
+  log: LogEvent[]
+}
+export interface DelveResult {
+  ok: boolean
+  win: boolean
+  newly_cleared: boolean
+  recruited_id: number
+  recruit_is_new: boolean
+  echoes_gained: number
+  battle: BattleResult | null
+}
+export interface AutoExpeditionStep {
+  delved: boolean
+  quest: number
+  recruited_id: number
+  farms: number
 }
 
 // One stationary shape on the hex grid (parallel to loadout): where it sits, which way it faces, how it emits
@@ -182,6 +273,7 @@ export interface OfflineReport {
   elapsed_ms: number
   capped_ms: number
   gained_flux: number
+  gained_echoes: number
 }
 
 const SAVE_KEY = 'shipshape-save-v1'
@@ -222,9 +314,11 @@ interface Store {
   milestoneDefs: MilestoneDef[]
   facetDefs: FacetDef[]
   bannerDefs: BannerDef[]
+  expContent: ExpContent | null
   view: View | null
   lastReveal: PullOutcome[] | null
   lastForge: ForgeResult | null
+  lastDelve: DelveResult | null
   offline: OfflineReport | null
   boot: () => Promise<void>
   dismissWelcome: () => void
@@ -287,6 +381,16 @@ interface Store {
   dismissReveal: () => void
   dismissForge: () => void
   dismissOffline: () => void
+  // ── Expeditions (the opt-in idle RPG) ──
+  setParty: (ids: number[]) => void
+  delve: (q: number) => void
+  station: (q: number) => void
+  unstation: (q: number) => void
+  buyExpPerk: (id: number) => void
+  devAddEchoes: () => void
+  dismissDelve: () => void
+  autoExpedition: boolean
+  toggleAutoExpedition: () => void
 }
 
 export const useGame = create<Store>((set, get) => ({
@@ -299,9 +403,11 @@ export const useGame = create<Store>((set, get) => ({
   milestoneDefs: [],
   facetDefs: [],
   bannerDefs: [],
+  expContent: null,
   view: null,
   lastReveal: null,
   lastForge: null,
+  lastDelve: null,
   offline: null,
   activeTab: '',
   setActiveTab: (t) => set({ activeTab: t }),
@@ -324,6 +430,7 @@ export const useGame = create<Store>((set, get) => ({
     const milestoneDefs = JSON.parse(milestones_json()) as MilestoneDef[]
     const facetDefs = JSON.parse(facets_json()) as FacetDef[]
     const bannerDefs = JSON.parse(banners_json()) as BannerDef[]
+    const expContent = JSON.parse(expeditions_json()) as ExpContent
     const saved = localStorage.getItem(SAVE_KEY)
     let offline: OfflineReport | null = null
     if (saved) {
@@ -343,7 +450,7 @@ export const useGame = create<Store>((set, get) => ({
     // default to it; this also adopts it for existing saves that were created on the old static-floor default.
     // (After compute_offline above, so a returning player's catch-up is unaffected by the switch.)
     game.set_use_orrery(true, now())
-    set({ ready: true, firstLaunch: !saved, version: core_version(), shapes, recipes, upgradeDefs, milestoneDefs, facetDefs, bannerDefs, offline })
+    set({ ready: true, firstLaunch: !saved, version: core_version(), shapes, recipes, upgradeDefs, milestoneDefs, facetDefs, bannerDefs, expContent, offline })
     get().refresh()
     persist()
     // idle tick: advance the economy on a slow cadence (display is extrapolated in the HUD)
@@ -381,6 +488,24 @@ export const useGame = create<Store>((set, get) => ({
               if (r.is_discovery) useFloaters.getState().spawn('Discovery! +100 ◈', { color: SHARD_C, big: true, y: 120 })
               // pop the forged-shape reveal only while you're actually watching the Forge (no interruptions elsewhere)
               if (get().activeTab === 'forge') set({ lastForge: r })
+            }
+          }
+        }
+        // auto-expedition: hands-free clear the next beatable quest + keep farms stationed (no combat overlay).
+        // Inert to the core economy (only Echoes + boss recruits), bounded (one clear/tick, capped farms).
+        if (get().autoExpedition) {
+          const step = JSON.parse(game.auto_expedition(now())) as AutoExpeditionStep
+          if (step.delved || step.recruited_id >= 0) {
+            get().refresh()
+            persist()
+            const q = get().expContent?.quests[step.quest]
+            if (q) useHistory.getState().recordEvent({ icon: '⚔️', text: `Auto-cleared ${q.nick}`, color: ECHO_C })
+            if (step.recruited_id >= 0) {
+              const sh = get().shapes[step.recruited_id]
+              if (sh) {
+                useFloaters.getState().spawn('FREED ★', { color: '#ff5d8f', big: true })
+                useHistory.getState().recordEvent({ icon: '✶', text: `Freed ${sh.nick} on an expedition!`, color: '#ff5d8f' })
+              }
             }
           }
         }
@@ -744,6 +869,75 @@ export const useGame = create<Store>((set, get) => ({
     if (o) useFloaters.getState().spawn(`+${Math.round(o.gained_flux)} ✦`, { color: FLUX_C, x: 150, y: 64 })
     set({ offline: null })
   },
+
+  // ── Expeditions (the opt-in idle RPG) ──
+  setParty: (ids) => {
+    if (!game) return
+    game.set_party(JSON.stringify(ids), now())
+    get().refresh()
+    persist()
+  },
+  delve: (q) => {
+    if (!game) return
+    const r = JSON.parse(game.delve(q, now())) as DelveResult
+    if (!r.ok) return
+    get().refresh()
+    persist()
+    set({ lastDelve: r }) // the CombatOverlay replays r.battle.log, then shows spoils
+    if (r.win) {
+      const cx = screenCx()
+      if (r.newly_cleared) {
+        sfxMilestone()
+        const q2 = get().expContent?.quests[q]
+        useHistory.getState().recordEvent({ icon: '⚔️', text: `Cleared ${q2?.nick ?? 'a quest'} — +${r.echoes_gained} ✶ Echoes`, color: ECHO_C })
+      }
+      if (r.echoes_gained > 0) useFloaters.getState().spawn(`+${r.echoes_gained} ✶`, { color: ECHO_C, x: cx, y: 120 })
+      if (r.recruited_id >= 0 && r.recruit_is_new) {
+        sfxAscend()
+        const sh = get().shapes[r.recruited_id]
+        useFloaters.getState().spawn('FREED ★', { color: '#ff5d8f', big: true, x: cx, y: 170 })
+        if (sh) {
+          for (let k = 0; k < 7; k++) setTimeout(() => useFloaters.getState().spawn(glyphOf(sh.family), { color: ECHO_C, big: true, x: cx + (k - 3) * 26, y: 210 }), k * 60)
+          useHistory.getState().recordEvent({ icon: '✶', text: `Freed ${sh.nick} from the Manifold!`, color: '#ff5d8f' })
+        }
+      }
+    }
+  },
+  station: (q) => {
+    if (game?.station(q, now())) {
+      sfxDeploy()
+      get().refresh()
+      persist()
+    }
+  },
+  unstation: (q) => {
+    game?.unstation(q, now())
+    get().refresh()
+    persist()
+  },
+  autoExpedition: typeof localStorage !== 'undefined' && localStorage.getItem('shipshape-autoexp') === '1',
+  toggleAutoExpedition: () => {
+    const v = !get().autoExpedition
+    try {
+      localStorage.setItem('shipshape-autoexp', v ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+    set({ autoExpedition: v })
+  },
+  buyExpPerk: (id) => {
+    if (game?.buy_exp_perk(id, now())) {
+      sfxTap()
+      get().refresh()
+      persist()
+    }
+  },
+  devAddEchoes: () => {
+    game?.dev_add_echoes(100000)
+    get().refresh()
+    persist()
+  },
+  dismissDelve: () => set({ lastDelve: null }),
 }))
 
 export const RARITY_ORDER: RarityName[] = ['Common', 'Rare', 'Epic', 'Ssr', 'Ur', 'Relic', 'Meta', 'Transcendent']

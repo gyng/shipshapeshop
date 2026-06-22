@@ -14,7 +14,7 @@ export const SHAPE_GLYPH: Record<string, string> = {
   // UR
   tesseract: '🧩', cell_16: '🔷', cell_24: '🔮', cell_120: '👑', cell_600: '⛈️', klein_quartic: '🎼', hopf: '🪐', mazur: '👹',
   // Relics
-  utah_teapot: '🫖', stanford_bunny: '🐰', benchy: '🚤', stanford_dragon: '🐉', suzanne: '🐵', spot: '🐮', endrass_octic: '❇️', armadillo: '🦔', lucy: '👼', csaszar: '🍩',
+  utah_teapot: '🫖', stanford_bunny: '🐰', benchy: '🚤', stanford_dragon: '🐉', suzanne: '🐵', spot: '🐮', cow: '🐄', endrass_octic: '❇️', armadillo: '🦔', lucy: '👼', csaszar: '🍩',
   menger: '🔲', sierpinski: '🔻', dini: '🐚', torus_knot_2_7: '✴️',
   // NG+ metashapes (Meta + the Transcendent fractal cohort)
   clifford_torus: '🛟', cable_knot: '🧶', mandelbulb: '🪸',

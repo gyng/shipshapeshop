@@ -28,7 +28,7 @@ const E: f64 = 1800.0;
 const S: f64 = 3000.0;
 const U: f64 = 4800.0;
 
-pub const SHAPES: [ShapeDef; 72] = [
+pub const SHAPES: [ShapeDef; 73] = [
     // ── Common (ids 0..10) — genus 0, χ=2, free ballast ──────────────────────────────
     ShapeDef {
         nick: "Pip",
@@ -628,6 +628,17 @@ pub const SHAPES: [ShapeDef; 72] = [
         euler_cost: 9,
         base_prod: U,
     },
+    // Appended Relic — the classic CG test-cow mesh (a graphics-lab staple, distinct from Spot the
+    // conformal-maps mascot). Restored after the in-place dedup that swapped its old slot for the Endrass octic;
+    // re-added at the tail so nothing by-id shifts. Same topology it always had: genus 0, χ=2.
+    ShapeDef {
+        nick: "Mooky",
+        family: "cow",
+        rarity: Rarity::Relic,
+        genus: 0,
+        euler_cost: 3,
+        base_prod: U,
+    },
 ];
 
 pub const COUNT: usize = SHAPES.len();
@@ -1103,7 +1114,7 @@ pub struct UpgradeDef {
 
 // Order is load-bearing — game.rs reads effects by index. Keep in sync. A small tech tree: two roots
 // (expand_floor, patience) branch into the rest; `twin_bond` + `auto_pull` are secret (revealed on unlock).
-pub const UPGRADES: [UpgradeDef; 20] = [
+pub const UPGRADES: [UpgradeDef; 21] = [
     UpgradeDef {
         key: "expand_floor",
         flux_cost: 700.0,
@@ -1117,7 +1128,7 @@ pub const UPGRADES: [UpgradeDef; 20] = [
         flux_cost: 4500.0,
         shard_cost: 15,
         max_level: 3,
-        requires: Some((0, 2)),
+        requires: Some((11, 1)), // deepened: behind solver_mk2 (Orrery branch tier 4)
         secret: false,
     }, // 1: +4% per distinct genus, PER LEVEL (scaling diversity lever)
     UpgradeDef {
@@ -1125,7 +1136,7 @@ pub const UPGRADES: [UpgradeDef; 20] = [
         flux_cost: 6000.0,
         shard_cost: 25,
         max_level: 1,
-        requires: Some((1, 1)),
+        requires: Some((13, 1)), // deepened: behind the Mastery doctrine (tier 5)
         secret: true,
     }, // 2: kin synergy doubled (secret)
     UpgradeDef {
@@ -1141,7 +1152,7 @@ pub const UPGRADES: [UpgradeDef; 20] = [
         flux_cost: 3500.0,
         shard_cost: 0,
         max_level: 1,
-        requires: Some((3, 1)),
+        requires: Some((12, 1)), // deepened: behind offline_efficiency (Idle branch tier 3)
         secret: false,
     }, // 4: dupe shards ×1.5
     UpgradeDef {
@@ -1165,7 +1176,7 @@ pub const UPGRADES: [UpgradeDef; 20] = [
         flux_cost: 8000.0,
         shard_cost: 0,
         max_level: 4,
-        requires: Some((0, 4)),
+        requires: Some((3, 2)), // moved onto the Idle branch (behind patience L2)
         secret: false,
     }, // 7: rate cap +8% / level (MULTIPLICATIVE — scales with the economy, unlike the old flat +300/hr trap)
     UpgradeDef {
@@ -1190,7 +1201,7 @@ pub const UPGRADES: [UpgradeDef; 20] = [
         flux_cost: 6500.0,
         shard_cost: 40,
         max_level: 1,
-        requires: Some((9, 1)),
+        requires: Some((9, 2)), // deepened: needs lens_polish L2
         secret: false,
     }, // 10: Common/Rare shapes gain a gentle ×1.2 SECOND effect (was Epic+ only)
     UpgradeDef {
@@ -1198,7 +1209,7 @@ pub const UPGRADES: [UpgradeDef; 20] = [
         flux_cost: 4000.0,
         shard_cost: 0,
         max_level: 1,
-        requires: Some((0, 2)),
+        requires: Some((9, 1)), // deepened: behind lens_polish (Orrery branch tier 3)
         secret: false,
     }, // 11: auto-arrange searches harder (better beam-chain packing)
     UpgradeDef {
@@ -1214,7 +1225,7 @@ pub const UPGRADES: [UpgradeDef; 20] = [
         flux_cost: 5000.0,
         shard_cost: 25,
         max_level: 1,
-        requires: Some((0, 2)),
+        requires: Some((1, 1)), // deepened: behind genus_resonance (tier 5)
         secret: false,
     }, // 13: Doctrine of Mastery — +4% production per ★ across deployed shapes (go TALL). Excludes #14.
     UpgradeDef {
@@ -1222,7 +1233,7 @@ pub const UPGRADES: [UpgradeDef; 20] = [
         flux_cost: 5000.0,
         shard_cost: 25,
         max_level: 1,
-        requires: Some((0, 2)),
+        requires: Some((1, 1)), // deepened: behind genus_resonance (tier 5; still mutually exclusive with #13)
         secret: false,
     }, // 14: Doctrine of Variety — +5% production per distinct family deployed (go WIDE). Excludes #13.
     UpgradeDef {
@@ -1230,7 +1241,7 @@ pub const UPGRADES: [UpgradeDef; 20] = [
         flux_cost: 4500.0,
         shard_cost: 0, // rule-change levers cost Flux only — Shards are the Forge/Relic currency
         max_level: 1,
-        requires: Some((9, 1)),
+        requires: Some((10, 1)), // deepened: behind second_lens (Orrery branch tier 4)
         secret: false,
     }, // 15: open anchors (cone/disk/cylinder) become SINKS — a beam is boosted ×2.5 then banked+stopped (activates the dead Absorb verb)
     UpgradeDef {
@@ -1262,9 +1273,18 @@ pub const UPGRADES: [UpgradeDef; 20] = [
         flux_cost: 5500.0,
         shard_cost: 25,
         max_level: 3,
-        requires: Some((9, 1)),
+        requires: Some((15, 1)), // deepened: behind sink_doctrine (Orrery branch tier 5)
         secret: false,
     }, // 19: a beam leaving the grid REFLECTS back inward once per level — re-crosses your lenses on the way home
+    UpgradeDef {
+        key: "charter_expeditions",
+        flux_cost: 2500.0,
+        shard_cost: 0,
+        max_level: 1,
+        requires: None,
+        secret: false,
+    }, // 20: UNLOCK-ONLY (no economy effect) — opens the Expeditions idle-RPG tab. A deliberate opt-in purchase,
+       // matching how auto_pull gates automation behind the Workshop. game.rs reads NO effect for this index.
 ];
 pub const UPGRADE_COUNT: usize = UPGRADES.len();
 
@@ -1596,7 +1616,8 @@ mod tests {
     fn metashapes_are_well_formed() {
         // NG+ metashapes after the 2026 cohort expansion: Meta 2→6, Transcendent 5→8, appended at the tail (ids
         // 65-71). The tiers are now NON-contiguous (rarity_ids groups by declared rarity, not array position).
-        assert_eq!(COUNT, 72);
+        // id 72 is the re-appended cow Relic (Mooky) — does not affect the Meta/Transcendent groupings below.
+        assert_eq!(COUNT, 73);
         assert_eq!(rarity_ids(Rarity::Meta), &[58, 59, 65, 66, 67, 68]);
         assert_eq!(rarity_ids(Rarity::Transcendent), &[60, 61, 62, 63, 64, 69, 70, 71]);
         let metashapes: Vec<usize> = rarity_ids(Rarity::Meta)

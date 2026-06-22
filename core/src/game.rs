@@ -7,17 +7,26 @@ use std::collections::BTreeMap;
 use wasm_bindgen::prelude::*;
 
 use crate::content::{self, COUNT, SHAPES};
+use crate::expedition::{self, Combatant, QUESTS, QUEST_COUNT};
 use crate::flux;
 use crate::gacha::{banner_unit, relic_unit, roll_rarity, shape_index, PityState, Rarity};
 use crate::orrery::{self};
 
-const SCHEMA_VERSION: u32 = 2;
+const SCHEMA_VERSION: u32 = 4;
 const PULL_COST: f64 = 100.0 * content::FLUX_DENSITY;
 const TEN_PULL_COST: f64 = 1000.0 * content::FLUX_DENSITY; // 11 pulls for the price of 10
 const BASE_IDLE: f64 = 0.0; // an empty orrery earns nothing — production comes only from deployed shapes
 const RATE_CAP: f64 = 10800.0; // Flux/hr cap before prestige (DESIGN §7); scaled ~12× with base_prod (first-run retune)
 const OFFLINE_CAP_MS: f64 = 24.0 * 3_600_000.0; // generous full-day cap — respects absence (only ever helps idle players, never speeds active play)
 const START_EULER_CAP: u32 = 6;
+const MAX_TEAMS: usize = 6; // concurrent Expedition teams (parties) a player builds + keeps
+const MAX_NODES: usize = 8; // skill-tree nodes per role tree
+// v2: Expeditions pay FLUX too (no longer inert). A team's Flux/hr = its Echoes/hr × FLUX_DENSITY × this,
+// clamped to EXP_FLUX_CAP_SHARE of the core rate cap so it scales with the player but never runs away.
+const EXP_FLUX_PER_ECHO_RATE: f64 = 0.30;
+const EXP_FLUX_CAP_SHARE: f64 = 0.35;
+const FIRST_CLEAR_FLUX_K: f64 = 4.0; // first-clear Flux lump = base_echo × this × FLUX_DENSITY
+const FARM_XP_PER_HR: f64 = 4.0; // XP/hr per stationed member (× power band)
 // overpressure_valve (#18): flux that overflows the rate cap converts to Shards at this fixed exchange (in the
 // same density-scaled flux/hr units the cap clamp uses). ~4000 base flux per shard — a modest late-game stream.
 const SHARD_PER_OVERCAP_FLUX: f64 = 4000.0 * content::FLUX_DENSITY;
@@ -135,6 +144,46 @@ pub struct GameState {
     pub overclock_on: bool, // overclock (#19) session toggle: +60% cap, offline clamped to 4h. Default OFF ⇒ band bit-stable.
     #[serde(default)]
     pub overcap_carry: f64, // overpressure_valve (#18): fractional-shard carry so over-cap spill rounds bit-identically online + offline
+    // ── Expeditions (the opt-in idle RPG; see expedition.rs) ──
+    // All additive #[serde(default)] ⇒ pre-v3 saves load with the mode dormant. Echoes are INERT to the core
+    // economy (they buy only expedition-internal upgrades), so adding this stream can't perturb Flux/shard bands.
+    #[serde(default)]
+    pub echoes: u64, // the expedition spoils currency (its own, never converts to Flux/shards/stars)
+    #[serde(default)]
+    pub lifetime_echoes: u64,
+    #[serde(default)]
+    pub echo_carry: f64, // fractional-Echo carry so the closed-form farm rounds bit-identically online + offline
+    #[serde(default)]
+    pub exp_party: Vec<usize>, // MIGRATION-ONLY (pre-v4): folded into exp_teams[0]; not read at runtime
+    #[serde(default)]
+    pub exp_cleared: Vec<bool>, // per-quest cleared flag (len = QUEST_COUNT)
+    #[serde(default)]
+    pub exp_farms: Vec<ExpFarm>, // MIGRATION-ONLY (pre-v4): folded into exp_teams + exp_station
+    #[serde(default)]
+    pub exp_perks: Vec<u32>, // level per expedition::EXP_PERKS id (Echoes-bought, mode-internal only)
+    // ── v4: multiple persistent teams + station assignment + endless XP/skill trees ──
+    #[serde(default)]
+    pub exp_teams: Vec<Vec<usize>>, // persistent teams, each ≤ exp_party_max() owned shape ids
+    #[serde(default)]
+    pub exp_station: Vec<i32>, // parallel to exp_teams: quest each team farms, or -1 = idle
+    #[serde(default)]
+    pub exp_active_team: usize, // which team the builder is editing
+    #[serde(default)]
+    pub exp_flux_carry: f64, // bit-stable carry for the expedition Flux stream
+    #[serde(default)]
+    pub shape_xp: Vec<u64>, // lifetime XP per shape id (len COUNT) — endless
+    #[serde(default)]
+    pub skill_alloc: Vec<Vec<u32>>, // points spent per skill node per shape (len COUNT × MAX_NODES)
+    #[serde(default)]
+    pub shape_xp_carry: Vec<f64>, // per-shape bit-stable carry for farmed XP (len COUNT)
+}
+
+/// One idle Expedition farm: a snapshot party on a cleared quest. MIGRATION-ONLY since v4 (folded into
+/// exp_teams + exp_station); retained as a serde source so pre-v4 saves load.
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct ExpFarm {
+    pub quest: usize,
+    pub party: Vec<usize>,
 }
 
 #[derive(Serialize)]
@@ -160,6 +209,31 @@ pub struct OfflineReport {
     pub elapsed_ms: f64,
     pub capped_ms: f64,
     pub gained_flux: f64,
+    #[serde(default)]
+    pub gained_echoes: u64, // Echoes the stationed expedition party gathered while away (the peak-end beat)
+}
+
+/// The result of stationing a team on a quest. If the quest was uncleared, `battle` carries the fight that
+/// decided it (a win clears + stations + grants first-clear rewards; a loss is free and does NOT station).
+#[derive(Serialize)]
+pub struct StationResult {
+    pub ok: bool,
+    pub win: bool,
+    pub newly_cleared: bool,
+    pub recruited_id: i32,
+    pub recruit_is_new: bool,
+    pub echoes_gained: u64,
+    pub first_clear_flux: f64,
+    pub battle: Option<expedition::BattleResult>,
+}
+
+/// What one Auto-Expedition step did (for optional toasts). `quest` = the quest newly cleared (-1 if none).
+#[derive(Serialize)]
+pub struct AutoExpeditionStep {
+    pub delved: bool,
+    pub quest: i32,
+    pub recruited_id: i32,
+    pub farms: usize,
 }
 
 /// One stationary shape's flux emitter, for the UI to render its gem + animate the flux it sheds. The web
@@ -258,6 +332,36 @@ pub struct GameStateView {
     pub flux_emitters: Vec<FluxEmitterView>, // parallel to loadout — stationary shapes that emit flux
     pub flux_contrib: Vec<f64>,              // parallel to loadout — each shape's own flux/hr output (DPS meter)
     pub flux_amp: Vec<f64>,                  // parallel to loadout — flux/hr a shape's multiplier lends others
+    // ── Expeditions (the opt-in idle RPG) ──
+    pub echoes: u64,
+    pub lifetime_echoes: u64,
+    pub echo_rate_per_hr: f64,
+    pub exp_flux_rate: f64, // total Flux/hr expeditions add to the idle economy (v2 — no longer inert)
+    pub exp_teams: Vec<TeamView>, // the player's persistent teams (multiple parties)
+    pub exp_active_team: u32,
+    pub exp_max_teams: u32,
+    pub exp_party_max: u32, // members per team
+    pub exp_cleared: Vec<bool>,
+    pub exp_perks: Vec<u32>,
+    pub exp_perk_costs: Vec<u64>,
+    pub exp_power: Vec<i64>, // combat/farm power per shape id (len COUNT) — UI shows it, never recomputes
+    pub shape_levels: Vec<u64>, // endless level per shape id
+    pub shape_xp: Vec<u64>,
+    pub xp_to_next: Vec<u64>, // XP remaining to the next level per shape
+    pub skill_points_free: Vec<u32>,
+    pub skill_alloc: Vec<Vec<u32>>,
+    pub shard_rate_per_hr: f64, // over-cap shard income (display-only)
+    pub exp_quest_flux_est: Vec<f64>, // per quest: Flux/hr the ACTIVE team would farm there (preview, len QUEST_COUNT)
+}
+
+/// A team row for the UI: members, the quest it's stationed on (-1 idle), its live power + Echo/Flux rates.
+#[derive(Serialize)]
+pub struct TeamView {
+    pub members: Vec<usize>,
+    pub station: i32,
+    pub power: i64,
+    pub echo_rate_per_hr: f64,
+    pub flux_rate_per_hr: f64,
 }
 
 impl GameState {
@@ -300,6 +404,20 @@ impl GameState {
             orbit_tune: BTreeMap::new(),
             overclock_on: false,
             overcap_carry: 0.0,
+            echoes: 0,
+            lifetime_echoes: 0,
+            echo_carry: 0.0,
+            exp_party: Vec::new(),
+            exp_cleared: vec![false; QUEST_COUNT],
+            exp_farms: Vec::new(),
+            exp_perks: vec![0; expedition::EXP_PERK_COUNT],
+            exp_teams: vec![Vec::new()],
+            exp_station: vec![-1],
+            exp_active_team: 0,
+            exp_flux_carry: 0.0,
+            shape_xp: vec![0; COUNT],
+            skill_alloc: vec![vec![0; MAX_NODES]; COUNT],
+            shape_xp_carry: vec![0.0; COUNT],
         }
     }
 
@@ -1138,7 +1256,7 @@ impl GameState {
     /// overpressure_valve (#18): Shards/hr recovered from flux that OVERFLOWS the rate cap (currently deleted by
     /// the `.min(cap_rate())` clamp). Reads the SAME production basis the clamp uses (orrery avg vs static), so
     /// "over-cap" matches exactly what was discarded. Zero while under the cap ⇒ never accelerates core flux.
-    fn overcap_shard_rate_per_hr(&self) -> f64 {
+    pub fn overcap_shard_rate_per_hr(&self) -> f64 {
         let lvl = self.upgrade_level(17);
         if lvl == 0 {
             return 0.0;
@@ -1175,6 +1293,8 @@ impl GameState {
         self.flux += gain;
         self.lifetime_flux += gain;
         self.accrue_overcap_shards(dt); // overpressure_valve (#18): bank shards from over-cap spill
+        self.accrue_expedition_rewards(dt); // expeditions: closed-form Echoes + Flux from stationed teams
+        self.accrue_farm_xp(dt); // expeditions: closed-form farmed XP per stationed member
         self.add_affinity(dt);
         self.refresh_milestones();
         self.last_seen_ms = now_ms;
@@ -1200,12 +1320,16 @@ impl GameState {
         self.flux += gained;
         self.lifetime_flux += gained;
         self.accrue_overcap_shards(capped); // overpressure_valve (#18): same helper as tick ⇒ offline rounds identically
+        let echoes_before = self.echoes;
+        self.accrue_expedition_rewards(capped); // expeditions: same helper as tick ⇒ Echoes+Flux farm rounds identically offline
+        self.accrue_farm_xp(capped); // expeditions: farmed XP, same helper as tick
         self.add_affinity(capped);
         self.last_seen_ms = now_ms;
         OfflineReport {
             elapsed_ms: elapsed,
             capped_ms: capped,
             gained_flux: gained,
+            gained_echoes: self.echoes - echoes_before,
         }
     }
 
@@ -1725,6 +1849,13 @@ impl GameState {
         // crystalline_start head-start (flux-denominated → density-scaled)
         self.flux = (500.0 * self.ng_cycle as f64 + 600.0 * self.facet_level(2) as f64) * content::FLUX_DENSITY;
         self.facets += 3 + self.ng_cycle as u64 + self.facet_level(6) as u64; // facet_yield (#6): +1/level per ascent
+        // Expeditions: stop all farms on ascent (the economy re-bases). Teams, cleared quests, XP and skill
+        // trees carry over — re-stationing is one tap. Deeper (viewport-gated) chapters open as the dimension rises.
+        for s in self.exp_station.iter_mut() {
+            *s = -1;
+        }
+        self.echo_carry = 0.0;
+        self.exp_flux_carry = 0.0;
         true
     }
 
@@ -1889,6 +2020,547 @@ impl GameState {
         self.equipped[s] = id;
     }
 
+    // ─────────────────────────── Expeditions (the opt-in idle RPG) ───────────────────────────
+    // Truth layer for the party RPG. Combat is the deterministic `expedition::resolve_battle`; the idle farm
+    // is a closed-form Echoes rate accrued by `accrue_expedition_rewards` (mirrors `accrue_overcap_shards`).
+    // INERT TO THE CORE: Echoes never convert to Flux/shards/stars and `echo_rate` never touches `globals_mult`.
+
+    fn exp_power_base(r: Rarity) -> i64 {
+        match r {
+            Rarity::Common => 100,
+            Rarity::Rare => 120,
+            Rarity::Epic => 140,
+            Rarity::Ssr => 170,
+            Rarity::Ur => 200,
+            Rarity::Relic => 210,
+            Rarity::Meta => 240,
+            Rarity::Transcendent => 280,
+        }
+    }
+
+    /// A shape's combat/farm power — rarity base + a little genus, scaled by ★ (dupes) and bond level. The
+    /// rarity spread is deliberately gentle (×2 across all tiers) so a beloved ★5 common out-powers a fresh
+    /// UR — the "bring who you love" guarantee (pinned by a test).
+    /// BASE power — rarity + genus + ★ + bond (NO level/skill). The farm RATE bands on this so XP earned while
+    /// farming can't compound the rate mid-span (keeps the closed-form farm bit-stable online == offline).
+    fn exp_base_power(&self, id: usize) -> i64 {
+        if id >= COUNT {
+            return 0;
+        }
+        let s = &SHAPES[id];
+        let mut p = Self::exp_power_base(s.rarity) + 4 * s.genus as i64;
+        p = p * (100 + 22 * self.star_level(id) as i64) / 100;
+        p = p * (100 + 4 * self.bond_level(id) as i64) / 100;
+        p
+    }
+    /// FULL combat power = base × (endless level +5%/lvl + allocated skill StatPct). Folds into the battle seed
+    /// so leveling/skills make COMBAT stronger (clearing deeper quests), without compounding the farm rate.
+    pub fn exp_power(&self, id: usize) -> i64 {
+        if id >= COUNT {
+            return 0;
+        }
+        self.exp_base_power(id) * (100 + 5 * self.shape_level(id) as i64 + self.skill_stat_pct(id)) / 100
+    }
+
+    /// Conventional RPG role from declared predicates + a small family spread (so the free commons aren't all
+    /// one role). knot→Control, non-orientable/4D→Support; then a family map; else DPS.
+    fn exp_role(&self, id: usize) -> expedition::Role {
+        let fam = SHAPES[id].family;
+        if content::is_knot(fam) {
+            return expedition::Role::Control;
+        }
+        if content::is_nonorientable(fam) || content::is_polytope_4d(fam) {
+            return expedition::Role::Support;
+        }
+        match fam {
+            "sphere" | "cube" | "cylinder" | "ellipsoid" | "hyperboloid" | "catenoid" => expedition::Role::Tank,
+            "dodecahedron" | "disk" | "gyroid" | "schwarz_p" | "schwarz_d" | "seifert" | "costa" => expedition::Role::Support,
+            _ => expedition::Role::Dps,
+        }
+    }
+
+    fn exp_combatant(&self, id: usize) -> Combatant {
+        let s = &SHAPES[id];
+        let p = self.exp_power(id);
+        let role = self.exp_role(id);
+        let el = expedition::element_of(s.family, content::is_knot(s.family), content::is_nonorientable(s.family));
+        let (hpf, atkf) = match role {
+            expedition::Role::Tank => (240, 55),
+            expedition::Role::Dps => (120, 135),
+            expedition::Role::Support => (160, 80),
+            expedition::Role::Control => (140, 105),
+        };
+        let speed = 95
+            + match role {
+                expedition::Role::Dps => 12,
+                expedition::Role::Control => 8,
+                expedition::Role::Support => 5,
+                expedition::Role::Tank => 0,
+            }
+            + s.rarity as i64;
+        let mut ult = 180i64;
+        if let Some((bonus, _)) = content::signature(id) {
+            ult += (bonus * 200.0) as i64; // signature shapes hit harder with their Ult
+        }
+        let vigor = self.exp_perk_level(2) as i64; // battle_vigor: start with charge
+        Combatant {
+            shape_id: id as i32,
+            nick: s.nick.to_string(),
+            family: s.family.to_string(),
+            max_hp: (p * hpf / 100).max(1),
+            hp: (p * hpf / 100).max(1),
+            atk: (p * atkf / 100).max(1),
+            def: 10 + p * 30 / 100,
+            speed,
+            element: el,
+            role,
+            is_enemy: false,
+            ai: expedition::AiKind::Bumper,
+            reflect: content::is_nonorientable(s.family),
+            ult_power: ult,
+            charge: (20 * vigor).min(99),
+            atk_up: 0,
+            def_down: 0,
+            regen: 0,
+            stun: 0,
+            shield: 0,
+            cd_a: 0,
+            cd_b: 0,
+        }
+    }
+
+    fn build_team_combatants(&self, t: usize) -> Vec<Combatant> {
+        self.exp_teams.get(t).map_or(Vec::new(), |team| {
+            team.iter().filter(|&&id| id < COUNT && self.owned[id] > 0).map(|&id| self.exp_combatant(id)).collect()
+        })
+    }
+
+    pub fn exp_party_max(&self) -> usize {
+        3 + if self.exp_perk_level(0) > 0 { 1 } else { 0 } // fourth_berth
+    }
+    pub fn exp_perk_level(&self, id: usize) -> u32 {
+        self.exp_perks.get(id).copied().unwrap_or(0)
+    }
+    /// Clamp a candidate team list to owned shapes, de-duplicated, ≤ exp_party_max.
+    fn clean_team(&self, ids: &[usize]) -> Vec<usize> {
+        let mut out = Vec::new();
+        for &id in ids {
+            if id < COUNT && self.owned[id] > 0 && !out.contains(&id) {
+                out.push(id);
+            }
+            if out.len() >= self.exp_party_max() {
+                break;
+            }
+        }
+        out
+    }
+    pub fn set_team(&mut self, t: usize, ids: &[usize]) {
+        if t < self.exp_teams.len() {
+            self.exp_teams[t] = self.clean_team(ids);
+        }
+    }
+    pub fn set_active_team(&mut self, t: usize) {
+        if t < self.exp_teams.len() {
+            self.exp_active_team = t;
+        }
+    }
+    pub fn add_team(&mut self) -> usize {
+        if self.exp_teams.len() < MAX_TEAMS {
+            self.exp_teams.push(Vec::new());
+            self.exp_station.push(-1);
+        }
+        self.exp_teams.len() - 1
+    }
+    pub fn remove_team(&mut self, t: usize) -> bool {
+        if self.exp_teams.len() <= 1 || t >= self.exp_teams.len() || self.exp_station[t] >= 0 {
+            return false;
+        }
+        self.exp_teams.remove(t);
+        self.exp_station.remove(t);
+        if self.exp_active_team >= self.exp_teams.len() {
+            self.exp_active_team = self.exp_teams.len() - 1;
+        }
+        true
+    }
+
+    /// Battle seed folds in team `t`'s members + their power so different teams (and leveling up) face different
+    /// fights; the same team on the same quest is reproducible (watch == golden test).
+    fn team_seed(&self, t: usize, q: usize) -> u64 {
+        let mut h = self.master_seed ^ (q as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        if let Some(team) = self.exp_teams.get(t) {
+            for &id in team {
+                h = h
+                    .wrapping_mul(0x100_0000_01b3)
+                    .wrapping_add(id as u64 + 1)
+                    .wrapping_add(self.exp_power(id) as u64);
+            }
+        }
+        h
+    }
+
+    /// The ONE first-clear path (D5): mark cleared, grant Echoes + first-clear Flux + the freed shape + team XP.
+    /// Returns (recruited_id, recruit_is_new, echoes_gained, first_clear_flux).
+    fn grant_first_clear(&mut self, q: usize, t: usize) -> (i32, bool, u64, f64) {
+        self.exp_cleared[q] = true;
+        let base = QUESTS[q].base_echo;
+        let echoes = base * 5;
+        self.echoes += echoes;
+        self.lifetime_echoes += echoes;
+        let fc_flux = base as f64 * FIRST_CLEAR_FLUX_K * content::FLUX_DENSITY; // a windfall, not inert
+        self.flux += fc_flux;
+        self.lifetime_flux += fc_flux;
+        let (mut rid_out, mut is_new) = (-1i32, false);
+        if QUESTS[q].recruit_id >= 0 {
+            let rid = QUESTS[q].recruit_id as usize;
+            let r = SHAPES[rid].rarity;
+            let (n, _) = self.grant(rid, r); // free the lost shape (a pull-equivalent acquisition)
+            rid_out = rid as i32;
+            is_new = n;
+        }
+        let xp = base * 5; // the winning team levels up (interaction-driven XP)
+        if let Some(team) = self.exp_teams.get(t).cloned() {
+            for id in team {
+                self.shape_xp[id] += xp;
+            }
+        }
+        (rid_out, is_new, echoes, fc_flux)
+    }
+
+    /// Station team `t` on quest `q`. Banks idle first. If `q` isn't cleared, resolve the battle: a win grants
+    /// the first-clear rewards + stations; a loss is free (returns the battle, does NOT station). If already
+    /// cleared, stations immediately. One team per quest (any other team there is bumped off).
+    pub fn station(&mut self, t: usize, q: usize) -> StationResult {
+        let fail = StationResult {
+            ok: false,
+            win: false,
+            newly_cleared: false,
+            recruited_id: -1,
+            recruit_is_new: false,
+            echoes_gained: 0,
+            first_clear_flux: 0.0,
+            battle: None,
+        };
+        if t >= self.exp_teams.len() || q >= QUEST_COUNT {
+            return fail;
+        }
+        if self.viewport_dim < QUESTS[q].min_dim || self.build_team_combatants(t).is_empty() {
+            return fail;
+        }
+        let mut res = StationResult { ok: true, win: true, ..fail };
+        if !self.exp_cleared[q] {
+            let battle = expedition::resolve_battle(self.team_seed(t, q), self.build_team_combatants(t), expedition::quest_enemies(&QUESTS[q]));
+            res.win = battle.win;
+            res.battle = Some(battle);
+            if !res.win {
+                return res; // loss is free; not stationed
+            }
+            let (rid, isnew, ech, fc) = self.grant_first_clear(q, t);
+            res.newly_cleared = true;
+            res.recruited_id = rid;
+            res.recruit_is_new = isnew;
+            res.echoes_gained = ech;
+            res.first_clear_flux = fc;
+        }
+        // station (one team per quest): bump any other team off this quest, then assign.
+        for s in self.exp_station.iter_mut() {
+            if *s == q as i32 {
+                *s = -1;
+            }
+        }
+        self.exp_station[t] = q as i32;
+        res
+    }
+    /// Stop team `t`'s farm.
+    pub fn unstation(&mut self, t: usize) {
+        if t < self.exp_station.len() {
+            self.exp_station[t] = -1;
+        }
+    }
+    /// The deterministic battle the team stationed on quest `q` is running (for the spectator Watch). None if no
+    /// team is stationed there. Pure — no tick/mutation; fetch once, replay in TS.
+    pub fn watch_data(&self, q: usize) -> Option<expedition::BattleResult> {
+        if q >= QUEST_COUNT {
+            return None;
+        }
+        let t = (0..self.exp_teams.len()).find(|&t| self.exp_station.get(t).copied().unwrap_or(-1) == q as i32)?;
+        Some(expedition::resolve_battle(self.team_seed(t, q), self.build_team_combatants(t), expedition::quest_enemies(&QUESTS[q])))
+    }
+
+    fn party_power_of(&self, party: &[usize]) -> i64 {
+        party.iter().map(|&id| self.exp_power(id)).sum()
+    }
+    /// Base power of a party (no level/skill) — the farm-rate band reference (keeps the farm closed-form).
+    fn party_base_power(&self, party: &[usize]) -> i64 {
+        party.iter().map(|&id| self.exp_base_power(id)).sum()
+    }
+    fn kin_pairs_of(&self, party: &[usize]) -> u32 {
+        content::SYNERGY_PAIRS.iter().filter(|&&(a, b)| party.contains(&a) && party.contains(&b)).count() as u32
+    }
+    fn party_advantage_of(&self, party: &[usize], q: &expedition::QuestDef) -> bool {
+        let dom = expedition::quest_dominant_element(q);
+        party.iter().any(|&id| {
+            let s = &SHAPES[id];
+            expedition::element_of(s.family, content::is_knot(s.family), content::is_nonorientable(s.family)).beats(dom)
+        })
+    }
+
+    /// Echoes/hr a given `party` WOULD farm at quest `qi` — the product of legible multipliers on the SAME team
+    /// levers as combat (power band, element match, kin pairs, the yield perk). Piecewise-constant ⇒ O(1) offline.
+    /// The Echoes/hr a party WOULD farm at quest `qi` IGNORING the cleared gate — used for "+Flux estimate"
+    /// previews on not-yet-cleared quests. `echo_rate_for` adds the cleared gate on top.
+    fn echo_rate_est(&self, party: &[usize], qi: usize) -> f64 {
+        if qi >= QUEST_COUNT || party.is_empty() {
+            return 0.0;
+        }
+        let quest = &QUESTS[qi];
+        let req = expedition::quest_power_req(quest).max(1);
+        let pw = self.party_base_power(party); // BASE power → farm rate can't compound from farmed XP (closed-form)
+        let band = (pw * 100 / req).clamp(50, 400) as f64 / 100.0; // 0.5×..4× of the quest's reference power
+        let base = quest.base_echo as f64;
+        let aff = if self.party_advantage_of(party, quest) { 1.25 } else { 1.0 };
+        let kin = 1.0 + 0.08 * self.kin_pairs_of(party) as f64;
+        let yield_perk = 1.0 + 0.10 * self.exp_perk_level(1) as f64; // rich_currents
+        // skill-tree FarmPct nodes (mode-internal; flows into Echoes AND, via exp_flux_for, Flux — never globals).
+        let farm = 1.0 + 0.01 * party.iter().map(|&id| self.skill_farm_pct(id)).sum::<i64>() as f64;
+        base * band * aff * kin * yield_perk * farm
+    }
+    /// Echoes/hr a party farms at a CLEARED quest `qi` (0 if uncleared) — the actual farm rate.
+    fn echo_rate_for(&self, party: &[usize], qi: usize) -> f64 {
+        if !self.exp_cleared.get(qi).copied().unwrap_or(false) {
+            return 0.0;
+        }
+        self.echo_rate_est(party, qi)
+    }
+
+    /// Total Echoes/hr across ALL stationed teams (the multiple-parties sum).
+    pub fn echo_rate_per_hr(&self) -> f64 {
+        (0..self.exp_teams.len())
+            .filter(|&t| self.exp_station[t] >= 0)
+            .map(|t| self.echo_rate_for(&self.exp_teams[t], self.exp_station[t] as usize))
+            .sum()
+    }
+    /// Echoes/hr team `t` farms (0 if idle) — per-team UI readout.
+    pub fn team_echo_rate(&self, t: usize) -> f64 {
+        match self.exp_station.get(t).copied().unwrap_or(-1) {
+            q if q >= 0 => self.echo_rate_for(&self.exp_teams[t], q as usize),
+            _ => 0.0,
+        }
+    }
+    /// Flux/hr a given party would pay at quest `qi` — the ONE flux-estimate formula (D4). Density-scaled.
+    fn exp_flux_for(&self, party: &[usize], qi: usize) -> f64 {
+        self.echo_rate_for(party, qi) * content::FLUX_DENSITY * EXP_FLUX_PER_ECHO_RATE
+    }
+    /// Flux/hr team `t` pays (0 if idle).
+    pub fn team_flux_rate(&self, t: usize) -> f64 {
+        match self.exp_station.get(t).copied().unwrap_or(-1) {
+            q if q >= 0 => self.exp_flux_for(&self.exp_teams[t], q as usize),
+            _ => 0.0,
+        }
+    }
+    /// Total expedition Flux/hr (sum over stationed teams), CLAMPED to a share of the core rate cap so it scales
+    /// with the player but never runs away. A SEPARATE additive stream (never enters cap_rate/globals_mult).
+    pub fn expedition_flux_per_hr(&self) -> f64 {
+        let raw: f64 = (0..self.exp_teams.len())
+            .filter(|&t| self.exp_station[t] >= 0)
+            .map(|t| self.exp_flux_for(&self.exp_teams[t], self.exp_station[t] as usize))
+            .sum();
+        raw.min(self.cap_rate() * EXP_FLUX_CAP_SHARE)
+    }
+
+    /// One step of Auto-Expedition (idle automation): clear the next beatable unlocked quest with the current
+    /// party (one per call, easiest first — same deterministic battle, no overlay), then fill empty farm slots
+    /// with the highest-yield cleared quests (snapshotting the current party). Inert to the core economy exactly
+    /// like a manual delve (only Echoes + a one-time boss recruit).
+    /// One step of Auto-Expedition: the strongest team clears the next beatable quest (one per call), then every
+    /// idle team is stationed on the highest-yield cleared quest not already taken. Hands-free, deterministic.
+    pub fn auto_expedition(&mut self, now_ms: f64) -> AutoExpeditionStep {
+        self.tick(now_ms);
+        let mut step = AutoExpeditionStep { delved: false, quest: -1, recruited_id: -1, farms: 0 };
+        // 1) the strongest non-empty team clears the next beatable, unlocked, uncleared quest (easiest first)
+        let clearer = (0..self.exp_teams.len())
+            .filter(|&t| !self.build_team_combatants(t).is_empty())
+            .max_by_key(|&t| self.party_power_of(&self.exp_teams[t]));
+        if let Some(t) = clearer {
+            let mut cands: Vec<usize> = (0..QUEST_COUNT)
+                .filter(|&qi| self.viewport_dim >= QUESTS[qi].min_dim && !self.exp_cleared[qi])
+                .collect();
+            cands.sort_by_key(|&qi| QUESTS[qi].tier);
+            for qi in cands {
+                if expedition::resolve_battle(self.team_seed(t, qi), self.build_team_combatants(t), expedition::quest_enemies(&QUESTS[qi])).win {
+                    let (rid, _, _, _) = self.grant_first_clear(qi, t);
+                    step.delved = true;
+                    step.quest = qi as i32;
+                    step.recruited_id = rid;
+                    break; // one clear per call — gentle + bounded
+                }
+            }
+        }
+        // 2) station every idle team on the best cleared quest not already stationed by another team
+        for t in 0..self.exp_teams.len() {
+            if self.exp_station[t] >= 0 || self.build_team_combatants(t).is_empty() {
+                continue;
+            }
+            let taken = self.exp_station.clone();
+            let best = (0..QUEST_COUNT)
+                .filter(|&qi| self.exp_cleared[qi] && self.viewport_dim >= QUESTS[qi].min_dim && !taken.contains(&(qi as i32)))
+                .max_by(|&a, &b| self.echo_rate_for(&self.exp_teams[t], a).partial_cmp(&self.echo_rate_for(&self.exp_teams[t], b)).unwrap_or(std::cmp::Ordering::Equal));
+            if let Some(qi) = best {
+                self.exp_station[t] = qi as i32;
+            }
+        }
+        step.farms = self.exp_station.iter().filter(|&&s| s >= 0).count();
+        step
+    }
+
+    /// Accrue farmed Echoes + Flux across a span. Shared by `tick` AND `compute_offline`; both currencies are
+    /// carry-threaded so online == offline bit-for-bit. O(1).
+    fn accrue_expedition_rewards(&mut self, span_ms: f64) {
+        let hours = span_ms / MS_PER_HOUR;
+        let rate = self.echo_rate_per_hr();
+        if rate > 0.0 {
+            let s = rate * hours + self.echo_carry;
+            let whole = s.floor();
+            self.echoes += whole as u64;
+            self.lifetime_echoes += whole as u64;
+            self.echo_carry = s - whole;
+        }
+        let frate = self.expedition_flux_per_hr();
+        if frate > 0.0 {
+            let s = frate * hours + self.exp_flux_carry;
+            let whole = s.floor();
+            self.flux += whole;
+            self.lifetime_flux += whole;
+            self.exp_flux_carry = s - whole;
+        }
+    }
+
+    /// Accrue farmed XP per stationed member, per-shape carry-threaded so online == offline. O(COUNT) per call
+    /// (not the span) ⇒ still instant after weeks.
+    fn accrue_farm_xp(&mut self, span_ms: f64) {
+        let hours = span_ms / MS_PER_HOUR;
+        let mut rate = vec![0.0f64; COUNT];
+        for t in 0..self.exp_teams.len() {
+            let q = self.exp_station[t];
+            if q < 0 {
+                continue;
+            }
+            let req = expedition::quest_power_req(&QUESTS[q as usize]).max(1);
+            let band = (self.party_base_power(&self.exp_teams[t]) * 100 / req).clamp(50, 400) as f64 / 100.0;
+            for &id in &self.exp_teams[t] {
+                if id < COUNT {
+                    rate[id] += FARM_XP_PER_HR * band;
+                }
+            }
+        }
+        for (id, &r) in rate.iter().enumerate() {
+            if r <= 0.0 {
+                continue;
+            }
+            let s = r * hours + self.shape_xp_carry[id];
+            let whole = s.floor();
+            self.shape_xp[id] += whole as u64;
+            self.shape_xp_carry[id] = s - whole;
+        }
+    }
+
+    // ── XP, levels, skill trees (endless) ──
+    fn xp_to_reach(l: u64) -> u64 {
+        5 * l * l + 50 * l // cumulative XP to BE at level l; per-level cost = 10l+45 (55,65,75,…)
+    }
+    /// A shape's level from its lifetime XP — endless, integer-exact (f64 estimate + integer correction).
+    pub fn shape_level(&self, id: usize) -> u64 {
+        let x = self.shape_xp.get(id).copied().unwrap_or(0);
+        let mut l = ((-50.0 + (2500.0 + 20.0 * x as f64).sqrt()) / 10.0).floor().max(0.0) as u64;
+        while Self::xp_to_reach(l + 1) <= x {
+            l += 1;
+        }
+        while l > 0 && Self::xp_to_reach(l) > x {
+            l -= 1;
+        }
+        l
+    }
+    pub fn skill_points_total(&self, id: usize) -> u32 {
+        self.shape_level(id) as u32 // 1 point per level
+    }
+    pub fn skill_points_free(&self, id: usize) -> u32 {
+        let spent: u32 = self.skill_alloc.get(id).map_or(0, |a| a.iter().sum());
+        self.skill_points_total(id).saturating_sub(spent)
+    }
+    fn role_idx(&self, id: usize) -> usize {
+        self.exp_role(id) as usize
+    }
+    fn skill_stat_pct(&self, id: usize) -> i64 {
+        let tree = expedition::SKILL_TREES[self.role_idx(id)];
+        self.skill_alloc.get(id).map_or(0, |a| tree.iter().enumerate().map(|(n, nd)| a.get(n).copied().unwrap_or(0) as i64 * nd.stat_pct).sum())
+    }
+    fn skill_farm_pct(&self, id: usize) -> i64 {
+        let tree = expedition::SKILL_TREES[self.role_idx(id)];
+        self.skill_alloc.get(id).map_or(0, |a| tree.iter().enumerate().map(|(n, nd)| a.get(n).copied().unwrap_or(0) as i64 * nd.farm_pct).sum())
+    }
+    /// Spend one free skill point on node `node` of shape `id`'s role tree (checks free points, node max, prereq).
+    pub fn spend_skill_point(&mut self, id: usize, node: usize) -> bool {
+        if id >= COUNT {
+            return false;
+        }
+        let tree = expedition::SKILL_TREES[self.role_idx(id)];
+        if node >= tree.len() || node >= MAX_NODES {
+            return false;
+        }
+        let nd = &tree[node];
+        if self.skill_alloc[id][node] >= nd.max {
+            return false;
+        }
+        if let Some((req, lvl)) = nd.requires {
+            if self.skill_alloc[id].get(req).copied().unwrap_or(0) < lvl {
+                return false;
+            }
+        }
+        if self.skill_points_free(id) == 0 {
+            return false;
+        }
+        self.skill_alloc[id][node] += 1;
+        true
+    }
+    pub fn respec(&mut self, id: usize) {
+        if id < COUNT {
+            for v in self.skill_alloc[id].iter_mut() {
+                *v = 0;
+            }
+        }
+    }
+
+    pub fn exp_perk_cost(&self, id: usize) -> u64 {
+        if id >= expedition::EXP_PERK_COUNT {
+            return 0;
+        }
+        let lvl = self.exp_perk_level(id);
+        (expedition::EXP_PERKS[id].cost as f64 * 1.8_f64.powi(lvl as i32)).floor() as u64
+    }
+
+    /// Buy an expedition perk with Echoes (mode-internal only). Returns true on success.
+    pub fn buy_exp_perk(&mut self, id: usize) -> bool {
+        if id >= expedition::EXP_PERK_COUNT {
+            return false;
+        }
+        let lvl = self.exp_perk_level(id);
+        if lvl >= expedition::EXP_PERKS[id].max_level {
+            return false;
+        }
+        let cost = self.exp_perk_cost(id);
+        if self.echoes < cost {
+            return false;
+        }
+        self.echoes -= cost;
+        self.exp_perks[id] += 1;
+        // shrinking nothing; if fourth_berth was just bought the party cap rose (no party change needed)
+        true
+    }
+
+    pub fn dev_add_echoes(&mut self, amount: u64) {
+        self.echoes += amount;
+        self.lifetime_echoes += amount;
+    }
+
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).expect("GameState serializes")
     }
@@ -1901,7 +2573,10 @@ impl GameState {
                 state.schema_version
             ));
         }
-        // migration chain would run here for older versions; v1 is current.
+        // Migration chain runs here for older versions. v2→v3 added the Expeditions layer; all its fields are
+        // additive #[serde(default)], so a v2 save simply loads with the mode dormant (the resizes below give
+        // the per-content vecs their current lengths). No data is rewritten — the bump exists so a v3 build is
+        // explicit about the new nested run-state and a future migration has a clean version anchor.
         // defensive: ensure owned vec matches the current content count
         if state.owned.len() != COUNT {
             state.owned.resize(COUNT, 0);
@@ -1934,6 +2609,72 @@ impl GameState {
         }
         if state.equipped.len() < COSMETIC_SLOTS {
             state.equipped.resize(COSMETIC_SLOTS, 0); // old saves predate the generic cosmetic slots
+        }
+        // ── Expeditions (v3→v4): size per-content vecs, fold farms→teams, sanitise teams + XP/skill ──
+        if state.exp_cleared.len() != QUEST_COUNT {
+            state.exp_cleared.resize(QUEST_COUNT, false);
+        }
+        if state.exp_perks.len() != expedition::EXP_PERK_COUNT {
+            state.exp_perks.resize(expedition::EXP_PERK_COUNT, 0);
+        }
+        if state.shape_xp.len() != COUNT {
+            state.shape_xp.resize(COUNT, 0);
+        }
+        if state.shape_xp_carry.len() != COUNT {
+            state.shape_xp_carry.resize(COUNT, 0.0);
+        }
+        if state.skill_alloc.len() != COUNT {
+            state.skill_alloc.resize(COUNT, vec![0; MAX_NODES]);
+        }
+        for a in state.skill_alloc.iter_mut() {
+            a.resize(MAX_NODES, 0);
+        }
+        let pmax = 3 + if state.exp_perks.first().copied().unwrap_or(0) > 0 { 1 } else { 0 };
+        // v3→v4: fold the single exp_party + exp_farms into the new exp_teams + exp_station model (once).
+        if state.exp_teams.is_empty() {
+            state.exp_teams = if state.exp_party.is_empty() { vec![Vec::new()] } else { vec![state.exp_party.clone()] };
+            state.exp_station = vec![-1; state.exp_teams.len()];
+            for f in std::mem::take(&mut state.exp_farms) {
+                let pos = state.exp_teams.iter().position(|m| *m == f.party).unwrap_or_else(|| {
+                    state.exp_teams.push(f.party.clone());
+                    state.exp_station.push(-1);
+                    state.exp_teams.len() - 1
+                });
+                if f.quest < QUEST_COUNT && state.exp_cleared.get(f.quest).copied().unwrap_or(false) {
+                    state.exp_station[pos] = f.quest as i32;
+                }
+            }
+        }
+        // sanitise teams: parity, owned-only + dedupe + truncate, valid+cleared stations, ≤1 team per quest.
+        if state.exp_station.len() != state.exp_teams.len() {
+            state.exp_station.resize(state.exp_teams.len(), -1);
+        }
+        for team in state.exp_teams.iter_mut() {
+            let mut seen: Vec<usize> = Vec::new();
+            team.retain(|&id| id < COUNT && state.owned[id] > 0 && !seen.contains(&id) && { seen.push(id); true });
+            team.truncate(pmax);
+        }
+        for st in state.exp_station.iter_mut() {
+            if *st >= 0 && !(((*st as usize) < QUEST_COUNT) && state.exp_cleared.get(*st as usize).copied().unwrap_or(false)) {
+                *st = -1;
+            }
+        }
+        let mut used: Vec<i32> = Vec::new();
+        for st in state.exp_station.iter_mut().rev() {
+            if *st >= 0 {
+                if used.contains(st) {
+                    *st = -1;
+                } else {
+                    used.push(*st);
+                }
+            }
+        }
+        if state.exp_teams.is_empty() {
+            state.exp_teams.push(Vec::new());
+            state.exp_station.push(-1);
+        }
+        if state.exp_active_team >= state.exp_teams.len() {
+            state.exp_active_team = 0;
         }
         // 2D board: older saves have no board_cells — seed them row-packed (0,1,2…). Then prune the loadout +
         // its cells together for any invalid/unowned ids so the two arrays stay parallel.
@@ -2056,6 +2797,36 @@ impl GameState {
             flux_amp: {
                 let c = self.flux_contributions();
                 c.iter().map(|x| x.1).collect()
+            },
+            echoes: self.echoes,
+            lifetime_echoes: self.lifetime_echoes,
+            echo_rate_per_hr: self.echo_rate_per_hr(),
+            exp_flux_rate: self.expedition_flux_per_hr(),
+            exp_teams: (0..self.exp_teams.len())
+                .map(|t| TeamView {
+                    members: self.exp_teams[t].clone(),
+                    station: self.exp_station.get(t).copied().unwrap_or(-1),
+                    power: self.party_power_of(&self.exp_teams[t]),
+                    echo_rate_per_hr: self.team_echo_rate(t),
+                    flux_rate_per_hr: self.team_flux_rate(t),
+                })
+                .collect(),
+            exp_active_team: self.exp_active_team as u32,
+            exp_max_teams: MAX_TEAMS as u32,
+            exp_party_max: self.exp_party_max() as u32,
+            exp_cleared: self.exp_cleared.clone(),
+            exp_perks: self.exp_perks.clone(),
+            exp_perk_costs: (0..expedition::EXP_PERK_COUNT).map(|i| self.exp_perk_cost(i)).collect(),
+            exp_power: (0..COUNT).map(|i| self.exp_power(i)).collect(),
+            shape_levels: (0..COUNT).map(|i| self.shape_level(i)).collect(),
+            shape_xp: self.shape_xp.clone(),
+            xp_to_next: (0..COUNT).map(|i| Self::xp_to_reach(self.shape_level(i) + 1).saturating_sub(self.shape_xp.get(i).copied().unwrap_or(0))).collect(),
+            skill_points_free: (0..COUNT).map(|i| self.skill_points_free(i)).collect(),
+            skill_alloc: self.skill_alloc.clone(),
+            shard_rate_per_hr: self.overcap_shard_rate_per_hr(),
+            exp_quest_flux_est: {
+                let team = self.exp_teams.get(self.exp_active_team).cloned().unwrap_or_default();
+                (0..QUEST_COUNT).map(|qi| self.echo_rate_est(&team, qi) * content::FLUX_DENSITY * EXP_FLUX_PER_ECHO_RATE).collect()
             },
         }
     }
@@ -2234,6 +3005,61 @@ impl Game {
         self.state.tick(now_ms);
         self.state.reset_lane(shape_id as usize);
     }
+
+    // ── Expeditions (the opt-in idle RPG) ──
+    /// Set team `t`'s members from a JSON array of shape ids, e.g. "[0,3,10]" (owned only, clamped). Banks first.
+    pub fn set_team(&mut self, t: usize, ids_json: &str, now_ms: f64) {
+        self.state.tick(now_ms);
+        if let Ok(ids) = serde_json::from_str::<Vec<usize>>(ids_json) {
+            self.state.set_team(t, &ids);
+        }
+    }
+    pub fn set_active_team(&mut self, t: usize) {
+        self.state.set_active_team(t);
+    }
+    pub fn add_team(&mut self, now_ms: f64) -> u32 {
+        self.state.tick(now_ms);
+        self.state.add_team() as u32
+    }
+    pub fn remove_team(&mut self, t: usize, now_ms: f64) -> bool {
+        self.state.tick(now_ms);
+        self.state.remove_team(t)
+    }
+    /// Station team `t` on quest `q` (clears it first if needed). Returns a JSON `StationResult` (battle + rewards).
+    pub fn station(&mut self, t: usize, q: usize, now_ms: f64) -> String {
+        self.state.tick(now_ms);
+        serde_json::to_string(&self.state.station(t, q)).unwrap()
+    }
+    /// Stop team `t`'s farm.
+    pub fn unstation(&mut self, t: usize, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.unstation(t);
+    }
+    /// The deterministic battle the team stationed on quest `q` is running (for the spectator Watch), or "null".
+    pub fn watch_data(&self, q: usize) -> String {
+        serde_json::to_string(&self.state.watch_data(q)).unwrap()
+    }
+    /// One Auto-Expedition step (strongest team clears next quest + idle teams auto-station). JSON AutoExpeditionStep.
+    pub fn auto_expedition(&mut self, now_ms: f64) -> String {
+        serde_json::to_string(&self.state.auto_expedition(now_ms)).unwrap()
+    }
+    /// Buy an expedition perk with Echoes (mode-internal effect only). Banks first.
+    pub fn buy_exp_perk(&mut self, id: usize, now_ms: f64) -> bool {
+        self.state.tick(now_ms);
+        self.state.buy_exp_perk(id)
+    }
+    /// Spend a free skill point on node `node` of shape `id`'s role tree. Banks first (level affects power).
+    pub fn spend_skill_point(&mut self, id: usize, node: usize, now_ms: f64) -> bool {
+        self.state.tick(now_ms);
+        self.state.spend_skill_point(id, node)
+    }
+    pub fn respec(&mut self, id: usize, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.respec(id);
+    }
+    pub fn dev_add_echoes(&mut self, amount: f64) {
+        self.state.dev_add_echoes(amount as u64);
+    }
 }
 
 /// The static shape table for the web layer (nicknames, families, rarities, costs).
@@ -2391,6 +3217,59 @@ pub fn banners_json() -> String {
         })
         .collect();
     serde_json::to_string(&rows).unwrap()
+}
+
+/// The static Expeditions content for the web layer: quests, enemies, and perks (live state is in the view).
+#[wasm_bindgen]
+pub fn expeditions_json() -> String {
+    #[derive(Serialize)]
+    struct QuestRow {
+        key: &'static str,
+        nick: &'static str,
+        chapter: u32,
+        min_dim: u32,
+        tier: u32,
+        power_req: i64,
+        base_echo: u64,
+        enemy_nicks: Vec<&'static str>,
+        boss_nick: Option<&'static str>,
+        recruit_id: i32,
+        recruit_nick: Option<&'static str>,
+        dom_element: &'static str,
+    }
+    #[derive(Serialize)]
+    struct PerkRow {
+        key: &'static str,
+        base_cost: u64,
+        max_level: u32,
+    }
+    #[derive(Serialize)]
+    struct ExpContent {
+        quests: Vec<QuestRow>,
+        perks: Vec<PerkRow>,
+    }
+    let quests = QUESTS
+        .iter()
+        .map(|q| QuestRow {
+            key: q.key,
+            nick: q.nick,
+            chapter: q.chapter,
+            min_dim: q.min_dim,
+            tier: q.tier,
+            power_req: expedition::quest_power_req(q),
+            base_echo: q.base_echo,
+            enemy_nicks: q.enemies.iter().map(|&e| expedition::ENEMIES[e].nick).collect(),
+            boss_nick: q.boss.map(|b| expedition::ENEMIES[b].nick),
+            recruit_id: q.recruit_id,
+            recruit_nick: if q.recruit_id >= 0 { Some(SHAPES[q.recruit_id as usize].nick) } else { None },
+            dom_element: expedition::quest_dominant_element(q).as_str(),
+        })
+        .collect();
+    let perks = expedition::EXP_PERKS
+        .iter()
+        .map(|p| PerkRow { key: p.key, base_cost: p.cost, max_level: p.max_level })
+        .collect();
+    serde_json::to_string(&ExpContent { quests, perks }).unwrap()
 }
 
 #[cfg(test)]
@@ -2789,6 +3668,300 @@ mod tests {
         assert_eq!(g.preview_forge(10, 0), 10, "T² # S² previews as T²");
     }
 
+    // ─────────────────────────── Expeditions ───────────────────────────
+
+    /// Helper: own a spread of early shapes (with dupes for ★) so a real team can clear + farm.
+    fn own_early(g: &mut GameState) {
+        for id in 0..12 {
+            g.owned[id] = 50;
+        }
+    }
+
+    #[test]
+    fn exp_bring_who_you_love() {
+        // A ★5 beloved common must out-power a fresh ★0 UR (the cozy "bring who you love" guarantee).
+        let mut g = GameState::new(1, 0.0);
+        let ur_id = content::rarity_ids(Rarity::Ur)[0];
+        let common_id = content::rarity_ids(Rarity::Common)[0];
+        g.owned[common_id] = 1 + 9999; // ★5
+        g.owned[ur_id] = 1; // ★0
+        assert!(g.star_level(common_id) >= 5 && g.star_level(ur_id) == 0);
+        assert!(g.exp_power(common_id) > g.exp_power(ur_id));
+    }
+
+    #[test]
+    fn station_clears_on_first_win_then_farms() {
+        let mut g = GameState::new(7, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]); // Tetra(dps), Pip(tank), Dodi(support)
+        assert_eq!(g.exp_teams[0].len(), 3);
+        let (flux0, echoes0) = (g.flux, g.echoes);
+        let r = g.station(0, 0); // shallows_1: clears on first win, THEN stations
+        assert!(r.ok && r.win && r.newly_cleared, "a balanced trio clears the tutorial quest on station");
+        assert!(g.exp_cleared[0] && g.exp_station[0] == 0, "cleared + stationed");
+        assert!(g.echoes > echoes0 && g.flux > flux0, "first clear grants Echoes + a Flux windfall");
+        assert!(g.echo_rate_per_hr() > 0.0, "the stationed team now farms");
+        // every member of the winning team gained XP
+        assert!(g.shape_xp[2] > 0 && g.shape_xp[0] > 0 && g.shape_xp[4] > 0);
+    }
+
+    #[test]
+    fn station_frees_a_boss_shape() {
+        let mut g = GameState::new(7, 0.0);
+        for id in 0..12 {
+            g.owned[id] = 9999; // ★5 → strong enough for the boss
+        }
+        let donna = 10usize;
+        g.owned[donna] = 0; // not owned yet
+        g.set_team(0, &[2, 0, 4, 5]);
+        let r = g.station(0, 3); // shallows_boss → recruit_id 10
+        if r.win && r.newly_cleared {
+            assert_eq!(r.recruited_id, donna as i32);
+            assert!(g.owned[donna] > 0, "boss clear freed the lost shape");
+        }
+    }
+
+    #[test]
+    fn weak_team_loss_is_free_and_does_not_station() {
+        let mut g = GameState::new(3, 0.0);
+        g.owned[0] = 1;
+        g.set_team(0, &[0]); // a lone tank can't beat a boss quest
+        let (flux0, echoes0) = (g.flux, g.echoes);
+        let r = g.station(0, 7); // folds_boss
+        assert!(r.ok);
+        if !r.win {
+            assert_eq!(g.echoes, echoes0, "a loss grants no Echoes");
+            assert!(!g.exp_cleared[7] && g.exp_station[0] < 0, "a loss neither clears nor stations");
+        }
+        assert!(g.flux >= flux0, "a station attempt never spends Flux");
+    }
+
+    #[test]
+    fn echo_farm_online_equals_offline_and_is_o1() {
+        let mut g = GameState::new(7, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        assert!(g.station(0, 0).win);
+        assert!(g.echo_rate_per_hr() > 0.0);
+        let prep = |x: &mut GameState| {
+            x.echoes = 0;
+            x.echo_carry = 0.0;
+            x.flux = 0.0;
+            x.exp_flux_carry = 0.0;
+            x.last_seen_ms = 0.0;
+        };
+        let mut online = g.clone();
+        prep(&mut online);
+        let mut t = 0.0;
+        while t < 10.0 * HOUR {
+            t += 60_000.0;
+            online.tick(t);
+        }
+        let mut offline = g.clone();
+        prep(&mut offline);
+        offline.compute_offline(10.0 * HOUR);
+        assert!((online.echoes as i64 - offline.echoes as i64).abs() <= 1, "echoes online {} vs offline {}", online.echoes, offline.echoes);
+        assert!((online.flux - offline.flux).abs() < 1.0, "expedition flux online {} vs offline {}", online.flux, offline.flux);
+        // O(1): a 40-day span is instant + finite + positive
+        let mut weeks = g.clone();
+        let e0 = weeks.echoes;
+        weeks.compute_offline(40.0 * 24.0 * HOUR);
+        assert!(weeks.echoes > e0);
+    }
+
+    #[test]
+    fn multiparty_sum_and_auto_expedition() {
+        let mut g = GameState::new(7, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        let mut cleared = 0;
+        for _ in 0..40 {
+            if g.auto_expedition(0.0).delved {
+                cleared += 1;
+            }
+        }
+        assert!(cleared >= 2, "auto clears several quests");
+        assert!(g.exp_station.iter().any(|&s| s >= 0), "auto stations the team");
+        assert!(g.echo_rate_per_hr() > 0.0);
+        // a SECOND stationed team raises the total (multiple parties)
+        let before = g.echo_rate_per_hr();
+        let t2 = g.add_team();
+        g.set_team(t2, &[1, 3]); // Boxy, Spike
+        let s0 = g.exp_station[0];
+        if let Some(other) = (0..QUEST_COUNT).find(|&q| g.exp_cleared[q] && q as i32 != s0) {
+            g.station(t2, other);
+            assert!(g.echo_rate_per_hr() > before, "a second stationed team raises total Echoes/hr");
+        }
+        // total == per-team sum
+        let sum: f64 = (0..g.exp_teams.len()).map(|t| g.team_echo_rate(t)).sum();
+        assert!((g.echo_rate_per_hr() - sum).abs() < 1e-6);
+    }
+
+    #[test]
+    fn one_team_per_quest() {
+        let mut g = GameState::new(7, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        assert!(g.station(0, 0).win); // clears + stations team 0 on quest 0
+        let t1 = g.add_team();
+        g.set_team(t1, &[1, 3]);
+        g.station(t1, 0); // already cleared → stations team 1, bumping team 0
+        assert_eq!(g.exp_station[t1], 0);
+        assert_eq!(g.exp_station[0], -1, "the prior team is bumped off the quest");
+    }
+
+    #[test]
+    fn watch_matches_the_stationed_battle_and_none_without_station() {
+        let mut g = GameState::new(7, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        assert!(g.station(0, 0).win);
+        let w = g.watch_data(0).expect("a stationed quest has watch data");
+        let again = g.watch_data(0).unwrap();
+        assert_eq!(w.win, again.win); // deterministic
+        assert_eq!(w.log.len(), again.log.len());
+        assert!(g.watch_data(1).is_none(), "no team stationed on quest 1 → no watch");
+    }
+
+    #[test]
+    fn echo_rate_zero_when_not_stationed() {
+        let mut g = GameState::new(1, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        assert_eq!(g.echo_rate_per_hr(), 0.0, "no farm until stationed");
+        assert!(g.station(0, 0).win);
+        assert!(g.echo_rate_per_hr() > 0.0);
+        g.unstation(0);
+        assert_eq!(g.echo_rate_per_hr(), 0.0);
+    }
+
+    #[test]
+    fn expedition_pays_flux_but_stays_outside_the_core_rate() {
+        // v2: expeditions pay Flux (not inert) — but via a SEPARATE additive stream that never enters
+        // rate_per_hr/globals_mult/cap. Stationing leaves rate_per_hr byte-identical; Echoes never touch shards/★.
+        let mut g = GameState::new(7, 0.0);
+        own_early(&mut g);
+        g.auto_arrange();
+        g.tick(0.0); // latch milestones for a stable baseline
+        let rate_before = g.rate_per_hr();
+        g.set_team(0, &[2, 0, 4]);
+        assert!(g.station(0, 0).win);
+        g.tick(0.0);
+        assert_eq!(g.rate_per_hr().to_bits(), rate_before.to_bits(), "core rate_per_hr excludes the expedition Flux stream");
+        assert!(g.expedition_flux_per_hr() > 0.0, "but expeditions DO pay Flux via their own stream");
+        let (flux0, echoes0, shards0) = (g.flux, g.echoes, g.shards);
+        let stars0: u32 = (0..COUNT).map(|i| g.star_level(i)).sum();
+        g.compute_offline(10.0 * HOUR);
+        assert!(g.flux > flux0 && g.echoes > echoes0, "farming raises Flux + Echoes");
+        assert_eq!(g.shards, shards0, "expeditions never grant shards");
+        assert_eq!((0..COUNT).map(|i| g.star_level(i)).sum::<u32>(), stars0, "expeditions never change ★");
+        // bounded by the cap-share clamp
+        assert!(g.expedition_flux_per_hr() <= g.cap_rate() * EXP_FLUX_CAP_SHARE + 1e-6);
+    }
+
+    #[test]
+    fn shape_level_is_closed_form_with_boundaries() {
+        let mut g = GameState::new(1, 0.0);
+        g.owned[0] = 1;
+        assert_eq!(g.shape_level(0), 0);
+        for l in 1..200u64 {
+            let need = GameState::xp_to_reach(l);
+            g.shape_xp[0] = need;
+            assert_eq!(g.shape_level(0), l, "at xp {} level should be {}", need, l);
+            g.shape_xp[0] = need - 1;
+            assert_eq!(g.shape_level(0), l - 1, "one below {} should be {}", need, l - 1);
+        }
+    }
+
+    #[test]
+    fn leveling_and_skills_raise_power_and_respec_refunds() {
+        let mut g = GameState::new(1, 0.0);
+        g.owned[0] = 1; // Pip — sphere → Tank tree
+        let p0 = g.exp_power(0);
+        g.shape_xp[0] = GameState::xp_to_reach(10);
+        assert_eq!(g.shape_level(0), 10);
+        let p10 = g.exp_power(0);
+        assert!(p10 > p0, "leveling raises power ({p0} -> {p10})");
+        assert_eq!(g.skill_points_free(0), 10);
+        assert!(g.spend_skill_point(0, 0)); // node0 'bulwark' (stat)
+        assert_eq!(g.skill_points_free(0), 9);
+        assert!(g.exp_power(0) > p10, "a stat node raises power");
+        assert!(!g.spend_skill_point(0, 1), "node1 'ward' needs node0@2 — prereq not met");
+        assert!(g.spend_skill_point(0, 0)); // node0 → rank 2
+        assert!(g.spend_skill_point(0, 1), "prereq met → node1 unlocks");
+        g.respec(0);
+        assert_eq!(g.skill_points_free(0), 10, "respec refunds all points");
+    }
+
+    #[test]
+    fn farm_xp_online_equals_offline() {
+        let mut g = GameState::new(7, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        assert!(g.station(0, 0).win);
+        let prep = |x: &mut GameState| {
+            for v in x.shape_xp.iter_mut() {
+                *v = 0;
+            }
+            for c in x.shape_xp_carry.iter_mut() {
+                *c = 0.0;
+            }
+            x.last_seen_ms = 0.0;
+        };
+        let mut online = g.clone();
+        prep(&mut online);
+        let mut t = 0.0;
+        while t < 10.0 * HOUR {
+            t += 60_000.0;
+            online.tick(t);
+        }
+        let mut offline = g.clone();
+        prep(&mut offline);
+        offline.compute_offline(10.0 * HOUR);
+        assert_eq!(online.shape_xp[2], offline.shape_xp[2], "per-shape farm XP is bit-stable online == offline");
+        assert!(online.shape_xp[2] > 0, "stationed members earn farm XP");
+    }
+
+    #[test]
+    fn v4_save_round_trips_with_team_and_xp_state() {
+        let mut g = GameState::new(12345, 1000.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        g.station(0, 0);
+        g.dev_add_echoes(500);
+        g.buy_exp_perk(1);
+        g.shape_xp[0] = 1234;
+        g.spend_skill_point(0, 0);
+        let json = g.to_json();
+        let back = GameState::from_json(&json).expect("v4 loads");
+        assert_eq!(back.schema_version, 4);
+        assert_eq!(back.exp_teams, g.exp_teams);
+        assert_eq!(back.exp_station, g.exp_station);
+        assert_eq!(back.echoes, g.echoes);
+        assert_eq!(back.shape_xp[0], 1234);
+        assert_eq!(back.skill_alloc[0][0], 1);
+    }
+
+    #[test]
+    fn pre_v4_save_loads_with_one_empty_team() {
+        let mut g = GameState::new(9, 0.0);
+        g.owned[0] = 1;
+        let mut v: serde_json::Value = serde_json::from_str(&g.to_json()).unwrap();
+        let obj = v.as_object_mut().unwrap();
+        obj.insert("schema_version".into(), serde_json::json!(2));
+        for k in ["echoes", "lifetime_echoes", "echo_carry", "exp_flux_carry", "exp_party", "exp_cleared", "exp_farms", "exp_perks", "exp_teams", "exp_station", "exp_active_team", "shape_xp", "skill_alloc", "shape_xp_carry"] {
+            obj.remove(k);
+        }
+        let back = GameState::from_json(&v.to_string()).expect("pre-v4 save still loads");
+        assert_eq!(back.schema_version, 4);
+        assert_eq!(back.exp_teams.len(), 1);
+        assert!(back.exp_teams[0].is_empty());
+        assert_eq!(back.exp_station, vec![-1]);
+        assert_eq!(back.echo_rate_per_hr(), 0.0);
+        assert_eq!(back.shape_xp.len(), COUNT);
+        assert_eq!(back.skill_alloc.len(), COUNT);
+    }
+
     #[test]
     fn forge_discovery_sting_is_once_per_output_shape() {
         // Two different recipes both produce Klein; the +100 sting fires only the first time Klein is forged.
@@ -2991,7 +4164,7 @@ mod tests {
     #[test]
     fn doctrines_are_mutually_exclusive() {
         let mut g = GameState::new(1, 0.0);
-        g.upgrades[0] = 2; // expand_floor L2 — the doctrines' prereq
+        g.upgrades[1] = 1; // genus_resonance — the doctrines' (deeper) prereq
         assert!(g.upgrade_unlocked(13) && g.upgrade_unlocked(14), "both doctrines open before choosing");
         g.upgrades[13] = 1; // pick Mastery
         assert!(!g.upgrade_unlocked(14), "picking one doctrine permanently locks the other (the choke)");
@@ -3020,7 +4193,7 @@ mod tests {
     #[test]
     fn polymath_facet_dissolves_the_doctrine_choke() {
         let mut g = GameState::new(1, 0.0);
-        g.upgrades[0] = 2; // expand_floor L2
+        g.upgrades[1] = 1; // genus_resonance — the doctrines' prereq
         g.upgrades[13] = 1; // own Mastery
         assert!(!g.upgrade_unlocked(14), "without polymath, the other doctrine stays locked");
         g.facet_perks[7] = 1; // polymath — the rule-changer

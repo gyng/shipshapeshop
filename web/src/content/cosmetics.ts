@@ -95,6 +95,7 @@ export const SLOT_DECOR = 5
 export const SLOT_SOUNDSCAPE = 6
 export const SLOT_CURSOR = 7
 export const SLOT_ATMOSPHERE = 8
+export const SLOT_HERO_CURSOR = 9 // a cursor-following light on the hero gem in the inspector (default OFF)
 
 // ── Gem finishes (slot 0) ─────────────────────────────────────────────────────
 // A finish re-skins the hero gem's material (pull reveal + inspector). `mat` overrides are merged over the
@@ -241,6 +242,21 @@ export const BOARD_SKINS: BoardSkinSpec[] = [
 export const boardSkinById = (id: number): BoardSkinSpec => BOARD_SKINS.find((b) => b.id === id) ?? BOARD_SKINS[0]
 
 // ── Lighting (slot 4) — the 3D stage's mood (intensity multipliers) ───────────
+// `motion` (optional) makes a mood ANIMATE: the key light orbits/drifts and/or the intensity & hue breathe.
+// Static moods (no `motion`) are unchanged. Premium animated moods are pricier (a live, never-still rig).
+// The mesh / 4D hero (Stage.tsx) gets the FULL motion (orbiting Lightformer + pointLight transforms); the SDF
+// heroes (raymarch/path-trace) bake their lighting into a direction-fixed env(), so they get the PULSE part
+// (intensity + hue breathing) — see Stage.tsx `useLightingMotion` and the gem shaders' L.key/L.rim feed.
+export interface LightingMotion {
+  kind: 'orbit' | 'drift' | 'pulse' | 'twinspin'
+  orbitSpeed?: number // rad/s the key light circles the gem (orbit / twinspin)
+  orbitRadius?: number // how far out the key orbits (world units; 0 = in place)
+  driftAmp?: number // sway amplitude (world units) for the gentle 'drift'
+  driftSpeed?: number // sway rate (rad/s) for 'drift'
+  pulseRate?: number // breaths/sec for the intensity+hue pulse (pulse / any mood that breathes)
+  pulseDepth?: number // 0..1 — how deep the intensity breathes (0 = none)
+  hueShift?: number // 0..1 — how far the hue drifts each breath (0 = none; subtle by default)
+}
 export interface LightingSpec {
   id: number
   name: string
@@ -249,6 +265,7 @@ export interface LightingSpec {
   ambient: number // ×ambientLight (1 = default)
   key: number // ×directional + env key
   rim: number // ×rarity rim/point light
+  motion?: LightingMotion // optional: makes the rig animate (default = static)
   swatch: string
   hues: string[]
 }
@@ -263,6 +280,11 @@ export const LIGHTING_MOODS: LightingSpec[] = [
   { id: 407, name: 'Film Noir', cost: 11000, desc: 'Inky dark with one sharp blade of edge-light — every facet keeps a secret.', ambient: 0.32, key: 1.1, rim: 1.6, swatch: 'linear-gradient(135deg, #050507, #c8ccd8)', hues: ['#c8ccd8', '#7a7e8c'] },
   { id: 408, name: 'Golden Hour', cost: 7500, desc: 'Soft low sun and a long honeyed rim — that cozy glow right before the day clocks out.', ambient: 1.05, key: 0.9, rim: 1.45, swatch: 'linear-gradient(135deg, #3a2410, #ffd27a)', hues: ['#ffd27a', '#e89a4c'] },
   { id: 409, name: 'Clean Room', cost: 5500, desc: 'Flat, even, faintly clinical fill — so shadowless not a single one dares step out of line.', ambient: 1.5, key: 0.95, rim: 0.65, swatch: 'linear-gradient(135deg, #aeb9c4, #f2f7fb)', hues: ['#f2f7fb', '#cdd8e2'] },
+  // ── Moving light ✦ — premium animated rigs. The key light circles, sways, or breathes; never sits still. ──
+  { id: 410, name: 'Orbiting ✦', cost: 13000, desc: 'A warm key light drifts in a slow, endless circle around the gem — every facet takes its turn in the light.', ambient: 0.9, key: 1.2, rim: 1.15, motion: { kind: 'orbit', orbitSpeed: 0.32, orbitRadius: 6.5, pulseDepth: 0.06 }, swatch: 'conic-gradient(from 0deg, #fff2c8, #ffcf6b, #3a3d4f, #fff2c8)', hues: ['#fff2c8', '#ffcf6b'] },
+  { id: 411, name: 'Drifting ✦', cost: 12000, desc: 'The lights sway and breathe like reflections on water — a gentle, living calm.', ambient: 1.05, key: 1.0, rim: 1.2, motion: { kind: 'drift', driftAmp: 2.4, driftSpeed: 0.5, pulseRate: 0.18, pulseDepth: 0.12 }, swatch: 'linear-gradient(135deg, #1a2a3a, #7fd0ec, #cfe9ff)', hues: ['#cfe9ff', '#7fd0ec'] },
+  { id: 412, name: 'Pulsing ✦', cost: 12000, desc: 'A soft, slow heartbeat — the whole stage swells brighter and warmer, then settles, over and over.', ambient: 1.0, key: 1.1, rim: 1.25, motion: { kind: 'pulse', pulseRate: 0.32, pulseDepth: 0.32, hueShift: 0.05 }, swatch: 'radial-gradient(circle at 50% 50%, #ffd6ea, #ff9ecf 70%, #2a1622)', hues: ['#ffd6ea', '#ff9ecf'] },
+  { id: 413, name: 'Twin Spin ✦', cost: 16000, desc: 'Two lights wheel in opposite directions, trading warm and cool across the gem — hypnotic.', ambient: 0.85, key: 1.15, rim: 1.3, motion: { kind: 'twinspin', orbitSpeed: 0.4, orbitRadius: 6.0, pulseDepth: 0.08 }, swatch: 'conic-gradient(from 0deg, #ff9ecf, #5fe0c6, #ff9ecf, #5fe0c6)', hues: ['#ff9ecf', '#5fe0c6'] },
 ]
 export const lightingById = (id: number): LightingSpec => LIGHTING_MOODS.find((l) => l.id === id) ?? LIGHTING_MOODS[0]
 
@@ -421,6 +443,34 @@ export const ATMOSPHERES: AtmosphereSpec[] = [
 ]
 export const atmosphereById = (id: number): AtmosphereSpec => ATMOSPHERES.find((a) => a.id === id) ?? ATMOSPHERES[0]
 
+// ── Hero cursor light (slot 9) — a light that FOLLOWS THE POINTER over the hero gem in the inspector ─────────
+// Distinct from the floor Cursor light (slot 7): this one tracks the mouse across the focused gem in the 3D
+// inspector, adding a soft specular/rim that reacts as you sweep the cursor. id 0 = OFF (the default — the gem
+// stays lit purely by its scene/lighting rig). Only active in the interactive inspector (controls && !compact).
+// Reaches the mesh/transmission + 4D heroes (a real r3f light placed at the pointer) AND the SDF raymarch hero
+// (a cursor-light direction fed into the shader). The multi-bounce PATH TRACER is deferred (see HeroView notes).
+export interface HeroCursorSpec {
+  id: number
+  name: string
+  cost: number
+  desc: string
+  color: string
+  intensity: number // 0 = OFF; otherwise the follow-light strength (the mesh pointLight intensity / SDF rim gain)
+  distance?: number // pointLight falloff distance on the mesh hero (default ~7)
+  disco?: boolean // cycle the hue over time
+  swatch: string
+  hues: string[]
+}
+export const HERO_CURSORS: HeroCursorSpec[] = [
+  { id: 0, name: 'Off', cost: 0, desc: 'No follow-light on the hero gem — keep it lit by the stage alone.', color: '#000000', intensity: 0, swatch: 'linear-gradient(135deg, #1a1c28, #0a0b12)', hues: ['#3a3d4f'] },
+  { id: 1001, name: 'Soft Touch', cost: 6000, desc: 'A gentle warm glow that follows your cursor across the gem, kissing each facet as you pass.', color: '#ffe6c0', intensity: 2.4, swatch: 'radial-gradient(circle at 50% 50%, #ffe6c0, #2a1c0c)', hues: ['#fff4e0', '#ffe6c0'] },
+  { id: 1002, name: 'Cool Trace', cost: 6000, desc: 'A crisp cyan highlight that races your pointer along every edge.', color: '#aee6ff', intensity: 2.6, swatch: 'radial-gradient(circle at 50% 50%, #aee6ff, #07141f)', hues: ['#d6f4ff', '#5ad4ff'] },
+  { id: 1003, name: 'Rose Glow', cost: 7000, desc: 'A tender pink bloom that lingers wherever your cursor wanders.', color: '#ffb0d4', intensity: 2.6, swatch: 'radial-gradient(circle at 50% 50%, #ffb0d4, #1f0a16)', hues: ['#ffd6ea', '#ff9ecf'] },
+  { id: 1004, name: 'Lantern', cost: 9000, desc: 'A bright, focused follow-spot — drag it over the gem and pick out fire in every cut.', color: '#fff2cf', intensity: 4.2, distance: 9, swatch: 'radial-gradient(circle at 50% 50%, #fff2cf, #2a2410)', hues: ['#fffae0', '#ffe6a8'] },
+  { id: 1005, name: 'Aurora Trace ✦', cost: 13000, desc: 'A rainbow highlight that drifts through every hue as it chases your cursor over the gem.', color: '#b985ff', intensity: 3.0, distance: 8, disco: true, swatch: 'conic-gradient(from 0deg, #ff5d8f, #ffcf6b, #5fe0c6, #b985ff, #ff5d8f)', hues: ['#ff5d8f', '#5fe0c6', '#b985ff'] },
+]
+export const heroCursorById = (id: number): HeroCursorSpec => HERO_CURSORS.find((c) => c.id === id) ?? HERO_CURSORS[0]
+
 // ── Room decor (slot 5) — themed prop sets that dress the Room ("My Room") floor where your shapes roam ───
 // `kind` selects a prop set rendered by RoomScene's <RoomDecor> (built from primitives — no external assets).
 export interface DecorSpec {
@@ -474,6 +524,7 @@ const boardItems: ShopItem[] = BOARD_SKINS.map((b) => ({ id: b.id, name: b.name,
 const lightingItems: ShopItem[] = LIGHTING_MOODS.map((l) => ({ id: l.id, name: l.name, cost: l.cost * SHOP_PRICE_SCALE, desc: l.desc, swatch: l.swatch, hues: l.hues }))
 const soundscapeItems: ShopItem[] = SOUNDSCAPES.map((s) => ({ id: s.id, name: s.name, cost: s.cost * SHOP_PRICE_SCALE, desc: s.desc, detail: s.detail, swatch: s.swatch, hues: s.hues }))
 const cursorItems: ShopItem[] = CURSOR_FX.map((c) => ({ id: c.id, name: c.name, cost: c.cost * SHOP_PRICE_SCALE, desc: c.desc, swatch: c.swatch, hues: c.hues }))
+const heroCursorItems: ShopItem[] = HERO_CURSORS.map((c) => ({ id: c.id, name: c.name, cost: c.cost * SHOP_PRICE_SCALE, desc: c.desc, swatch: c.swatch, hues: c.hues }))
 const atmosphereItems: ShopItem[] = ATMOSPHERES.map((a) => ({ id: a.id, name: a.name, cost: a.cost * SHOP_PRICE_SCALE, desc: a.desc, swatch: a.swatch, hues: a.hues }))
 const decorItems: ShopItem[] = DECOR.map((d) => ({ id: d.id, name: d.name, cost: d.cost * SHOP_PRICE_SCALE, desc: d.desc, swatch: d.swatch, hues: d.hues }))
 
@@ -482,6 +533,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
   { key: 'atmosphere', icon: '🌫', slot: SLOT_ATMOSPHERE, items: atmosphereItems },
   { key: 'finishes', icon: '💎', slot: SLOT_FINISH, items: finishItems },
   { key: 'lighting', icon: '💡', slot: SLOT_LIGHTING, items: lightingItems },
+  { key: 'herocursor', icon: '🔦', slot: SLOT_HERO_CURSOR, items: heroCursorItems },
   { key: 'cursor', icon: '🖱', slot: SLOT_CURSOR, items: cursorItems },
   { key: 'ceremony', icon: '✦', slot: SLOT_CEREMONY, items: ceremonyItems },
   { key: 'boards', icon: '⬡', slot: SLOT_BOARD, items: boardItems },

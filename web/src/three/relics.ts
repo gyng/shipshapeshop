@@ -22,6 +22,7 @@ export const RELIC_MODELS: Record<string, RelicCfg> = {
   stanford_bunny: { url: '/models/bunny.ply', kind: 'ply', rot: [0, Math.PI, 0], face: 0 },
   benchy: { url: '/models/benchy.ply', kind: 'ply', rot: [-Math.PI / 2, 0, 0], face: 0 },
   spot: { url: '/models/spot.obj', kind: 'obj', rot: [0, Math.PI, 0], face: 0 },
+  cow: { url: '/models/cow.obj', kind: 'obj', rot: [0, Math.PI / 2, 0], face: 0 }, // the classic CG test cow (distinct from Spot)
   armadillo: { url: '/models/armadillo.ply', kind: 'ply', rot: [0, 0, 0], face: 0 },
   lucy: { url: '/models/lucy.ply', kind: 'ply', rot: [0, 0, 0], face: 0 },
   stanford_dragon: { url: '/models/dragon.ply', kind: 'ply', rot: [0, 0, 0], face: 0 },
@@ -54,7 +55,27 @@ function normalize(g: THREE.BufferGeometry, rot?: [number, number, number]) {
   g.computeBoundingSphere()
   const r = g.boundingSphere?.radius || 1
   g.scale(1 / r, 1 / r, 1 / r)
-  g.computeVertexNormals()
+  // SMOOTH NORMALS for the path tracer: it interpolates per-vertex normals at each ray hit, so a relic with no
+  // normals (most raw PLY/OBJ scans) or with degenerate/zero ones would refract faceted. Recompute when the
+  // attribute is missing OR looks unusable (any non-finite / all-zero normals); keep genuine shipped smooth
+  // normals otherwise. Rotations above don't transform the normal attribute, so a present-but-stale set is also
+  // refreshed by the recompute path. computeVertexNormals() produces area-weighted smooth normals.
+  if (needsNormals(g)) g.computeVertexNormals()
+}
+
+// True when the geometry has no normal attribute, or its normals are missing/degenerate (non-finite or all
+// zero) — i.e. unusable for smooth shading and worth a recompute.
+function needsNormals(g: THREE.BufferGeometry): boolean {
+  const n = g.attributes.normal as THREE.BufferAttribute | undefined
+  if (!n || n.count === 0) return true
+  const arr = n.array as ArrayLike<number>
+  let sawNonZero = false
+  for (let i = 0; i < arr.length; i++) {
+    const x = arr[i]
+    if (!Number.isFinite(x)) return true // NaN/Inf normal → recompute
+    if (x !== 0) sawNonZero = true
+  }
+  return !sawNonZero // all-zero normal set → recompute
 }
 
 async function loadOne(family: string, cfg: RelicCfg): Promise<void> {

@@ -133,15 +133,44 @@ export function WorkshopTree({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelsKey])
 
+  // The FULL lineage of the hovered node: all transitive prereqs (climbing `requires` up) AND all transitive
+  // dependents (nodes gated behind it). The whole chain lights up; everything off-chain dims. Tiny graph, so
+  // recompute each render (no memo needed).
+  const chainSet: Set<number> | null = (() => {
+    if (hover == null) return null
+    const s = new Set<number>([hover])
+    const climb = (i: number) => {
+      const req = upgradeDefs[i]?.requires
+      if (req && !s.has(req[0])) {
+        s.add(req[0])
+        climb(req[0])
+      }
+    }
+    climb(hover) // ancestors (the path to a root)
+    let added = true
+    while (added) {
+      // dependents (fixpoint): anything whose prereq is already in the chain
+      added = false
+      upgradeDefs.forEach((u, j) => {
+        const r = u.requires
+        if (r && s.has(r[0]) && !s.has(j)) {
+          s.add(j)
+          added = true
+        }
+      })
+    }
+    return s
+  })()
+
   return (
     <div ref={containerRef} style={{ position: 'relative', display: 'flex', gap: 36, overflowX: 'auto', paddingBottom: 8, alignItems: 'flex-start' }}>
       {/* edges painted BEHIND the cards (rendered first, lower z) — energy flows prereq→child via a marching
-          dash; hovering a node lights up the lineage it touches and dims the rest. */}
+          dash; hovering a node lights up its ENTIRE dependency chain (prereqs + dependents) and dims the rest. */}
       <svg aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible', zIndex: 0 }}>
         {edges.map((e, i) => {
           const mx = (e.x1 + e.x2) / 2
-          const lit = hover != null && (e.from === hover || e.to === hover)
-          const dimmed = hover != null && !lit
+          const lit = chainSet != null && chainSet.has(e.from) && chainSet.has(e.to)
+          const dimmed = chainSet != null && !lit
           const surging = leveled.has(e.from) // a freshly-bought node sends a surge down its branches
           return (
             <path
@@ -169,7 +198,7 @@ export function WorkshopTree({
               }}
               onMouseEnter={() => setHover(id)}
               onMouseLeave={() => setHover((h) => (h === id ? null : h))}
-              style={{ animationDelay: `${(d * 3 + row) * 28}ms`, animationFillMode: 'backwards', opacity: hover != null && hover !== id && !edges.some((e) => (e.from === hover && e.to === id) || (e.to === hover && e.from === id)) ? 0.55 : 1, transition: 'opacity 0.15s ease' }}
+              style={{ animationDelay: `${(d * 3 + row) * 28}ms`, animationFillMode: 'backwards', opacity: chainSet != null && !chainSet.has(id) ? 0.4 : 1, transition: 'opacity 0.15s ease' }}
             >
               {/* inner wrapper carries the purchase reaction so it never collides with the outer stagger pop-in */}
               <div className={leveled.has(id) ? 'wt-pop' : revealed.has(id) ? 'wt-reveal' : undefined}>{renderNode(id)}</div>

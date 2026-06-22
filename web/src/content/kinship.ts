@@ -57,6 +57,9 @@ export const KINSHIP: Record<string, Kin[]> = {
   julia: [{ with: 'mandelbulb', type: 'kin', note: 'Fix the Mandelbrot’s seed and you get me.' }],
   apollonian: [{ with: 'kleinian', type: 'kin', note: 'Limit sets — packed spheres and mirrored spires.' }, { with: 'hyperbolic_honeycomb', type: 'kin', note: 'Vault folds space the way I pack it — sphere-inversion, repeated forever.' }],
   kleinian: [{ with: 'apollonian', type: 'kin', note: 'A mirror-group cousin to the sphere-packing gasket.' }, { with: 'hyperbolic_honeycomb', type: 'kin', note: 'A fold-geometry cousin — mirror-spheres and an endless arcade of arches.' }],
+  // the two cows — the lab staple and the conformal-maps mascot
+  spot: [{ with: 'cow', type: 'kin', note: 'Two cows of computer graphics — Mooky’s the lab staple, I’m the one mapped with love.' }],
+  cow: [{ with: 'spot', type: 'kin', note: 'Two cows of computer graphics — Spot got parameterised; I just got rendered, everywhere.' }],
   // chaos — strange attractors
   lorenz: [{ with: 'aizawa_attractor', type: 'kin', note: 'The chaos cousins — determined, never repeating; we just spin different funnels.' }],
   // ── NG+ cohort (Meta / Transcendent slices & lattices) ──────────────────────────────

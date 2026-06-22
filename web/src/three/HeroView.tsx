@@ -1,6 +1,6 @@
-import { useState, useEffect, type ReactNode } from 'react'
-import { Canvas, useThree } from '@react-three/fiber'
-import { CubeCamera } from '@react-three/drei'
+import { useState, useEffect, useRef, type ReactNode } from 'react'
+import { Canvas, useThree, useFrame } from '@react-three/fiber'
+import { useCubeCamera } from '@react-three/drei'
 import { EffectComposer, Bloom, ToneMapping, Vignette } from '@react-three/postprocessing'
 import { ToneMappingMode } from 'postprocessing'
 import { Stage } from './Stage'
@@ -11,15 +11,49 @@ import { MeshPathTraceGem } from './MeshPathTraceGem'
 import { RenderTechBadge, type RenderTech } from './RenderTechBadge'
 import { Polytope4D, POLYTOPES_4D } from './Polytope4D'
 import { Atmosphere } from './Atmosphere'
-import { sceneById, atmosphereById, lightingById, gemFinishById, SLOT_ATMOSPHERE, SLOT_LIGHTING, SLOT_FINISH } from '../content/cosmetics'
+import { sceneById, atmosphereById, lightingById, gemFinishById, heroCursorById, SLOT_ATMOSPHERE, SLOT_LIGHTING, SLOT_FINISH, SLOT_HERO_CURSOR } from '../content/cosmetics'
 import { useGame, type RarityName } from '../game/store'
-import { useGfx, useGfxPreset, usePathTraceParams } from '../gfx'
+import { useGfx, useGfxPreset, usePathTraceParams, PT_PRESETS, type PathTraceParams } from '../gfx'
 import { useT } from '../i18n'
 
-// SDF families whose distance eval is so heavy (a neural net / deep escape-time or IFS-fold loop) that
-// multi-bounce path tracing them hangs or blacks out the GPU. They always render via the single-ray raymarch
-// instead (which handles them fine) — so under the 'all' PT scope they still render, just not multi-bounce.
-const PT_TOO_HEAVY = new Set(['stanford_bunny', 'mandelbulb', 'sierpinski'])
+// SDF families whose distance eval is so heavy (a neural net / deep escape-time or IFS-fold loop, or a
+// high-degree polynomial that finite-differences inside its own distance estimator) that multi-bounce path
+// tracing them hangs or blacks out the GPU. The deg-6 Barth sextic / deg-8 Endrass octic are ~140× costlier per
+// eval than a primitive, so multiplied by the per-frame spp × bounces × march-steps they overrun the budget.
+// They always render via the single-ray raymarch instead (which handles them fine, and looks nearly identical) —
+// so under the 'all' PT scope they still render, just not multi-bounce.
+const PT_TOO_HEAVY = new Set(['stanford_bunny', 'mandelbulb', 'sierpinski', 'barth_sextic', 'endrass_octic'])
+
+// How often the live atmosphere cubemap re-captures. drei's <CubeCamera frames={Infinity}> re-renders the cube
+// (6 full atmosphere renders) EVERY frame — the single biggest cheap cost on the SDF hero. The atmosphere drifts
+// slowly (clouds/nebula/aurora over seconds), so refreshing only every Nth frame is imperceptible while cutting
+// that cost ~6×. The gem still refracts/reflects the atmosphere from the most-recent capture.
+const ENV_CUBE_EVERY = 6
+
+// A throttled drop-in for drei's <CubeCamera> (whose `frames` prop is total-frames-to-render, NOT periodic, so
+// it can't express "every Nth frame"). Mirrors drei's component exactly — hides its children during capture so
+// the cube records the sibling <Atmosphere> — but gates the actual `update()` to every ENV_CUBE_EVERY frames.
+function ThrottledCubeCamera({ resolution, every, children }: { resolution: number; every: number; children: (tex: import('three').Texture) => ReactNode }) {
+  const { fbo, camera, update } = useCubeCamera({ resolution })
+  const groupRef = useRef<import('three').Group>(null)
+  const count = useRef(0)
+  useFrame(() => {
+    if (!groupRef.current) return
+    // refresh on the first frame, then once every `every` frames (the rest reuse the last capture)
+    if (count.current % every === 0) {
+      groupRef.current.visible = false // hide the gem so the cube captures only the surrounding atmosphere
+      update()
+      groupRef.current.visible = true
+    }
+    count.current++
+  })
+  return (
+    <group>
+      <primitive object={camera} />
+      <group ref={groupRef}>{children(fbo.texture)}</group>
+    </group>
+  )
+}
 
 // Compile the SDF preview gem's shader OFF-SCREEN (gl.compileAsync → KHR_parallel_shader_compile, non-blocking)
 // and only reveal it once linked — so settling on a new preview shape doesn't freeze a frame compiling. The gem
@@ -104,11 +138,14 @@ export function HeroView({
   const atmoName = atmo.name
   const lightName = lightingById(useGame((s) => s.view?.equipped?.[SLOT_LIGHTING] ?? 0)).name
   const finishName = gemFinishById(useGame((s) => s.view?.equipped?.[SLOT_FINISH] ?? 0)).name
+  const heroCursor = heroCursorById(useGame((s) => s.view?.equipped?.[SLOT_HERO_CURSOR] ?? 0))
   const layers = [
     { label: tr('render.layer.scene'), value: scene.name },
     { label: tr('render.layer.atmosphere'), value: atmoName },
     { label: tr('render.layer.lighting'), value: lightName },
     { label: tr('render.layer.finish'), value: finishName },
+    // surface the cursor follow-light only when one is equipped (id 0 = Off → omit, keep the tooltip uncluttered)
+    ...(heroCursor.intensity > 0 ? [{ label: tr('render.layer.spotlight'), value: heroCursor.name }] : []),
   ]
   // per-view renderer override: clicking the render badge cycles an SDF gem between raymarch ↔ path-traced,
   // independent of the global gfx setting (null = follow that setting).
@@ -128,7 +165,11 @@ export function HeroView({
     if (controls && !compact && !PT_TOO_HEAVY.has(family)) {
       cycleRenderer = () => setRenderMode(pathTraced ? 'raymarched' : 'pathtraced')
     }
-    const ptDpr = (g.dpr as [number, number]).map((d) => d * ptParams.scale) as [number, number]
+    // COMPACT previews (mascots, reveal, shop hover) under 'all' scope path-trace at the SAME cost as the inspector
+    // by default — wasteful since they're tiny and often several at once. Drop them to the cheap `low` PT preset
+    // (fewer spp/bounces/steps + lower render-scale); the interactive inspector keeps the user's live (Beautiful) params.
+    const effPtParams: PathTraceParams = compact ? PT_PRESETS.low : ptParams
+    const ptDpr = (g.dpr as [number, number]).map((d) => d * effPtParams.scale) as [number, number]
     tech = pathTraced ? 'pathtraced' : 'raymarched'
     // The gem REFRACTS/REFLECTS the real atmosphere via a live cubemap captured around it (drei CubeCamera hides
     // its children during capture, so the cube records the sibling <Atmosphere> — clouds, nebula, AND particles
@@ -137,19 +178,29 @@ export function HeroView({
     // gated to any non-Clear mood on a setup that already opted into cost: path-tracing OR High gfx. (gfx
     // `quality` tops out at 'high' and is independent of the path-trace toggle, which defaults gfx to medium.)
     const captureEnv = !compact && ptEnvCube && atmo.id !== 0 && (pathTraced || quality === 'high')
+    // NOTE — Gem Spotlight (hero cursor light, slot 9): the single-ray RaymarchGem reads the pointer and adds a
+    // tracking specular/rim in its shader (uCursor* uniforms). The multi-bounce PathTraceGem is DEFERRED: its
+    // lighting is a closed env() sampled over many stochastic bounces with temporal accumulation, so injecting a
+    // moving cursor light would force a buffer reset every pointer move (perpetual non-convergence) — a real
+    // follow-up. So when an SDF hero is path-traced, the cursor light simply doesn't apply (the mesh/4D + raymarch
+    // paths cover it). The mesh/transmission + 4D heroes get a true r3f follow-light via <HeroCursorLight/> in Stage.
     const gem = (envMap: import('three').Texture | null) =>
       pathTraced
         ? <PathTraceGem key={family + rarity} family={family} rarity={rarity} controls={controls} autoRotate={autoRotate} previewScene={previewScene} previewFinish={previewFinish} envMap={envMap} />
         : <RaymarchGem key={family + rarity} family={family} rarity={rarity} controls={controls} autoRotate={autoRotate} materialize={materialize} previewScene={previewScene} previewFinish={previewFinish} envMap={envMap} />
     const gemEl = captureEnv
-      ? <CubeCamera resolution={ptEnvCubeRes} frames={Infinity} position={[0, 0, 0]}>{(tex) => gem(tex)}</CubeCamera>
+      ? <ThrottledCubeCamera resolution={ptEnvCubeRes} every={ENV_CUBE_EVERY}>{(tex) => gem(tex)}</ThrottledCubeCamera>
       : gem(null)
     // Equipped Atmosphere on the SDF hero — real gl_FragDepth means it depth-composites WITH the gem (clouds veil
     // it, occluded behind it) + its haze/hue feed the refraction; on HIGH gfx + skyey moods the gem refracts it.
     const atmoEl = <Atmosphere defaultFog={null} fog fogNearMin={6} overrideId={previewAtmosphere} gemOcclude={1.3} moteScale={[8, 6, 6]} motePos={[0, 0, 0]} />
     const sceneBody = <>{gemEl}{atmoEl}</>
+    // Both the path-traced + raymarch SDF heroes auto-spin via uTime, so they run on the continuous loop. An
+    // explicit `frameloop` prop (e.g. 'never' for hidden previews) always wins. (Temporal accumulation — a
+    // demand-loop converge-then-idle pass — was reverted: its off-screen FBO render never reached the composer.)
+    const ptFrameloop = frameloop
     content = (
-      <Canvas frameloop={frameloop} resize={{ offsetSize: true }} className={controls ? 'orbit-canvas' : undefined} camera={{ position: [0, 0, 5], fov: 42 }} dpr={pathTraced ? ptDpr : g.dpr} gl={{ antialias: true, powerPreference: 'high-performance' }}>
+      <Canvas frameloop={ptFrameloop} resize={{ offsetSize: true }} className={controls ? 'orbit-canvas' : undefined} camera={{ position: [0, 0, 5], fov: 42 }} dpr={pathTraced ? ptDpr : g.dpr} gl={{ antialias: true, powerPreference: 'high-performance' }}>
         {/* previews (hover/mascot/compact): compile the gem + atmosphere shaders OFF-SCREEN and reveal once linked,
             so settling on a new preview never freezes a frame compiling. The interactive inspector renders directly. */}
         {(!controls || compact) ? <ShaderGate key={family + rarity}>{sceneBody}</ShaderGate> : sceneBody}
@@ -188,8 +239,15 @@ export function HeroView({
     if (controls && !compact && meshPtCycle) cycleRenderer = () => setRenderMode(meshPt ? 'mesh' : 'meshpt')
     if (meshPt) {
       tech = 'meshpt'
+      // Scale the mesh-PT canvas dpr by the path-trace render-scale, same as the SDF tracer (ptDpr above). The BVH
+      // tracer is HEAVIER per sample than the SDF tracer, so it must not run its display/composite passes at a
+      // HIGHER buffer resolution than the lighter path. (The trace FBO itself already scales by ptp.scale off the
+      // CSS size, independent of dpr — so this only lowers the blit/sparkle-composite res, never double-scales the trace.)
+      const meshPtDpr = (g.dpr as [number, number]).map((d) => d * ptParams.scale) as [number, number]
+      // demand frameloop: the BVH tracer now temporally ACCUMULATES (converge-then-idle), self-invalidating while
+      // converging / the spin settles, then going quiet. An explicit `frameloop` prop (e.g. 'never') still wins.
       content = (
-        <Canvas frameloop={frameloop} resize={{ offsetSize: true }} className="orbit-canvas" camera={{ position: [0, 0, 5], fov: 42 }} dpr={g.dpr} gl={{ antialias: true, powerPreference: 'high-performance' }}>
+        <Canvas frameloop={frameloop ?? 'demand'} resize={{ offsetSize: true }} className="orbit-canvas" camera={{ position: [0, 0, 5], fov: 42 }} dpr={meshPtDpr} gl={{ antialias: true, powerPreference: 'high-performance' }}>
           <MeshPathTraceGem family={family} rarity={rarity} controls={controls} previewScene={previewScene} previewAtmosphere={previewAtmosphere} previewFinish={previewFinish} envMap={null} />
         </Canvas>
       )

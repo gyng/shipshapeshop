@@ -452,6 +452,24 @@ input:focus, textarea:focus {
 }
 @media (prefers-reduced-motion: reduce) { .welcome-art, .welcome-mote { animation: none; } }
 
+/* Hover motes on primary CTAs — gentle gold/teal specks that rise off the button's top edge and fade while the
+   pointer hovers (wired in buttonJuice.ts via delegation; each span self-removes on animationend). Pure feel. */
+@keyframes btn-mote-rise {
+  0%   { transform: translate(0, 0) scale(0.45); opacity: 0; }
+  18%  { opacity: 0.9; }
+  80%  { opacity: 0.55; }
+  100% { transform: translate(var(--bmx, 0), calc(-1 * var(--bmrise, 34px))) scale(1); opacity: 0; }
+}
+.btn-mote {
+  position: fixed; width: var(--bmsz, 6px); height: var(--bmsz, 6px); border-radius: 50%;
+  margin: calc(var(--bmsz, 6px) / -2) 0 0 calc(var(--bmsz, 6px) / -2);
+  background: radial-gradient(circle at 50% 50%, #fffdf3, var(--bmc, #ffcf6b) 48%, transparent 76%);
+  filter: drop-shadow(0 0 4px var(--bmc, #ffcf6b));
+  animation: btn-mote-rise var(--bmdur, 1100ms) ease-out forwards;
+  will-change: transform, opacity; pointer-events: none; z-index: 56;
+}
+@media (prefers-reduced-motion: reduce) { .btn-mote { display: none; animation: none; } }
+
 /* GLOBAL FONT EXPERIMENT — apply the display serif (IM Fell English / New Tegomin) to ALL text for review.
    Remove this block to revert to the system sans. */
 body, button, input, textarea, select { font-family: var(--font-app); }
@@ -490,10 +508,11 @@ body, button, input, textarea, select { font-family: var(--font-app); }
 /* The corner mascot is decorative chatter; on phones it overlaps the bottom cards, so hide it there. */
 @media (max-width: 760px) { .mascot-overlay { display: none !important; } }
 
-/* Centered wordmark in the top bar — desktop only (narrower layouts have no middle room). pointer-events
-   off so it floats above the HUD without ever blocking the controls on either side of it. */
-.app-title { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); margin: 0; font-family: var(--font-display); font-weight: var(--fw-heavy); font-size: var(--fs-h4); letter-spacing: 1.5px; color: var(--c-text-secondary); opacity: 0.92; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5); }
-@media (max-width: 1179px) { .app-title { display: none; } }
+/* App wordmark — a small sub-label tucked BENEATH the rank badge in the top-left (was an absolutely-centered
+   wordmark that overlapped the flux/stats groups; stacking it under the badge removes the overlap entirely).
+   pointer-events off so it never blocks the controls. Hidden on phones to keep the stacked HUD compact. */
+.app-title { margin: 0; font-family: var(--font-display); font-weight: var(--fw-bold); font-size: var(--fs-caption); letter-spacing: 1px; color: var(--c-text-secondary); opacity: 0.8; line-height: 1; white-space: nowrap; pointer-events: none; text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+@media (max-width: 760px) { .app-title { display: none; } }
 
 /* The "Ascend / Recrystallize" prompt — breathes a purple halo so a core-complete player can't miss it. */
 @keyframes ascend-glow { 0%, 100% { box-shadow: 0 0 20px rgba(179, 136, 255, 0.7), 0 0 48px rgba(179, 136, 255, 0.45); transform: translateX(-50%) scale(1); } 50% { box-shadow: 0 0 34px rgba(201, 166, 255, 1), 0 0 80px rgba(179, 136, 255, 0.72); transform: translateX(-50%) scale(1.06); } }
@@ -586,3 +605,10 @@ button, nav, header, kbd, canvas, .orrery-wrap, .nav-rail, [role='button'] {
 /* the rail's own thin scrollbar would clutter the chrome — hide it, the edge fades signal scrollability */
 .nav-scroll { scrollbar-width: none; }
 .nav-scroll::-webkit-scrollbar { display: none; }
+
+/* Expeditions — floating combat damage/heal numbers (used by CombatOverlay) */
+@keyframes expFloatUp {
+  0% { opacity: 0; transform: translateY(2px) scale(0.7); }
+  20% { opacity: 1; transform: translateY(-6px) scale(1.1); }
+  100% { opacity: 0; transform: translateY(-26px) scale(1); }
+}
