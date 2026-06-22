@@ -84,14 +84,19 @@ export interface GfxSettings {
   ptScale: number | null
   ptSpp: number | null
   ptHaze: number // volumetric single-scatter haze density on the path-traced hero (0 = off; ~0.1–0.4 gentle→smoky)
+  ptEnvCube: boolean // refract/reflect the equipped Atmosphere via a live cubemap (skyey moods, path-traced or high gfx)
+  ptEnvCubeRes: number // atmosphere-cubemap capture resolution (64 cheap → 256 crisp); the main perf knob
+  ptEnvCubeAmt: number // how strongly the gem's refraction/reflection takes the atmosphere (0 = off, 1 = full)
+  meshPtCycle: boolean // allow cycling mesh shapes into the BVH path tracer via the render badge (off in the default flow)
 }
-// Path tracing defaults OFF: the heavy SDFs (neural bunny, Mandelbulb) are fine in the single-ray raymarch but
-// blow the multi-bounce path-trace budget (spp × bounces × march × a neural net per eval) → GPU hang. Opt-in.
-const DEFAULTS: GfxSettings = { quality: 'medium', showFps: false, shadows: null, particleScale: 1, starScale: 1, bloom: null, sceneGlass: null, heroBackside: null, dof: null, ssao: null, hdri: null, pathTrace: 'off', pathTraceQuality: 'high', ptBounces: null, ptSteps: null, ptScale: null, ptSpp: null, ptHaze: 0.05 }
+// Path tracing defaults ON for ALL hero views (the premium refraction look everywhere). The only SDFs heavy
+// enough to blow the multi-bounce budget (neural bunny, Mandelbulb) auto-fall-back to the single-ray raymarch
+// via PT_TOO_HEAVY in HeroView, so 'all' is safe by construction. (If a future SDF hangs, add it to that set.)
+const DEFAULTS: GfxSettings = { quality: 'medium', showFps: false, shadows: null, particleScale: 1, starScale: 1, bloom: null, sceneGlass: null, heroBackside: null, dof: null, ssao: null, hdri: null, pathTrace: 'all', pathTraceQuality: 'high', ptBounces: null, ptSteps: null, ptScale: null, ptSpp: null, ptHaze: 0.05, ptEnvCube: true, ptEnvCubeRes: 128, ptEnvCubeAmt: 0.7, meshPtCycle: true }
 
 // v2: reset persisted gfx once — earlier builds could persist a catastrophic path-trace preset (spp 80 / 32
 // bounces) that freezes the GPU on load. Bumping the key drops stale settings so everyone lands on safe defaults.
-const KEY = 'shipshape-gfx-v2'
+const KEY = 'shipshape-gfx-v3' // v3: path tracing now defaults ON ('all' views) — drop stale 'off' persists so everyone lands on the new default
 function load(): GfxSettings {
   try {
     const raw = localStorage.getItem(KEY)

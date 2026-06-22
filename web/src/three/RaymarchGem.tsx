@@ -4,9 +4,10 @@ import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { RARITY_COLOR } from './Gem'
 import { sdfActiveGLSL } from './sdfShapes.glsl'
-import { sceneById } from '../content/cosmetics'
+import { sceneById, atmosphereById, lightingById, SLOT_ATMOSPHERE, SLOT_FINISH, SLOT_LIGHTING } from '../content/cosmetics'
+import { finishSdf } from './finishSdf'
 import { useGame, type RarityName } from '../game/store'
-import { useGfxPreset } from '../gfx'
+import { useGfxPreset, useGfx } from '../gfx'
 
 // Families with an exact signed-distance field — the hero gem raymarches these for TRUE per-pixel
 // refraction (real internal bounces, dispersion) and mathematically-exact implicit surfaces (gyroid,
@@ -48,7 +49,8 @@ export const RAYMARCH_SHAPES: Record<string, number> = {
   triple_torus: 35,
   borromean: 36,
   klein_bottle: 37, // iconic "bottle" immersion (real SDF, matches the Bourke mesh) — non-orientable, self-intersecting
-  // classical surfaces of revolution / ruled (mazur is already raymarched above; just enriched its SDF)
+  // classical surfaces of revolution / ruled — raymarched for true refraction (SDFs are Lipschitz-corrected in
+  // sdfShapes.glsl so the thin open shells don't tunnel/vanish at grazing or axial views).
   hyperboloid: 38,
   catenoid: 39,
   helicoid: 40,
@@ -61,12 +63,28 @@ export const RAYMARCH_SHAPES: Record<string, number> = {
   twisted_torus: 45,
   cut_hollow_sphere: 46,
   blobby: 47,
+  // NG+ cohort expansion — 4D cross-sections (Meta) + algebraic/attractor jewels (Transcendent). Cheap SDFs in
+  // sdfShapes.glsl: rounded slab, square-profile torus, exact cuboctahedron (cube∩octa), the ditorus
+  // (hollow-tube torus — a tunnel through the dough).
+  spherinder_slice: 48,
+  duocylinder: 49,
+  cell24_section: 50,
+  ditorus: 51,
+  // Roster rebalance — in-place swaps to raymarched algebraic surfaces, a {4,3,5} honeycomb fold, an attractor
+  // coil, and a Costa render-fix (its own SDF, off the catenoid+ring mesh path). Renamed keys keep old numerics.
+  hyperbolic_honeycomb: 52, // {4,3,5} Coxeter sphere-inversion fold (inherited slot 52)
+  aizawa_attractor: 53,     // tornado-coil strange-attractor tube (inherited slot 53)
+  barth_sextic: 54,         // 65-node degree-6 surface, icosahedral symmetry (inherited slot 54)
+  roman_surface: 55,        // Steiner's four-lobed quartic (ℝP²)
+  whitney_umbrella: 56,     // the pinch-point surface x²−y²z
+  endrass_octic: 57,        // many-node degree-8 nodal jewel
+  costa: 58,                // render-fix — Costa surface gets its own SDF (off the mesh path)
 }
 
 const RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4, Meta: 4, Transcendent: 4 }
 
 const VERT = /* glsl */ `
-  varying vec2 vUv;
+  out vec2 vUv;
   void main() {
     vUv = uv;
     gl_Position = vec4(position.xy, 0.0, 1.0);
@@ -78,23 +96,32 @@ const VERT = /* glsl */ `
 // `sdfGLSL` is the per-shape field (sdfActiveGLSL) — ONLY the active shape, so the program stays small.
 const makeFrag = (STEPS: number, INNER: number, sdfGLSL: string) => /* glsl */ `
   precision highp float;
-  varying vec2 vUv;
+  in vec2 vUv;
+  out vec4 fragColor;
   uniform float uTime;
   uniform vec2  uRes;
-  uniform vec3  uColor;   // rarity tint (Beer absorption)
+  uniform vec3  uColor;   // body tint (Beer absorption) — rarity, or the equipped gem finish's colour
   uniform float uIor;
   uniform float uAberr;   // chromatic dispersion
   uniform float uRim;     // rarity rim-glow strength (HDR → blooms in the post pass)
+  uniform float uEmissive;  // equipped finish inner glow (0 = none)
+  uniform float uAbsorbMul; // equipped finish density (≥1 darkens/denses a low-transmission finish; 1 = default)
+  uniform float uReflMul;   // equipped finish env-reflection strength (1 = default)
   uniform float uForm;    // materialize 0→1: a glowing solid "seed" refracts into the finished gem
-  uniform float uYaw;     // drag-orbit
-  uniform float uPitch;
-  uniform float uZoom;    // wheel/pinch zoom (camera distance)
+  // real R3F camera: rays + gl_FragDepth → cosmos pans on orbit + 3D atmosphere depth-composites WITH the gem
+  uniform vec3  uCamPos;
+  uniform mat4  uInvViewProj;  // NDC → world ray
+  uniform mat4  uViewProj;     // world → clip, for writing real gl_FragDepth at the gem hit
   // scene palette (LINEAR) — the procedural cosmos the gem refracts/reflects, re-tinted per Shop scene
   uniform vec3  uBackdrop;
   uniform vec3  uKey;
   uniform vec3  uCool;
   uniform vec3  uWarm;
   uniform vec3  uStar;
+  uniform vec3  uAtmoTint;     // equipped Atmosphere's hue, blended into env → refraction/reflection carries the mood
+  uniform float uAtmoAmt;      // 0 = Clear (no tint)
+  uniform samplerCube uEnvCube; // live cubemap of the atmosphere captured around the gem
+  uniform float uEnvCubeAmt;   // 0 = procedural env only; >0 = refract/reflect the real atmosphere
 
   mat3 R;
 
@@ -111,7 +138,18 @@ const makeFrag = (STEPS: number, INNER: number, sdfGLSL: string) => /* glsl */ `
     col += uCool * 0.35 * pow(max(dot(d, normalize(vec3(-0.6,0.25,0.55))), 0.0), 2.5);
     col += uWarm * 0.35 * pow(max(dot(d, normalize(vec3(0.3,-0.45,-0.55))), 0.0), 2.5);
     col += uKey  * 1.6  * pow(max(dot(d, normalize(vec3(0.35,0.75,0.40))), 0.0), 24.0);
+    // equipped Atmosphere tints the environment the gem refracts/reflects, so it visibly carries the mood
+    col += uAtmoTint * uAtmoAmt * (0.28 + 0.6 * up * up);
     return col;
+  }
+
+  // env for the gem's REFRACTION/REFLECTION: blends a live cubemap of the real atmosphere over the procedural env,
+  // so the gem bends the actual clouds/nebula/aurora. uEnvCubeAmt = 0 → procedural only (cube never sampled).
+  vec3 envGem(vec3 d){
+    vec3 base = env(d);
+    if(uEnvCubeAmt <= 0.0) return base;
+    vec3 atmo = min(texture(uEnvCube, d).rgb, vec3(4.0)); // gentle safety clamp so a very bright/additive atmosphere can't blow the refraction out
+    return mix(base, base * 0.5 + atmo, uEnvCubeAmt);
   }
 
 ${sdfGLSL}
@@ -149,11 +187,11 @@ ${sdfGLSL}
     if(dot(oR,oR)<0.001) oR=tir;
     if(dot(oG,oG)<0.001) oG=tir;
     if(dot(oB,oB)<0.001) oB=tir;
-    vec3 col = vec3(env(oR).r, env(oG).g, env(oB).b);
+    vec3 col = vec3(envGem(oR).r, envGem(oG).g, envGem(oB).b);
     // rarity-coloured tint via Beer-Lambert. CLAMP the path: a SOLID gem (sphere/ellipsoid) traverses its whole
     // diameter and would over-absorb into a dark void, while thin-shell exotics (short path) are unaffected — so
     // this brightens Pip & the solid commons without touching the tuned look of the exotic gems.
-    vec3 absorb = (vec3(1.0)-uColor) * min(dist, 0.8) * 0.9;
+    vec3 absorb = (vec3(1.0)-uColor) * min(dist, 0.8) * 0.9 * uAbsorbMul; // finish density (low transmission → denser)
     return col * exp(-absorb);
   }
 
@@ -170,30 +208,33 @@ ${sdfGLSL}
     }
     // miss: a grazing near-miss still partially covers the pixel — antialias the silhouette by the SDF's
     // closest approach vs the pixel footprint (free with sphere tracing; canvas MSAA can't touch SDF edges).
-    float px = 2.0/uRes.y * uZoom * 1.6;
+    // px grows with the surface distance (tEdge) — a reasonable screen-space pixel footprint now that the
+    // camera matrix (not uZoom) sets the framing.
+    float px = (2.0/uRes.y) * tEdge * 1.2;
     cover = 1.0 - smoothstep(0.0, px, closest);
     return -1.0;
   }
 
   vec3 shade(vec3 p, vec3 rd){
     vec3 n = nrm(p);
-    vec3 reflCol = env(reflect(rd,n));
+    vec3 reflCol = envGem(reflect(rd,n)) * uReflMul;                 // finish env-reflection strength
     float F0 = pow((1.0-uIor)/(1.0+uIor), 2.0);                      // Schlick F0 from the actual IOR
     float f = F0 + (1.0-F0)*pow(1.0-max(dot(-rd,n),0.0), 5.0);
     vec3 col = mix(refractGem(p,rd,n), reflCol, f) + reflCol*0.05;
     col += uColor * f * uRim;                                        // rarity rim-glow (HDR → blooms)
+    col += uColor * uEmissive * 0.6;                                 // equipped finish inner glow (0 = none)
     return col;
   }
 
   void main(){
-    // camera ORBITS (rotate the rays + the env), gem AUTO-SPINS in place — so the cosmos background moves as you
-    // orbit (like the mesh hero), instead of the gem spinning against a screen-pinned cosmos.
-    mat3 Rcam = rotY(uYaw) * rotX(0.4 + uPitch);
+    // gem AUTO-SPINS in place (R in map()); the REAL camera orbits it, so the cosmos background pans as you
+    // orbit (env(rd) uses the world ray), instead of the gem spinning against a screen-pinned cosmos.
     R = rotY(uTime*0.12);
-    vec2 uv = (vUv*2.0-1.0);
-    uv.x *= uRes.x/uRes.y;
-    vec3 ro = Rcam * vec3(0.0,0.0,3.2*uZoom);
-    vec3 rd = Rcam * normalize(vec3(uv,-2.2));
+    // primary ray from the real R3F camera (aspect handled by the camera matrix — no manual aspect divide)
+    vec2 ndc = vUv*2.0 - 1.0;
+    vec4 fw = uInvViewProj * vec4(ndc, 1.0, 1.0);
+    vec3 ro = uCamPos;
+    vec3 rd = normalize(fw.xyz/fw.w - uCamPos);
     float cover, tEdge;
     float t = trace(ro,rd,cover,tEdge);
     vec3 col;
@@ -205,24 +246,46 @@ ${sdfGLSL}
     else                  col = env(rd);                            // background cosmos
     // mild exposure lift — the post pass applies ACES, which rolls midtones down harder than the old Reinhard
     // curve this shader used to bake in; 1.15 keeps the cosmos from reading muddy. (Tune once eyeballed.)
-    gl_FragColor = vec4(col * 1.15, 1.0);
+    fragColor = vec4(col * 1.15, 1.0);
+    // Write REAL per-pixel depth so 3D atmosphere depth-composites WITH the gem: a gem hit writes its near
+    // depth (atmosphere behind is occluded), a miss/silhouette writes far=1.0 (background atmosphere shows).
+    if(t >= 0.0){
+      vec4 clip = uViewProj * vec4(ro + rd*t, 1.0);
+      gl_FragDepth = clamp((clip.z/clip.w)*0.5 + 0.5, 0.0, 1.0);
+    } else {
+      gl_FragDepth = 1.0;
+    }
   }
 `
 
-export function RaymarchGem({ family, rarity, controls = true, autoRotate = false, materialize = false }: { family: string; rarity: RarityName; controls?: boolean; autoRotate?: boolean; materialize?: boolean }) {
+export function RaymarchGem({ family, rarity, controls = true, autoRotate = false, materialize = false, previewScene, previewFinish, envMap }: { family: string; rarity: RarityName; controls?: boolean; autoRotate?: boolean; materialize?: boolean; previewScene?: number; previewFinish?: number; envMap?: THREE.Texture | null }) {
   const ref = useRef<THREE.ShaderMaterial>(null)
   const g = useGfxPreset()
-  const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
+  const ptEnvCubeAmt = useGfx((s) => s.ptEnvCubeAmt) // user-tunable atmosphere-refraction strength
+  // `previewScene` (shop preview) shows the gem in an UNequipped scene without touching the equipped one.
+  const storeScene = useGame((s) => s.view?.scene ?? 0)
+  const scene = sceneById(previewScene ?? storeScene)
+  const atmo = atmosphereById(useGame((s) => s.view?.equipped?.[SLOT_ATMOSPHERE] ?? 0)) // equipped Atmosphere tints refraction
+  const lin = (hex: string) => {
+    const k = new THREE.Color(hex).convertSRGBToLinear()
+    return new THREE.Vector3(k.r, k.g, k.b)
+  }
+  // a representative hue for the equipped atmosphere → blended into env() so the gem's refraction/reflection carries it
+  const atmoTint = useMemo(() => lin(atmo.vol?.colorB ?? atmo.clouds?.colorLight ?? atmo.godRays?.color ?? atmo.aurora?.colorA ?? atmo.mote), [atmo])
+  const atmoAmt = atmo.id === 0 ? 0 : 0.32
+  // Equipped gem finish (Shop cosmetic) mapped onto the SDF shader — `previewFinish` lets the shop hover-preview one.
+  const equippedFinish = useGame((s) => s.view?.equipped?.[SLOT_FINISH] ?? 0)
+  const fin = finishSdf(previewFinish ?? equippedFinish)
+  const L = lightingById(useGame((s) => s.view?.equipped?.[SLOT_LIGHTING] ?? 0)) // equipped Lighting mood — scales the env the gem is lit by
+  const rarityCol = lin(RARITY_COLOR[rarity])
+  const baseIor = 1.45 + RANK[rarity] * 0.05
+  const baseAberr = 0.02 + RANK[rarity] * 0.02
   // Per-shape shader: inject ONLY this family's SDF (sdfActiveGLSL), so the program stays small. Rebuilds when
   // the shape changes (three caches compiled programs by source, so each shape compiles once).
   const frag = useMemo(() => makeFrag(g.raySteps, g.rayInner, sdfActiveGLSL(family)), [g.raySteps, g.rayInner, family])
 
   const uniforms = useMemo(() => {
     const rank = RANK[rarity]
-    const lin = (hex: string) => {
-      const k = new THREE.Color(hex).convertSRGBToLinear()
-      return new THREE.Vector3(k.r, k.g, k.b)
-    }
     const c = lin(RARITY_COLOR[rarity])
     const [backdrop, key, cool, warm] = scene.env
     return {
@@ -231,48 +294,67 @@ export function RaymarchGem({ family, rarity, controls = true, autoRotate = fals
       uColor: { value: c },
       uIor: { value: 1.45 + rank * 0.05 },
       uAberr: { value: 0.02 + rank * 0.02 },
-      uRim: { value: rank >= 3 ? 0.25 + (rank - 3) * 0.35 : 0.07 + rank * 0.05 },
+      uRim: { value: (rank >= 3 ? 0.25 + (rank - 3) * 0.35 : 0.07 + rank * 0.05) * L.rim }, // equipped Lighting scales the rim glow
       uForm: { value: materialize ? 0 : 1 },
-      uYaw: { value: 0 },
-      uPitch: { value: 0 },
-      uZoom: { value: 1 },
-      uBackdrop: { value: lin(backdrop) },
-      uKey: { value: lin(key) },
-      uCool: { value: lin(cool) },
-      uWarm: { value: lin(warm) },
+      uCamPos: { value: new THREE.Vector3() },
+      uInvViewProj: { value: new THREE.Matrix4() },
+      uViewProj: { value: new THREE.Matrix4() },
+      uBackdrop: { value: lin(backdrop).multiplyScalar(L.ambient) },
+      uKey: { value: lin(key).multiplyScalar(L.key) },
+      uCool: { value: lin(cool).multiplyScalar(L.ambient) },
+      uWarm: { value: lin(warm).multiplyScalar(L.ambient) },
       uStar: { value: lin(scene.stars) },
+      uAtmoTint: { value: new THREE.Vector3() },
+      uAtmoAmt: { value: 0 },
+      uEnvCube: { value: null as THREE.Texture | null },
+      uEnvCubeAmt: { value: 0 },
+      uEmissive: { value: 0 },
+      uAbsorbMul: { value: 1 },
+      uReflMul: { value: 1 },
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [family, rarity, scene])
+  }, [family, rarity, scene, L])
 
-  // The shape is drawn by a fullscreen-quad shader that ignores the three.js camera, so we bridge the
-  // SAME OrbitControls the mesh/transmission Stage uses (see Stage.tsx) into the shader's orbit uniforms:
-  // read the orbiting camera's azimuth/elevation/distance each frame and feed uYaw/uPitch/uZoom. This gives
-  // the raymarched hero identical drag-rotate / wheel-pinch-zoom (from anywhere on the canvas, touch too) as
-  // every other shape, while keeping its own procedural cosmos as the backdrop. The gentle auto-spin
-  // (uTime in the shader) composes on top of the orbit, matching the mesh gems' spin + orbit.
+  // The shape is drawn by a fullscreen-quad shader that builds its primary rays from the REAL R3F camera
+  // (uCamPos/uInvViewProj/uViewProj), so the OrbitControls below drive the gem exactly like every other shape
+  // (drag-rotate / wheel-pinch-zoom from anywhere on the canvas, touch too), the cosmos pans on orbit, and the
+  // gem writes real gl_FragDepth so the 3D atmosphere layer depth-composites WITH it. The gentle auto-spin
+  // (uTime → R in map()) composes on top, matching the mesh gems' spin + orbit.
   useFrame((state, dt) => {
     const m = ref.current
     if (!m) return
     m.uniforms.uTime.value = state.clock.elapsedTime
     // drawing-buffer size (CSS size × dpr), not CSS size — the analytic silhouette-AA footprint `px` must be in
-    // real device pixels or it's ~2× too wide (soft edges) on hi-dpi. (Aspect use of uRes is a ratio, unaffected.)
+    // real device pixels or it's ~2× too wide (soft edges) on hi-dpi.
     state.gl.getDrawingBufferSize(m.uniforms.uRes.value)
     // materialize form-in (reveal only): the seed refracts into the finished gem over ~0.75s
     if (materialize && m.uniforms.uForm.value < 1) m.uniforms.uForm.value = Math.min(1, m.uniforms.uForm.value + dt / 0.75)
     const cam = state.camera
-    const dist = cam.position.length() || 5
-    m.uniforms.uZoom.value = THREE.MathUtils.clamp(dist / 5, 0.45, 2.6)
-    m.uniforms.uYaw.value = Math.atan2(cam.position.x, cam.position.z)
-    const polar = Math.acos(THREE.MathUtils.clamp(cam.position.y / dist, -1, 1))
-    m.uniforms.uPitch.value = THREE.MathUtils.clamp(Math.PI / 2 - polar, -1.4, 1.4)
+    m.uniforms.uCamPos.value.copy(cam.position)
+    // NDC → world ray for the raymarcher (inverse of projection · view); forward matrix for the depth write
+    m.uniforms.uViewProj.value.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse)
+    m.uniforms.uInvViewProj.value.copy(m.uniforms.uViewProj.value).invert()
+    m.uniforms.uAtmoTint.value.copy(atmoTint)
+    m.uniforms.uAtmoAmt.value = atmoAmt
+    m.uniforms.uEnvCube.value = envMap ?? null // live atmosphere cubemap (HeroView provides it for skyey moods on high gfx)
+    m.uniforms.uEnvCubeAmt.value = envMap ? ptEnvCubeAmt : 0
+    // equipped gem finish → SDF look (live, so a shop hover-preview updates instantly). Default Prism = no-op.
+    m.uniforms.uColor.value.copy(fin.tint ?? rarityCol)
+    m.uniforms.uIor.value = baseIor + fin.iorAdd
+    m.uniforms.uAberr.value = baseAberr + fin.aberrAdd
+    m.uniforms.uEmissive.value = fin.emissive
+    m.uniforms.uAbsorbMul.value = fin.absorbMul
+    m.uniforms.uReflMul.value = fin.reflMul
   })
 
   return (
     <>
-      <mesh frustumCulled={false}>
+      <mesh frustumCulled={false} renderOrder={-10}>
         <planeGeometry args={[2, 2]} />
-        <shaderMaterial key={`${g.raySteps}-${family}`} ref={ref} vertexShader={VERT} fragmentShader={frag} uniforms={uniforms} />
+        {/* drawn first (renderOrder −10) and writes REAL per-pixel depth (gl_FragDepth: the gem hit's depth, far
+            on a miss), so the equipped Atmosphere depth-composites WITH the gem — occluded behind it, visible in
+            the cosmos around it — instead of flat-overlaying. */}
+        <shaderMaterial key={`${g.raySteps}-${family}`} ref={ref} glslVersion={THREE.GLSL3} vertexShader={VERT} fragmentShader={frag} uniforms={uniforms} />
       </mesh>
       {controls && (
         <OrbitControls

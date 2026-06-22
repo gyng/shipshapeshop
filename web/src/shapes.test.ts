@@ -11,29 +11,31 @@ const FAMILIES = [
   // Rare
   'torus', 'mobius', 'genus2', 'hyperboloid', 'catenoid', 'helicoid', 'trefoil', 'monkey_saddle',
   // Epic
-  'klein_bottle', 'rp2', 'boys_surface', 'cross_cap', 'figure8_knot', 'torus_knot_2_5', 'gyroid', 'schwarz_p',
+  'klein_bottle', 'roman_surface', 'boys_surface', 'whitney_umbrella', 'figure8_knot', 'torus_knot_2_5', 'gyroid', 'schwarz_p',
   // SSR
   'heptoroid', 'costa', 'borromean', 'seifert', 'lorenz', 'schwarz_d', 'triple_torus', 'twisted_torus', 'cut_hollow_sphere', 'blobby',
   // UR
   'tesseract', 'cell_16', 'cell_24', 'cell_120', 'cell_600', 'klein_quartic', 'hopf', 'mazur',
   // Relics (Reference Wing)
-  'utah_teapot', 'stanford_bunny', 'benchy', 'stanford_dragon', 'suzanne', 'spot', 'cow', 'armadillo', 'lucy', 'csaszar',
+  'utah_teapot', 'stanford_bunny', 'benchy', 'stanford_dragon', 'suzanne', 'spot', 'endrass_octic', 'armadillo', 'lucy', 'csaszar',
   // Relics — fractals & classical surfaces (procedurally generated)
   'menger', 'sierpinski', 'dini', 'torus_knot_2_7',
   // NG+ metashapes (Meta) + the Transcendent fractal capstone cohort
   'clifford_torus', 'cable_knot', 'mandelbulb', 'mandelbox', 'julia', 'apollonian', 'kleinian',
+  // NG+ cohort expansion: 4D cross-sections (Meta) + algebraic/attractor jewels (Transcendent)
+  'spherinder_slice', 'duocylinder', 'cell24_section', 'ditorus', 'hyperbolic_honeycomb', 'aizawa_attractor', 'barth_sextic',
 ]
 
 // Relic families backed by a real downloaded mesh (loaded once by the shared relics layer → src/three/relics.ts
 // RELIC_MODELS, then used across the gallery, Orrery, dioramas, and hero).
 const MODEL_FILES_ON_DISK = [
-  'bunny.ply', 'cow.obj', 'spot.obj', 'armadillo.ply', 'lucy.ply', 'dragon.ply', 'heptoroid.ply', 'csaszar.obj', 'benchy.ply', 'suzanne.obj',
+  'bunny.ply', 'spot.obj', 'armadillo.ply', 'lucy.ply', 'dragon.ply', 'heptoroid.ply', 'csaszar.obj', 'benchy.ply', 'suzanne.obj',
 ]
 
 describe('shape content validation', () => {
-  it('has 65 families with no duplicates', () => {
-    expect(FAMILIES.length).toBe(65)
-    expect(new Set(FAMILIES).size).toBe(65)
+  it('has 72 families with no duplicates', () => {
+    expect(FAMILIES.length).toBe(72)
+    expect(new Set(FAMILIES).size).toBe(72)
   })
 
   it('every family has a complete codex entry', () => {

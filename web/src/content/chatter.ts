@@ -16,7 +16,9 @@ export const CHATTER: Record<string, string[]> = {
   genus2: ['Two holes, so I worry in stereo.', 'Glued from two worriers. It shows.'],
   trefoil: ['I can’t be undone — that’s just— my whole thing.', 'Three crossings, one me.', 'Go on, try to untangle me.'],
   klein_bottle: ['Inside is outside is in— where was I?', 'Pour me a drink; it spills back into me.', 'No inside. No outside. Just me, folding through.'],
-  rp2: ['Every line through me comes home.', 'I live one dimension up; you get the shadow.'],
+  roman_surface: ['Four lobes, three creases, one side.', 'Every line through me comes home.', 'Boy bows; I show you the quartic.'],
+  whitney_umbrella: ['Two sheets, one pinch — mind the seam.', 'My seam runs off to a single point and never shuts.', 'Cross myself? Constantly. That’s the feature.'],
+  endrass_octic: ['A hundred and sixty-eight crossings. Count them — I’ll wait.', 'Mascot? No. Record-holder.', 'Every spark is a place I cross myself.'],
   tesseract: ['You only ever see my shadow.', 'In four dimensions, I’m perfectly ordinary.', 'Rotate me — mind the corners.'],
   cell_16: ['…', 'Pattern recognised. Acceptable.', 'I do not blink. I have no need.'],
   lorenz: ['Flap— sorry, a butterfly— anyway—', 'One tiny nudge and I’m a different me.', 'I never repeat. Probably.'],
@@ -36,6 +38,13 @@ export const CHATTER: Record<string, string[]> = {
   cut_hollow_sphere: ['I’m a sphere that gave up on being whole. Now I hold things.', 'Half a shell, wide open. Pour something in.'],
   blobby: ['Six arms, one heart — I reach out in every direction at once.', 'I bulge where I please. It’s very freeing.'],
   dini: ['I curve the wrong way at every point. On purpose.', 'Spiralling since before you looked.'],
+  spherinder_slice: ['Most of me is one dimension over. This is the part you can hold.', 'Set me down. I sit solid.', 'A slab. A good place to rest.'],
+  duocylinder: ['Two circles, two turns — both at once.', 'Everything comes in pairs down here, and I like it that way.', 'The square corners are the only part that fits in your space.'],
+  cell24_section: ['Square to triangle, triangle to square — the same set from every side.', 'Half a cube, half an octahedron, whole only together.', 'One clean cut through the middle. I am the waistline.'],
+  ditorus: ['A hole through my hole — keep up, there’s two of them.', 'A ring, threaded through a ring. Round and round, and round again.', 'My loop has a loop. It’s loops all the way in, really.'],
+  hyperbolic_honeycomb: ['Every arch is the same arch. Keep walking.', 'Five cubes to an edge — space leans aside to fit us.', 'Infinitely many cells, and they’re all home.'],
+  aizawa_attractor: ['Same start, same nudge — and a brand-new path every time!', 'Determined isn’t the same as predictable, you know.', 'Round the funnel again, and never the same loop twice.'],
+  barth_sextic: ['Sixty-five secret dimples, worn like a crown.', 'A record, worn lightly. Count them if you like.', 'Icosahedral symmetry, and not one pinch-point more allowed.'],
 }
 
 /** The full tap-to-chat pool for a shape: bespoke lines first, then its codex blurb (+ bond line once bonded). */

@@ -28,7 +28,7 @@ const E: f64 = 1800.0;
 const S: f64 = 3000.0;
 const U: f64 = 4800.0;
 
-pub const SHAPES: [ShapeDef; 65] = [
+pub const SHAPES: [ShapeDef; 72] = [
     // ── Common (ids 0..10) — genus 0, χ=2, free ballast ──────────────────────────────
     ShapeDef {
         nick: "Pip",
@@ -185,8 +185,8 @@ pub const SHAPES: [ShapeDef; 65] = [
         base_prod: E,
     },
     ShapeDef {
-        nick: "Ar-Pee",
-        family: "rp2",
+        nick: "Romy",
+        family: "roman_surface", // Steiner's Roman surface — an ℝP² immersed in 3-space (genus-1 non-orientable, χ=1)
         rarity: Rarity::Epic,
         genus: 1,
         euler_cost: 1,
@@ -201,8 +201,8 @@ pub const SHAPES: [ShapeDef; 65] = [
         base_prod: E,
     },
     ShapeDef {
-        nick: "Cappy",
-        family: "cross_cap",
+        nick: "Brolly",
+        family: "whitney_umbrella", // the Whitney umbrella — an open singular surface (a self-intersecting parasol with a pinch line)
         rarity: Rarity::Epic,
         genus: 1,
         euler_cost: 1,
@@ -310,10 +310,10 @@ pub const SHAPES: [ShapeDef; 65] = [
     ShapeDef {
         nick: "Dish",
         family: "cut_hollow_sphere", // an open spherical shell — a bowl with a rim (genus 0, bounded)
-        rarity: Rarity::Ssr,
+        rarity: Rarity::Rare,
         genus: 0,
         euler_cost: 2,
-        base_prod: S,
+        base_prod: R,
     },
     ShapeDef {
         nick: "Blobby",
@@ -437,10 +437,11 @@ pub const SHAPES: [ShapeDef; 65] = [
         euler_cost: 3,
         base_prod: U,
     },
-    // Real scanned/sculpted meshes (loaded on demand) — Princeton Suggestive-Contours + Stanford scans
+    // An algebraic-surface Relic, then the real scanned/sculpted meshes (loaded on demand) — Princeton
+    // Suggestive-Contours + Stanford scans
     ShapeDef {
-        nick: "Mooky",
-        family: "cow",
+        nick: "Sexta",
+        family: "endrass_octic", // the Endrass octic — a degree-8 algebraic surface (smoothed to a genus-0 shell, χ=2)
         rarity: Rarity::Relic,
         genus: 0,
         euler_cost: 3,
@@ -528,7 +529,7 @@ pub const SHAPES: [ShapeDef; 65] = [
         rarity: Rarity::Transcendent,
         genus: 7,
         euler_cost: 9,
-        base_prod: 600.0,
+        base_prod: U,
     },
     // The fractal capstone cohort (the "cool SDF" set) — share the Transcendent tier with Bulby, each a compact
     // distance-estimator gem raymarched on the hero. Topology is a game abstraction (fractal boundaries have no
@@ -539,7 +540,7 @@ pub const SHAPES: [ShapeDef; 65] = [
         rarity: Rarity::Transcendent,
         genus: 8,
         euler_cost: 10,
-        base_prod: 660.0,
+        base_prod: U,
     },
     ShapeDef {
         nick: "Jules",
@@ -547,7 +548,7 @@ pub const SHAPES: [ShapeDef; 65] = [
         rarity: Rarity::Transcendent,
         genus: 4,
         euler_cost: 6,
-        base_prod: 620.0,
+        base_prod: U,
     },
     ShapeDef {
         nick: "Bubbles",
@@ -555,7 +556,7 @@ pub const SHAPES: [ShapeDef; 65] = [
         rarity: Rarity::Transcendent,
         genus: 5,
         euler_cost: 7,
-        base_prod: 560.0,
+        base_prod: U,
     },
     ShapeDef {
         nick: "Spire",
@@ -563,7 +564,69 @@ pub const SHAPES: [ShapeDef; 65] = [
         rarity: Rarity::Transcendent,
         genus: 6,
         euler_cost: 8,
-        base_prod: 580.0,
+        base_prod: U,
+    },
+    // ── NG+ cohort expansion (2026-06): 4 Meta + 3 Transcendent, APPENDED at the tail (ids 65+). Thanks to the
+    // rarity_ids refactor these need NO id-shift — rarity_ids groups them into their tier by `rarity`, and nothing
+    // by-id (banners, synergy, tests) moves. All cheap SDF distance-estimators (see web sdfShapes). Topology is
+    // declared here (authoritative); the orrery verb is derived from it by interaction().
+    // Meta (NG+1 / 4D): 4D cross-sections & flat tori — deepens the Meta cohort 2→6 so NG+1 is a real journey.
+    ShapeDef {
+        nick: "Slabby",
+        family: "spherinder_slice", // a spherinder (ball × interval) sliced into 3-space — a rounded slab
+        rarity: Rarity::Meta,
+        genus: 0,
+        euler_cost: 2,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Duoey",
+        family: "duocylinder", // the duocylinder ridge — a flat 4D torus, the Clifford torus's square cousin
+        rarity: Rarity::Meta,
+        genus: 1,
+        euler_cost: 4,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Cubocta",
+        family: "cell24_section", // the 24-cell's equatorial cross-section: a cuboctahedron
+        rarity: Rarity::Meta,
+        genus: 0,
+        euler_cost: 2,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Dito",
+        family: "ditorus", // a ditorus — a torus of a torus; its 3D shadow is a donut with a tunnel through its dough
+        rarity: Rarity::Meta,
+        genus: 2,
+        euler_cost: 6,
+        base_prod: U,
+    },
+    // Transcendent (NG+2 / 5D): more "cool SDF" capstones (a TPMS pair + an IFS) — deepens the cohort 5→8.
+    ShapeDef {
+        nick: "Vault",
+        family: "hyperbolic_honeycomb", // a hyperbolic honeycomb ({4,3,5}) — an infinite cathedral of cells tiling negatively-curved space
+        rarity: Rarity::Transcendent,
+        genus: 9,
+        euler_cost: 11,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Whirly",
+        family: "aizawa_attractor", // the Aizawa attractor — a strange attractor whose orbit threads a swirling, spindled vortex
+        rarity: Rarity::Transcendent,
+        genus: 5,
+        euler_cost: 7,
+        base_prod: U,
+    },
+    ShapeDef {
+        nick: "Sixsy",
+        family: "barth_sextic", // the Barth sextic — a degree-6 algebraic surface studded with the maximal 65 ordinary double points
+        rarity: Rarity::Transcendent,
+        genus: 7,
+        euler_cost: 9,
+        base_prod: U,
     },
 ];
 
@@ -579,18 +642,28 @@ pub const FLUX_DENSITY: f64 = 120.0;
 /// toward core completion.
 pub const PULL_COUNT: usize = 44;
 
-/// Contiguous id range for a rarity tier (table is ordered by tier).
-pub fn rarity_range(r: Rarity) -> std::ops::Range<usize> {
-    match r {
-        Rarity::Common => 0..10,
-        Rarity::Rare => 10..18,
-        Rarity::Epic => 18..26,
-        Rarity::Ssr => 26..36,          // +3: Twirl, Dish, Blobby inserted at 33,34,35
-        Rarity::Ur => 36..44,
-        Rarity::Relic => 44..58,
-        Rarity::Meta => 58..60,         // NG+ metashapes — enter the gacha at 4D
-        Rarity::Transcendent => 60..65, // the capstone cohort (Bulby + 4 fractals) — enters the gacha at 5D
+
+/// Shape ids grouped by rarity, computed ONCE from each shape's declared rarity. Because this is derived from
+/// `SHAPES[id].rarity` (not a hardcoded contiguous slice), a new shape is added by simply APPENDING a `ShapeDef`
+/// row anywhere — its id never shifts an existing one, so nothing by-id (banners, synergy, tests) breaks. Ids
+/// within a tier stay ascending (built over 0..COUNT), so the seeded gacha pick is bit-identical to the old
+/// contiguous `rarity_range` as long as base tiers keep their order.
+static RARITY_IDS: std::sync::LazyLock<Vec<Vec<usize>>> = std::sync::LazyLock::new(|| {
+    let mut groups = vec![Vec::new(); Rarity::Transcendent as usize + 1];
+    for id in 0..COUNT {
+        groups[SHAPES[id].rarity as usize].push(id);
     }
+    groups
+});
+/// The shape ids of a rarity tier, ascending. The append-friendly replacement for `rarity_range`.
+pub fn rarity_ids(r: Rarity) -> &'static [usize] {
+    &RARITY_IDS[r as usize]
+}
+
+/// The NG+ metashape cohort ids (Meta = NG+1 / 4D, Transcendent = NG+2 / 5D) — for headless tooling that can't
+/// name the crate-private `Rarity`.
+pub fn metashape_ids() -> (&'static [usize], &'static [usize]) {
+    (rarity_ids(Rarity::Meta), rarity_ids(Rarity::Transcendent))
 }
 
 /// Effective production (Flux/hr) of a deployed shape: base + genus "handle-lane" bonus (M7: each hole is
@@ -643,7 +716,7 @@ pub fn dupes_to_next_star(r: Rarity, dupes: u32) -> Option<(u32, u32)> {
 pub fn is_nonorientable(family: &str) -> bool {
     matches!(
         family,
-        "mobius" | "klein_bottle" | "rp2" | "boys_surface" | "cross_cap" | "klein_quartic"
+        "mobius" | "klein_bottle" | "roman_surface" | "boys_surface" | "whitney_umbrella" | "klein_quartic"
     )
 }
 /// Knots & links → Entanglement (boost loadout-adjacent neighbours — makes ORDER matter).
@@ -660,11 +733,16 @@ pub fn is_knot(family: &str) -> bool {
             | "cable_knot"
     )
 }
+/// Open anchors → the reserved Absorb "sink" home: genus-0 shapes with boundary/χ≠2 (a bowl, a disk, a tube)
+/// that otherwise fall through to a plain Multiply. The sink_doctrine upgrade (#15) turns these into sinks.
+pub fn is_open_anchor(family: &str) -> bool {
+    matches!(family, "cone" | "disk" | "cylinder")
+}
 /// 4D polytopes → Cross-Dimension (a global bonus, inert until the viewport reaches 4D in New Game+).
 pub fn is_polytope_4d(family: &str) -> bool {
     matches!(
         family,
-        "tesseract" | "cell_16" | "cell_24" | "cell_120" | "cell_600" | "clifford_torus"
+        "tesseract" | "cell_16" | "cell_24" | "cell_120" | "cell_600" | "clifford_torus" | "duocylinder" | "cell24_section"
     )
 }
 /// χ=2 free-to-deploy anchors (Sphere/Platonics) → Euler Ballast (a small steady team bonus).
@@ -702,7 +780,7 @@ pub fn emit_kind(def: &ShapeDef) -> EmitKind {
         }
         // open, minimal & chaotic surfaces (and the big multi-handle bodies) spray a six-way starburst
         "gyroid" | "schwarz_p" | "schwarz_d" | "costa" | "catenoid" | "helicoid" | "lorenz" | "monkey_saddle"
-        | "hyperboloid" | "genus2" | "triple_torus" | "heptoroid" => EmitKind::Scatter,
+        | "hyperboloid" | "genus2" | "triple_torus" | "heptoroid" | "endrass_octic" => EmitKind::Scatter,
         // 4D polytopes & links blink between configurations — a slow pulse
         "tesseract" | "cell_16" | "cell_24" | "cell_120" | "cell_600" | "hopf" | "borromean" | "seifert" => {
             EmitKind::Pulse
@@ -782,7 +860,7 @@ pub fn interaction(def: &ShapeDef) -> crate::flux::Act {
     match def.family {
         // one-sided shapes route flux instead of amplifying it (the positioning puzzle's "bends")
         "mobius" => Act::Redirect { turn: 1 }, // a gentle 60° half-twist
-        _ if is_nonorientable(def.family) => Act::Redirect { turn: 3 }, // Klein/RP²/Boy/cross-cap flip flux 180°
+        _ if is_nonorientable(def.family) => Act::Redirect { turn: 3 }, // Klein/Roman/Boy/Whitney flip flux 180°
         // knots entangle hardest: the rarity multiplier, boosted by +1×
         _ if is_knot(def.family) => Act::Multiply { num: n + d, den: d },
         // handles scale the rarity base by (2+genus)/2 — i.e. ×(1 + genus/2) of the rarity rational (genus-1 = ×1.5,
@@ -921,7 +999,7 @@ pub struct SurfaceClass {
 }
 
 /// The surface class of a shape family, or `None` if it isn't a forgeable surface. Authored from real
-/// topology — the Platonic solids are all spheres (χ=2); Boy's surface / cross-cap are both ℝP² (χ=1);
+/// topology — the Platonic solids are all spheres (χ=2); Boy's surface / Roman surface are both ℝP² (χ=1);
 /// triple-torus and the Klein quartic are both genus-3 (χ=−4); the Möbius band is the one *bounded* input.
 pub fn surface_class(family: &str) -> Option<SurfaceClass> {
     let (chi, orientable, closed) = match family {
@@ -932,7 +1010,7 @@ pub fn surface_class(family: &str) -> Option<SurfaceClass> {
         "triple_torus" | "klein_quartic" => (-4, true, true), // genus 3
         // closed non-orientable
         "klein_bottle" => (0, false, true), // 2 cross-caps
-        "rp2" | "boys_surface" | "cross_cap" => (1, false, true), // ℝP² in three disguises
+        "roman_surface" | "boys_surface" => (1, false, true), // ℝP² in two closed disguises (Roman surface & Boy's surface)
         // bounded: the Möbius band has a boundary circle, so it glues rather than connect-sums
         "mobius" => (0, false, false),
         _ => return None,
@@ -983,7 +1061,8 @@ pub const RECIPES: &[Recipe] = &[
     Recipe { a: 10, b: 10, out: 12 }, // torus # torus = genus-2
     Recipe { a: 10, b: 12, out: 32 }, // torus # genus-2 = triple torus
     Recipe { a: 20, b: 20, out: 18 }, // Boy's # Boy's = Klein bottle (Boy's surface is secretly ℝP²)
-    Recipe { a: 21, b: 21, out: 18 }, // cross-cap # cross-cap = Klein bottle (cross-cap is secretly ℝP²)
+    // (id 21 was the cross-cap, also secretly ℝP²; it is now the Whitney umbrella — an OPEN singular surface,
+    //  deliberately forge-excluded (surface_class → None), so its connected-sum recipe is dropped.)
 ];
 
 /// Find a recipe matching an unordered input pair.
@@ -1024,7 +1103,7 @@ pub struct UpgradeDef {
 
 // Order is load-bearing — game.rs reads effects by index. Keep in sync. A small tech tree: two roots
 // (expand_floor, patience) branch into the rest; `twin_bond` + `auto_pull` are secret (revealed on unlock).
-pub const UPGRADES: [UpgradeDef; 13] = [
+pub const UPGRADES: [UpgradeDef; 20] = [
     UpgradeDef {
         key: "expand_floor",
         flux_cost: 700.0,
@@ -1037,10 +1116,10 @@ pub const UPGRADES: [UpgradeDef; 13] = [
         key: "genus_resonance",
         flux_cost: 4500.0,
         shard_cost: 15,
-        max_level: 1,
+        max_level: 3,
         requires: Some((0, 2)),
         secret: false,
-    }, // 1: +6% per distinct genus
+    }, // 1: +4% per distinct genus, PER LEVEL (scaling diversity lever)
     UpgradeDef {
         key: "twin_bond",
         flux_cost: 6000.0,
@@ -1088,13 +1167,13 @@ pub const UPGRADES: [UpgradeDef; 13] = [
         max_level: 4,
         requires: Some((0, 4)),
         secret: false,
-    }, // 7: cap +300/hr / level
+    }, // 7: rate cap +8% / level (MULTIPLICATIVE — scales with the economy, unlike the old flat +300/hr trap)
     UpgradeDef {
         key: "auto_pull",
         flux_cost: 9000.0,
         shard_cost: 0,
         max_level: 1,
-        requires: Some((7, 1)),
+        requires: Some((11, 1)), // re-gated behind solver_mk2 (the automation kin) — no longer forces the overflow_cap trap
         secret: true,
     }, // 8: auto-pull toggle (secret)
     // ── Orrery branch (effect-verb / placement levers — the orrery is the production engine) ──
@@ -1130,8 +1209,81 @@ pub const UPGRADES: [UpgradeDef; 13] = [
         requires: Some((3, 1)),
         secret: false,
     }, // 12: orrery offline earns a higher fraction of online / level
+    UpgradeDef {
+        key: "mastery_doctrine",
+        flux_cost: 5000.0,
+        shard_cost: 25,
+        max_level: 1,
+        requires: Some((0, 2)),
+        secret: false,
+    }, // 13: Doctrine of Mastery — +4% production per ★ across deployed shapes (go TALL). Excludes #14.
+    UpgradeDef {
+        key: "variety_doctrine",
+        flux_cost: 5000.0,
+        shard_cost: 25,
+        max_level: 1,
+        requires: Some((0, 2)),
+        secret: false,
+    }, // 14: Doctrine of Variety — +5% production per distinct family deployed (go WIDE). Excludes #13.
+    UpgradeDef {
+        key: "sink_doctrine",
+        flux_cost: 4500.0,
+        shard_cost: 0, // rule-change levers cost Flux only — Shards are the Forge/Relic currency
+        max_level: 1,
+        requires: Some((9, 1)),
+        secret: false,
+    }, // 15: open anchors (cone/disk/cylinder) become SINKS — a beam is boosted ×2.5 then banked+stopped (activates the dead Absorb verb)
+    UpgradeDef {
+        key: "euler_surplus",
+        flux_cost: 5500.0,
+        shard_cost: 0,
+        max_level: 2,
+        requires: Some((0, 3)),
+        secret: false,
+    }, // 16: +6%/lvl production per point of UNSPENT Euler-budget headroom (≤6) — a live lean-board fork for the manual optimizer
+    UpgradeDef {
+        key: "overpressure_valve",
+        flux_cost: 6000.0,
+        shard_cost: 0,
+        max_level: 3,
+        requires: Some((7, 1)),
+        secret: false,
+    }, // 17: flux above the rate cap spills into Shards (+10%/lvl of over-cap flux) instead of being deleted
+    UpgradeDef {
+        key: "overclock",
+        flux_cost: 7000.0,
+        shard_cost: 0,
+        max_level: 1,
+        requires: Some((7, 2)),
+        secret: false,
+    }, // 18: unlocks a reversible session toggle — +60% production cap while ON, but offline catch-up clamped to 4h
+    UpgradeDef {
+        key: "mirrored_rim",
+        flux_cost: 5500.0,
+        shard_cost: 25,
+        max_level: 3,
+        requires: Some((9, 1)),
+        secret: false,
+    }, // 19: a beam leaving the grid REFLECTS back inward once per level — re-crosses your lenses on the way home
 ];
 pub const UPGRADE_COUNT: usize = UPGRADES.len();
+
+/// Mutually-exclusive upgrade pairs — buying one permanently locks the other. This "doctrine choke" turns the
+/// otherwise buy-everything tree into a genuine build commitment (and gives New Game+ a reason to choose anew).
+pub const EXCLUSIONS: &[(usize, usize)] = &[(13, 14)]; // mastery_doctrine ⟷ variety_doctrine
+
+/// The upgrade `id` is mutually exclusive with, if any (symmetric over EXCLUSIONS).
+pub fn excluded_sibling(id: usize) -> Option<usize> {
+    EXCLUSIONS.iter().find_map(|&(a, b)| {
+        if a == id {
+            Some(b)
+        } else if b == id {
+            Some(a)
+        } else {
+            None
+        }
+    })
+}
 
 /// Flux + Shard cost for the NEXT level of an upgrade (escalates for repeatables).
 pub fn upgrade_cost(id: usize, level: u32) -> (f64, u64) {
@@ -1150,7 +1302,7 @@ pub struct FacetPerk {
     pub cost: u64,
     pub max_level: u32,
 }
-pub const FACET_PERKS: [FacetPerk; 7] = [
+pub const FACET_PERKS: [FacetPerk; 8] = [
     FacetPerk {
         key: "meta_production",
         cost: 2,
@@ -1186,56 +1338,102 @@ pub const FACET_PERKS: [FacetPerk; 7] = [
         cost: 6,
         max_level: 3,
     }, // 6: +1 Facet per ascent / level — keeps the meta-tree fed deep into NG+
+    FacetPerk {
+        key: "polymath",
+        cost: 8,
+        max_level: 1,
+    }, // 7: RULE-CHANGER — overrides the doctrine choke so you may own BOTH Mastery & Variety at once (tall AND wide)
 ];
 pub const FACET_PERK_COUNT: usize = FACET_PERKS.len();
 pub fn facet_perk_cost(id: usize, level: u32) -> u64 {
     (FACET_PERKS[id].cost as f64 * 1.6_f64.powi(level as i32)).floor() as u64
 }
 
-/// Milestones — once achieved they latch permanently and each adds a small global production bonus (the
-/// classic idle "achievement multiplier"). Conditions live in game.rs (by index). The checklist itself is
-/// the dopamine; the bonus is the cherry.
+/// Achievements ("milestones") — each latches PERMANENTLY the first time its condition holds and grants a
+/// permanent gameplay EFFECT. The checklist itself is the dopamine; the effect is the cherry. Conditions live
+/// in game.rs (matched BY KEY, so order is decoupled from logic). APPEND-ONLY: `milestones_done[i]` is
+/// positional and saved, so new rows go on the END and existing rows never move (from_json resizes the vec).
+#[derive(Clone, Copy)]
+pub enum MilestoneEffect {
+    Production(f64), // +x to the global production multiplier (the classic idle "achievement multiplier")
+    Offline(f64),    // +x hours to the away/offline catch-up cap
+    Shards(f64),     // +x to the duplicate-pull shard multiplier
+    Forge(f64),      // forge cost ×(1 − x) — cheaper forging
+    Affinity(f64),   // +x to bond-affinity gain (bonds rise faster)
+    Euler(u32),      // +x permanent Euler floor budget (deploy more shapes)
+    Flux(f64),       // ONE-TIME flux grant on unlock (×FLUX_DENSITY) — a celebratory "moment"
+}
 pub struct Milestone {
     pub key: &'static str,
-    pub bonus: f64, // permanent global production bonus once latched
+    pub effect: MilestoneEffect,
 }
-pub const MILESTONES: [Milestone; 9] = [
-    Milestone {
-        key: "own_10",
-        bonus: 0.03,
-    }, // 0
-    Milestone {
-        key: "own_25",
-        bonus: 0.05,
-    }, // 1
-    Milestone {
-        key: "core_complete",
-        bonus: 0.10,
-    }, // 2
-    Milestone {
-        key: "forge_3",
-        bonus: 0.04,
-    }, // 3
-    Milestone {
-        key: "bond_5",
-        bonus: 0.05,
-    }, // 4
-    Milestone {
-        key: "kin_3",
-        bonus: 0.05,
-    }, // 5
-    Milestone {
-        key: "all_relics",
-        bonus: 0.08,
-    }, // 6
-    Milestone {
-        key: "platonic",
-        bonus: 0.03,
-    }, // 7
-    Milestone {
-        key: "ascend",
-        bonus: 0.05,
-    }, // 8
+use MilestoneEffect::*;
+pub const MILESTONES: &[Milestone] = &[
+    // ── the original 9 (all production) — DO NOT REORDER (positional save state) ──
+    Milestone { key: "own_10", effect: Production(0.03) },
+    Milestone { key: "own_25", effect: Production(0.05) },
+    Milestone { key: "core_complete", effect: Production(0.10) },
+    Milestone { key: "forge_3", effect: Production(0.04) },
+    Milestone { key: "bond_5", effect: Production(0.05) },
+    Milestone { key: "kin_3", effect: Production(0.05) },
+    Milestone { key: "all_relics", effect: Production(0.08) },
+    Milestone { key: "platonic", effect: Production(0.03) },
+    Milestone { key: "ascend", effect: Production(0.05) },
+    // ── collection ──
+    Milestone { key: "own_40", effect: Production(0.05) },
+    Milestone { key: "all_commons", effect: Shards(0.06) },
+    Milestone { key: "all_rares", effect: Shards(0.06) },
+    Milestone { key: "all_epics", effect: Production(0.04) },
+    Milestone { key: "all_ur", effect: Production(0.07) },
+    Milestone { key: "first_ur", effect: Flux(800.0) },
+    // ── stars (duplicates) ──
+    Milestone { key: "first_star", effect: Affinity(0.10) },
+    Milestone { key: "star_master", effect: Production(0.05) },
+    Milestone { key: "constellation", effect: Shards(0.08) },
+    // ── economy (lifetime flux → reward idle reach) ──
+    Milestone { key: "flux_million", effect: Offline(4.0) },
+    Milestone { key: "flux_billion", effect: Offline(6.0) },
+    Milestone { key: "flux_trillion", effect: Offline(8.0) },
+    // ── shards ──
+    Milestone { key: "shards_100", effect: Shards(0.05) },
+    Milestone { key: "shards_5k", effect: Shards(0.08) },
+    Milestone { key: "shards_50k", effect: Shards(0.10) },
+    Milestone { key: "flush", effect: Forge(0.10) },
+    // ── forge ──
+    Milestone { key: "first_forge", effect: Flux(200.0) },
+    Milestone { key: "forge_10", effect: Forge(0.10) },
+    Milestone { key: "forge_50", effect: Forge(0.15) },
+    Milestone { key: "all_recipes", effect: Production(0.05) },
+    Milestone { key: "fusion_adept", effect: Forge(0.10) },
+    // ── bonds ──
+    Milestone { key: "first_bond", effect: Affinity(0.15) },
+    Milestone { key: "soulbound_3", effect: Affinity(0.20) },
+    Milestone { key: "soulbound_5", effect: Production(0.06) },
+    Milestone { key: "soulbound_10", effect: Production(0.08) },
+    // ── orrery / board ──
+    Milestone { key: "deploy_5", effect: Euler(1) },
+    Milestone { key: "deploy_10", effect: Euler(1) },
+    Milestone { key: "synergy_5", effect: Production(0.05) },
+    Milestone { key: "floor_full", effect: Shards(0.08) },
+    // ── shop / cosmetics ──
+    Milestone { key: "first_cosmetic", effect: Flux(200.0) },
+    Milestone { key: "cosmetics_5", effect: Shards(0.05) },
+    Milestone { key: "cosmetics_15", effect: Production(0.04) },
+    Milestone { key: "equip_3", effect: Affinity(0.10) },
+    Milestone { key: "fully_dressed", effect: Production(0.05) },
+    Milestone { key: "redecorated", effect: Flux(150.0) },
+    // ── prestige ──
+    Milestone { key: "ascend_2", effect: Production(0.06) },
+    Milestone { key: "ascend_3", effect: Production(0.08) },
+    Milestone { key: "reach_4d", effect: Euler(1) },
+    // ── gacha ──
+    Milestone { key: "pull_100", effect: Shards(0.05) },
+    Milestone { key: "pull_1000", effect: Production(0.05) },
+    Milestone { key: "ur_5", effect: Production(0.05) },
+    // ── dedication / meta ──
+    Milestone { key: "completionist", effect: Production(0.10) },
+    Milestone { key: "grand_tour", effect: Flux(2000.0) },
+    Milestone { key: "devoted", effect: Production(0.08) },
 ];
 pub const MILESTONE_COUNT: usize = MILESTONES.len();
 
@@ -1380,49 +1578,54 @@ mod tests {
     }
 
     #[test]
-    fn rarity_ranges_partition_every_shape() {
-        let mut next = 0usize;
+    fn rarity_tiers_partition_every_shape() {
+        // every shape belongs to exactly one rarity tier, and the tiers together cover all ids — WITHOUT assuming
+        // contiguity (shapes may be appended out of tier order; rarity_ids groups by the declared rarity).
+        let mut seen = [false; COUNT];
         for t in TIERS {
-            let r = rarity_range(t);
-            assert_eq!(r.start, next, "gap/overlap before {:?}", t);
-            for id in r.clone() {
-                assert_eq!(
-                    SHAPES[id].rarity, t,
-                    "shape {} ({}) wrong tier for {:?}",
-                    id, SHAPES[id].nick, t
-                );
+            for &id in rarity_ids(t) {
+                assert_eq!(SHAPES[id].rarity, t, "shape {} ({}) wrong tier for {:?}", id, SHAPES[id].nick, t);
+                assert!(!seen[id], "shape {id} appears in two tiers");
+                seen[id] = true;
             }
-            next = r.end;
         }
-        assert_eq!(next, COUNT, "rarity ranges must cover all {} shapes", COUNT);
+        assert!(seen.iter().all(|&s| s), "every one of {COUNT} shapes must belong to a rarity tier");
     }
 
     #[test]
     fn metashapes_are_well_formed() {
-        // the NG+ metashapes, at the tail (ids +2 from the Ssr insertion at 33,34)
-        assert_eq!(COUNT, 65);
-        assert_eq!(rarity_range(Rarity::Meta), 58..60);
-        assert_eq!(rarity_range(Rarity::Transcendent), 60..65);
-        // they sit ABOVE the pullable core and are NOT Relics
-        for id in 58..65 {
+        // NG+ metashapes after the 2026 cohort expansion: Meta 2→6, Transcendent 5→8, appended at the tail (ids
+        // 65-71). The tiers are now NON-contiguous (rarity_ids groups by declared rarity, not array position).
+        assert_eq!(COUNT, 72);
+        assert_eq!(rarity_ids(Rarity::Meta), &[58, 59, 65, 66, 67, 68]);
+        assert_eq!(rarity_ids(Rarity::Transcendent), &[60, 61, 62, 63, 64, 69, 70, 71]);
+        let metashapes: Vec<usize> = rarity_ids(Rarity::Meta)
+            .iter()
+            .chain(rarity_ids(Rarity::Transcendent))
+            .copied()
+            .collect();
+        // they sit ABOVE the pullable core, are NOT Relics, and all produce flux
+        for &id in &metashapes {
             assert!(id >= PULL_COUNT, "metashape {id} must be past the core");
-            assert!(!rarity_range(Rarity::Relic).contains(&id), "metashape {id} must not be a Relic");
+            assert!(!rarity_ids(Rarity::Relic).contains(&id), "metashape {id} must not be a Relic");
+            assert!(SHAPES[id].base_prod > 0.0, "metashape {id} must produce flux");
         }
         // identities + topology classifiers behave as declared
         assert_eq!((SHAPES[58].family, SHAPES[58].rarity), ("clifford_torus", Rarity::Meta));
         assert!(is_polytope_4d("clifford_torus")); // a 4D object → inert until you reach 4D (its unlock)
         assert_eq!((SHAPES[59].family, SHAPES[59].rarity), ("cable_knot", Rarity::Meta));
         assert!(is_knot("cable_knot"));
-        // the Transcendent fractal cohort (Bulby + the four "cool SDF" fractals)
-        assert_eq!(SHAPES[60].family, "mandelbulb");
-        assert_eq!(SHAPES[61].family, "mandelbox");
-        assert_eq!(SHAPES[62].family, "julia");
-        assert_eq!(SHAPES[63].family, "apollonian");
-        assert_eq!(SHAPES[64].family, "kleinian");
-        // all produce flux and are orientable (none declared non-orientable)
-        for id in 58..65 {
-            assert!(SHAPES[id].base_prod > 0.0);
-            assert!(!is_nonorientable(SHAPES[id].family));
+        // the 2026 Meta additions: two 4D cross-sections count toward the 4D-polytope SET; the ditorus is a
+        // genus-2 toratope (orientable — distinct from the existing Klein bottle / ℝP² non-orientables)
+        assert!(is_polytope_4d("duocylinder") && is_polytope_4d("cell24_section"));
+        let ditorus = SHAPES.iter().find(|s| s.family == "ditorus").expect("ditorus is in the Meta cohort");
+        assert!(!is_nonorientable("ditorus") && ditorus.genus == 2);
+        // the Transcendent fractal cohort (Bulby + the four original fractals + the three 2026 capstones)
+        for (id, fam) in [
+            (60, "mandelbulb"), (61, "mandelbox"), (62, "julia"), (63, "apollonian"), (64, "kleinian"),
+            (69, "hyperbolic_honeycomb"), (70, "aizawa_attractor"), (71, "barth_sextic"),
+        ] {
+            assert_eq!(SHAPES[id].family, fam, "Transcendent id {id}");
         }
     }
 
@@ -1451,8 +1654,8 @@ mod tests {
     #[test]
     #[allow(clippy::assertions_on_constants)] // intentional: pins a compile-time content invariant
     fn pull_count_is_consistent() {
-        assert_eq!(PULL_COUNT, rarity_range(Rarity::Ur).end);
-        assert_eq!(rarity_range(Rarity::Relic).start, PULL_COUNT);
+        assert_eq!(PULL_COUNT, rarity_ids(Rarity::Ur).last().unwrap() + 1);
+        assert_eq!(rarity_ids(Rarity::Relic)[0], PULL_COUNT);
         assert!(PULL_COUNT < COUNT, "there should be at least one relic");
     }
 
@@ -1500,12 +1703,12 @@ mod tests {
         assert_eq!(chi("genus2"), -2);
         assert_eq!(chi("triple_torus"), -4);
         assert_eq!(chi("klein_bottle"), 0);
-        assert_eq!(chi("rp2"), 1);
+        assert_eq!(chi("roman_surface"), 1);
         assert!(!surface_class("klein_bottle").unwrap().orientable);
         assert!(surface_class("torus").unwrap().orientable);
-        // ℝP² in three disguises share one class; non-surfaces have none.
-        assert_eq!(surface_class("boys_surface"), surface_class("rp2"));
-        assert_eq!(surface_class("cross_cap"), surface_class("rp2"));
+        // ℝP² in two CLOSED disguises share one class; non-surfaces (and the OPEN Whitney umbrella) have none.
+        assert_eq!(surface_class("boys_surface"), surface_class("roman_surface"));
+        assert_eq!(surface_class("whitney_umbrella"), None, "the Whitney umbrella is an open singular surface — not forgeable");
         assert_eq!(surface_class("trefoil"), None);
         assert_eq!(surface_class("clifford_torus"), None);
         // The Möbius band is the one bounded input.
@@ -1528,7 +1731,7 @@ mod tests {
     fn dycks_theorem_handle_becomes_two_crosscaps() {
         // ℝP² # T² is non-orientable with χ = 1 + 0 − 2 = −1, i.e. 3 cross-caps (Dyck's surface) — even
         // though we don't catalogue that shape, the *class* must come out right (a handle ≡ two cross-caps).
-        let ra = surface_class("rp2").unwrap();
+        let ra = surface_class("roman_surface").unwrap();
         let t = surface_class("torus").unwrap();
         let chi = ra.chi + t.chi - 2;
         assert_eq!(chi, -1);

@@ -92,6 +92,37 @@ const RAW: Ship[] = [
     { who: 'b', text: 'I fill mine with mirrors instead. Every reflection makes another arch.' },
     { who: 'a', text: 'Packed spheres and your endless spires. Cousins from the same bottomless idea.' },
   ] },
+  // ── the NG+ cohort (Meta 4D + Transcendent 5D) ⇄ their nearest kin ──
+  { a: 'sphere', b: 'spherinder_slice', lines: [
+    { who: 'a', text: 'You sit just like me — low, easy. But you go on a little further, don’t you?' },
+    { who: 'b', text: 'One dimension over. Most of me rests back there. This is the part that sits here, with you.' },
+    { who: 'a', text: 'A ball, swept into a slab. Same nap, just longer. Stay as long as you like.' },
+  ] },
+  { a: 'clifford_torus', b: 'duocylinder', lines: [
+    { who: 'b', text: 'Two circles, two turns, one of me from both. And you’re the round version of the very same idea.' },
+    { who: 'a', text: 'The flat torus. I curve where you keep your corners.' },
+    { who: 'b', text: 'Cousins, then. Round and squared, both at once — the only pair that lies truly flat down here.' },
+  ] },
+  { a: 'cell_24', b: 'cell24_section', lines: [
+    { who: 'b', text: 'Square to triangle, triangle to square — one clean cut of you, taken at the waist.' },
+    { who: 'a', text: 'My equator. I cast no shadow in three dimensions but this — this is my truest slice.' },
+    { who: 'b', text: 'Whole only together: half a cube, half an octahedron, all of your middle.' },
+  ] },
+  { a: 'torus', b: 'ditorus', lines: [
+    { who: 'a', text: 'Mind the hole, dear. …goodness — you’ve gone and put a hole through your hole.' },
+    { who: 'b', text: 'Couldn’t help it! Bored a tunnel clean through your dough. A loop, inside the loop.' },
+    { who: 'a', text: 'Still my little donut, threaded twice over. …Tea? It’ll have to go round both times.' },
+  ] },
+  { a: 'aizawa_attractor', b: 'lorenz', lines: [
+    { who: 'b', text: 'Same pebble, same moment, same loop-de-loop — ooh, butterfly. You feel it too, cousin?' },
+    { who: 'a', text: 'Every time! Same nudge from the same start, and still I wander somewhere new. Determined isn’t predictable.' },
+    { who: 'b', text: 'The chaos cousins, then. You spin your funnel, I flap my wings — neither of us ever once repeats.' },
+  ] },
+  { a: 'barth_sextic', b: 'endrass_octic', lines: [
+    { who: 'a', text: 'Sixty-five pinch-points, the most a sextic may carry — and I wear them like a crown.' },
+    { who: 'b', text: 'A crown is sweet. I carry a hundred and sixty-eight. Count my crossings if you doubt me — go on, I’ll wait.' },
+    { who: 'a', text: 'Record-holders both, then — each the most our degree allows. Algebra’s proudest pair.' },
+  ] },
 ]
 
 export const SHIP_SCENES: Record<string, Ship> = Object.fromEntries(RAW.map((s) => [key(s.a, s.b), s]))

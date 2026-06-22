@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useGame, RARITY_ORDER, type ShapeRow, type RarityName, type PullOutcome, type ForgeResult } from './game/store'
 import { HeroView } from './three/HeroView'
+import { PullCeremony } from './three/PullCeremony'
 import { RAYMARCH_SHAPES } from './three/RaymarchGem'
 import { FactoryFloor } from './three/FactoryFloor'
 import { RoomScene } from './three/RoomScene'
@@ -17,9 +18,9 @@ import { SHIP_SCENES, useShips, hasShip, availableShips } from './content/ships'
 import { glyphOf } from './content/glyphs'
 import { fontOf } from './content/fonts'
 import { useGfx, presetFor, PT_PRESETS, type Quality, type PathTraceScope, type PathTraceQuality } from './gfx'
-import { UPGRADE_INFO } from './content/upgrades'
+import { UPGRADE_INFO, DOCTRINE_EXCLUSIONS } from './content/upgrades'
 import { WorkshopTree } from './WorkshopTree'
-import { MILESTONE_INFO } from './content/milestones'
+import { MILESTONE_INFO, milestoneReward } from './content/milestones'
 import { FACET_INFO } from './content/facets'
 import { chatterFor } from './content/chatter'
 import { BANNER_INFO, rotatingBannerId } from './content/banners'
@@ -33,6 +34,7 @@ import { PROFILE_COLORS } from './chatlas/chatlasPlus'
 import { useMutes } from './chatlas/mutes'
 import { peerEventToMsg, type PeerEvent, type RosterEntry, type ChatMessage, type ChatlasProfile } from './chatlas/transport'
 import { useDialogLog } from './dialogLog'
+import { useCosmeticsQuick } from './cosmeticsQuick'
 import { useTitle, titleSrc, TITLE_COUNT } from './titleArt'
 import { curatorRank, RANK_COLOR } from './curatorRank'
 import { useInspector } from './inspector'
@@ -43,7 +45,7 @@ import { fmt } from './format'
 import { Numeral, Tooltip, COLOR } from './ui'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
-import { useMute, sfxUpgrade, sfxCharge, sfxClimbTick, sfxReveal, sfxHaul, sfxTab, sfxTap, sfxPat, speak, stopVoice, previewInstrument } from './audio'
+import { useMute, sfxUpgrade, sfxClimbTick, sfxReveal, sfxHaul, sfxTab, sfxTap, sfxPat, speak, stopVoice, previewInstrument } from './audio'
 import { instrumentForShape, noteForShape } from './orreryAudio'
 import { useNav } from './nav'
 import { MusicEngineInspector } from './MusicEngineInspector'
@@ -265,6 +267,7 @@ export function App() {
       <WelcomeModal />
       {inspect !== null && <Inspector id={inspect} onClose={() => setInspect(null)} />}
       <SettingsModal />
+      <CosmeticsQuickPopup />
       <ShipCutscene />
       <DialogLogModal />
       <Nudge onGo={setTab} />
@@ -340,7 +343,7 @@ function DevBar() {
   return (
     <div style={S.devBar}>
       <span style={S.devTitle}>🛠 dev</span>
-      <button style={S.devBtn} onClick={devAddFlux}>+10k <span style={S.fluxIcon}>✦</span></button>
+      <button style={S.devBtn} onClick={devAddFlux}>+1M <span style={S.fluxIcon}>✦</span></button>
       <button style={S.devBtn} onClick={devAddShards}>+2k <span style={S.shardIcon}>◈</span></button>
       <button style={S.devBtn} onClick={devUnlockAll}>Unlock all</button>
       <span style={S.devTitle}>orrery:</span>
@@ -617,10 +620,24 @@ function Hud() {
         <Tooltip content={<span style={{ fontSize: 'var(--fs-caption)' }}>{tr('hud.dimTip')}</span>}>
           <span style={{ cursor: 'help' }}>{tr('hud.dim')} v{view.viewport_dim}{view.ng_cycle > 0 ? ` · NG+${view.ng_cycle}` : ''}</span>
         </Tooltip>
+        {/* Ascend affordance — ALWAYS visible (signposts the meta-goal). Locked → dimmed + a tooltip naming what's
+            needed; ready → a glowing purple pill that recrystallizes. Sits by the dimension readout (ascend = climb a dim). */}
+        <Tooltip content={<span style={{ fontSize: 'var(--fs-caption)' }}>{view.core_complete ? tr('engine.recrystallize.ready') : tr('engine.recrystallize.locked', { n: view.distinct_owned })}</span>}>
+          <button
+            className={view.core_complete ? 'ascend-hud-ready' : undefined}
+            onClick={() => { if (view.core_complete) useGame.getState().recrystallize() }}
+            aria-disabled={!view.core_complete}
+            aria-label={tr('engine.recrystallizeBtn')}
+            style={{ font: 'inherit', fontWeight: 'var(--fw-bold)', whiteSpace: 'nowrap', padding: '2px 10px', borderRadius: 'var(--r-pill)', cursor: view.core_complete ? 'pointer' : 'help', border: view.core_complete ? '1px solid #c9a6ff' : '1px solid var(--c-border)', color: view.core_complete ? '#efe4ff' : 'var(--c-text-faint)', background: view.core_complete ? 'linear-gradient(180deg, #8a5cd0, #6b3fc0)' : 'transparent', opacity: view.core_complete ? 1 : 0.55 }}
+          >
+            {tr('engine.recrystallizeBtn')}
+          </button>
+        </Tooltip>
         {view.facets > 0 && <span title={tr('hud.facetsTip')}>🌌 {view.facets}</span>}
         <button onClick={toggleMute} style={{ ...S.langBtn, ...(muted ? { color: 'var(--c-text-faint)' } : {}) }} aria-label={tr('hud.soundAria')} title={tr('hud.soundTip')}><SoundIcon muted={muted} /></button>
         <button onClick={toggleMusic} style={{ ...S.langBtn, ...(musicMuted ? { color: 'var(--c-text-faint)' } : {}) }} aria-label={tr('hud.musicAria')} title={tr('hud.musicTip')}><MusicIcon muted={musicMuted} /></button>
         <button onClick={() => useDialogLog.getState().setOpen(true)} style={S.langBtn} aria-label={tr('hud.dialogLogAria')} title={tr('hud.dialogLogTip')}><LogIcon /></button>
+        <button onClick={() => useCosmeticsQuick.getState().setOpen(true)} style={S.langBtn} aria-label={tr('cosmeticsQuick.aria')} title={tr('cosmeticsQuick.tip')}>💎</button>
         <button onClick={() => openSettings(true)} style={S.langBtn} aria-label={tr('hud.settingsAria')} title={tr('hud.settingsTip')}><SettingsIcon /></button>
         {DEV_MODE && <button onClick={toggleDev} style={S.langBtn} aria-label="dev tools" title="Dev tools (compiled out at release)"><WrenchIcon /></button>}
         <select value={lang} onChange={(e) => setLang(e.target.value as typeof lang)} style={S.langSelect} aria-label={tr('hud.langAria')}>
@@ -1695,7 +1712,7 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
       setPreviewCur({ rarity: s.rarity, nick: s.nick, isSdf })
       setPreviewPos(pos)
       setPreviewOn(true)
-    }, 60)
+    }, 150) // hover-intent: only swap (and compile a new shape's shader) once you settle, so sweeping never stutters
   }
   const hidePrev = () => {
     if (showT.current) { clearTimeout(showT.current); showT.current = null }
@@ -1705,7 +1722,7 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
   if (!view) return null
   const ships = availableShips(shapes, view.owned, shipSeen)
   const ql = q.trim().toLowerCase()
-  const toggle = (r: string) => setHidden((h) => { const n = new Set(h); n.has(r) ? n.delete(r) : n.add(r); return n })
+  const toggle = (r: string) => setHidden((h) => { const n = new Set(h); if (n.has(r)) n.delete(r); else n.add(r); return n })
   return (
     <div style={S.gallery}>
       <MascotOverlay family="sphere" name={tr('gallery.mascot.name')} lines={[tr('gallery.mascot.line'), tr('gallery.mascot.line2'), tr('gallery.mascot.line3')]} thanks={tr('gallery.mascot.thanks')} />
@@ -1786,7 +1803,7 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
 
 // Facets — the prestige meta-tree, bought with Facets earned by recrystallizing. Persists across all NG+.
 function FacetsPanel() {
-  const { view, facetDefs, buyFacetPerk } = useGame()
+  const { view, facetDefs, buyFacetPerk, rateIfFacet } = useGame()
   const tr = useT()
   const [popped, setPopped] = useState<string | null>(null)
   if (!view || (view.ng_cycle === 0 && view.facets === 0)) return null // hidden until the first ascent
@@ -1825,9 +1842,23 @@ function FacetsPanel() {
                 {f.max_level > 1 && <span style={{ marginLeft: 'auto', fontSize: 'var(--fs-eyebrow)', color: '#8a90a8' }}>{tr('common.lvFraction', { lvl, max: f.max_level })}</span>}
               </div>
               <p style={{ ...S.boardDesc, margin: 0, fontSize: 'var(--fs-caption)' }}>{info.desc}</p>
+              {f.max_level > 1 && info.step != null && (
+                <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--c-text-faint)', fontVariantNumeric: 'tabular-nums' }}>
+                  {tr('workshop.now')} <b style={{ color: 'var(--c-text-secondary)' }}>+{fmt(info.step * lvl)}{info.unit}</b>{!maxed && <> · {tr('workshop.next')} +{fmt(info.step)}{info.unit}</>}
+                </span>
+              )}
+              {/* projected Δ/hr (Rust what-if) — hidden when the perk doesn't move the live rate */}
+              {!maxed && (() => { const d = rateIfFacet(i) - view.rate_per_hr; return d >= 1 ? (
+                <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--c-accent-teal)', fontWeight: 'var(--fw-heavy)', fontVariantNumeric: 'tabular-nums' }}>→ +{fmt(d)} <span style={S.fluxIcon}>✦</span>/hr</span>
+              ) : null })()}
               <button className="forge-cap" style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={(e) => onBuy(e, i, f.key)}>
                 {maxed ? tr('common.maxed') : tr('facets.buy', { cost })}
               </button>
+              {!can && !maxed && (
+                <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--c-text-faint)', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+                  {tr('workshop.need', { n: fmt(cost - view.facets) })} 🌌
+                </span>
+              )}
             </div>
           )
         })}
@@ -1838,14 +1869,28 @@ function FacetsPanel() {
 
 // The Workshop — permanent, rule-changing upgrades bought with banked Flux (+ some Shards).
 function UpgradesPanel() {
-  const { view, upgradeDefs, buyUpgrade } = useGame()
+  const { view, upgradeDefs, buyUpgrade, rateIfUpgrade, setOverclock } = useGame()
   const tr = useT()
   const [popped, setPopped] = useState<string | null>(null)
   const [treeView, setTreeView] = useState(true) // DAG tree (default) vs. grouped sections
   if (!view) return null
+  // Projected Δ/hr per upgrade (Rust what-if) + the single best-VALUE affordable buy (highest Δ/hr per Flux). A
+  // quiet opportunity-cost hint — kept to one subtle ★ so the casual "buy the glowy thing" loop still works.
+  const deltas = upgradeDefs.map((_, i) => ((view.upgrades[i] ?? 0) >= upgradeDefs[i].max_level ? 0 : rateIfUpgrade(i) - view.rate_per_hr))
+  let bestBuy = -1
+  {
+    let bestVal = 0
+    upgradeDefs.forEach((u, i) => {
+      const [flux, shards] = view.upgrade_costs[i] ?? [0, 0]
+      if (flux <= 0 || view.flux < flux || view.shards < shards || (view.upgrades[i] ?? 0) >= u.max_level) return
+      const val = deltas[i] / flux
+      if (val > bestVal) { bestVal = val; bestBuy = i }
+    })
+  }
   // Juice scaled to the upgrade's cost/level: sound climbs, an icon burst + a "Name ↑" pop fire from the button.
   const onBuy = (e: { currentTarget: HTMLElement }, i: number, key: string, flux: number) => {
     const before = useGame.getState().view?.upgrades[i] ?? 0
+    const beforeRate = useGame.getState().view?.rate_per_hr ?? 0
     buyUpgrade(i)
     const after = useGame.getState().view?.upgrades[i] ?? before
     if (after <= before) return
@@ -1859,6 +1904,9 @@ function UpgradesPanel() {
     purchaseBurst(e.currentTarget, { hues: ['#eafffb', '#9ef0ff', '#5fe0c6', '#3aa6e0'], count: 10 + tier * 6, power: 1 + tier * 0.4 })
     for (let k = 0; k < tier * 4; k++) useFloaters.getState().spawn(info.icon, { x: cx, y: cy, color: '#5fe0c6', big: tier === 3 })
     useFloaters.getState().spawn(`${info.name} ↑`, { x: cx, y: cy - 26, color: '#9ef0ff', big: true })
+    // post-purchase confirmation: the number the player optimizes for (closes the peak-end loop)
+    const dRate = (useGame.getState().view?.rate_per_hr ?? beforeRate) - beforeRate
+    if (dRate >= 1) useFloaters.getState().spawn(`+${fmt(dRate)} ✦/hr`, { x: cx, y: cy - 52, color: '#5fe0c6', big: true })
     setPopped(key)
     setTimeout(() => setPopped(null), 460)
   }
@@ -1873,15 +1921,21 @@ function UpgradesPanel() {
     if (!unlocked) {
       const req = u.requires
       const reqInfo = req ? UPGRADE_INFO[upgradeDefs[req[0]]?.key] ?? { name: upgradeDefs[req[0]]?.key } : undefined
+      // a doctrine locked because its mutually-exclusive sibling was chosen → say so, not a misleading "requires"
+      const sibKey = DOCTRINE_EXCLUSIONS[u.key]
+      const sibId = sibKey ? upgradeDefs.findIndex((d) => d.key === sibKey) : -1
+      const lockedByDoctrine = sibId >= 0 && (view.upgrades[sibId] ?? 0) > 0
       return (
-        <div key={u.key} className="chip" style={{ ...S.recipeCard, borderColor: '#23252f', opacity: 0.6 }}>
+        <div key={u.key} className="chip" title={info.desc} style={{ ...S.recipeCard, gap: 'var(--sp-1_5)', borderColor: '#23252f', opacity: 0.6 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontSize: 'var(--fs-h2)', filter: 'grayscale(1)' }}>🔒</span>
+            <span style={{ fontSize: 'var(--fs-h4)', filter: 'grayscale(1)' }}>🔒</span>
             <strong style={{ color: '#8a90a8' }}>{info.name}</strong>
+            {info.short && <span style={{ fontSize: 'var(--fs-eyebrow)', color: 'var(--c-text-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info.short}</span>}
           </div>
-          <p style={{ ...S.boardDesc, margin: 0, fontSize: 'var(--fs-caption)' }}>{info.desc}</p>
-          <div style={{ ...S.chipMeta, color: '#ff9d6b', marginTop: 4 }}>
-            {tr('workshop.requires', { name: reqInfo?.name ?? '' })}{req && req[1] > 1 ? tr('workshop.requiresLevel', { level: req[1] }) : ''}
+          <div style={{ ...S.chipMeta, color: '#ff9d6b' }}>
+            {lockedByDoctrine
+              ? tr('workshop.doctrineLocked', { name: (sibKey ? UPGRADE_INFO[sibKey]?.name : '') ?? '' })
+              : <>{tr('workshop.requires', { name: reqInfo?.name ?? '' })}{req && req[1] > 1 ? tr('workshop.requiresLevel', { level: req[1] }) : ''}</>}
           </div>
         </div>
       )
@@ -1892,14 +1946,23 @@ function UpgradesPanel() {
     return (
       <div key={u.key} className={popped === u.key ? 'chip upgrade-pop' : 'chip'} style={{ ...S.recipeCard, borderColor: maxed ? 'var(--c-accent-gold)' : lvl > 0 ? '#5fe0c6' : '#23252f', boxShadow: maxed ? '0 0 0 1px var(--c-accent-gold) inset, 0 0 12px var(--c-accent-gold-soft, rgba(255,207,107,0.18))' : undefined }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-          <span style={{ fontSize: 'var(--fs-h2)' }}>{info.icon}</span>
-          <strong style={{ color: '#e8eaf2' }}>{info.name}</strong>
-          {u.max_level > 1 && <span style={{ marginLeft: 'auto', fontSize: 'var(--fs-eyebrow)', color: maxed ? 'var(--c-accent-gold)' : '#8a90a8', fontWeight: maxed ? 'var(--fw-heavy)' : undefined }}>{maxed ? `✓ ${tr('common.lvFraction', { lvl, max: u.max_level })}` : tr('common.lvFraction', { lvl, max: u.max_level })}</span>}
+          <span style={{ fontSize: 'var(--fs-h4)' }}>{info.icon}</span>
+          <strong style={{ color: '#e8eaf2', whiteSpace: 'nowrap' }}>{info.name}</strong>
+          {i === bestBuy && <span style={{ fontSize: 'var(--fs-eyebrow)', color: 'var(--c-accent-gold)' }}>★</span>}
+          {info.short && <span style={{ fontSize: 'var(--fs-eyebrow)', color: 'var(--c-text-faint)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{info.short}</span>}
+          {u.max_level > 1 && <span style={{ marginLeft: 'auto', flex: '0 0 auto', fontSize: 'var(--fs-eyebrow)', color: maxed ? 'var(--c-accent-gold)' : '#8a90a8', fontWeight: maxed ? 'var(--fw-heavy)' : undefined }}>{maxed ? `✓ ${tr('common.lvFraction', { lvl, max: u.max_level })}` : tr('common.lvFraction', { lvl, max: u.max_level })}</span>}
         </div>
-        <p style={{ ...S.boardDesc, margin: 0, fontSize: 'var(--fs-caption)' }}>{info.desc}</p>
-        {u.max_level > 1 && info.step != null && (
-          <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--c-text-faint)', fontVariantNumeric: 'tabular-nums' }}>
-            {tr('workshop.now')} <b style={{ color: 'var(--c-text-secondary)' }}>+{fmt(info.step * lvl)}{info.unit}</b>{!maxed && <> · {tr('workshop.next')} +{fmt(info.step)}{info.unit}</>}
+        {/* fused now/next + projected Δ/hr on ONE tabular line (Δ is a Rust what-if; hidden when it doesn't move the live rate) */}
+        {((u.max_level > 1 && info.step != null) || (!maxed && deltas[i] >= 1)) && (
+          <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 'var(--sp-1_5)', fontSize: 'var(--fs-micro)', fontVariantNumeric: 'tabular-nums' }}>
+            {u.max_level > 1 && info.step != null && (
+              <span style={{ color: 'var(--c-text-faint)' }}>
+                {tr('workshop.now')} <b style={{ color: 'var(--c-text-secondary)' }}>+{fmt(info.step * lvl)}{info.unit}</b>{!maxed && <> · {tr('workshop.next')} +{fmt(info.step)}{info.unit}</>}
+              </span>
+            )}
+            {!maxed && deltas[i] >= 1 && (
+              <span style={{ color: 'var(--c-accent-teal)', fontWeight: 'var(--fw-heavy)' }}>→ +{fmt(deltas[i])} <span style={S.fluxIcon}>✦</span>/hr</span>
+            )}
           </span>
         )}
         <button className="forge-cap" style={{ ...S.forgeBtn, opacity: can ? 1 : 0.4 }} disabled={!can} onClick={(e) => onBuy(e, i, u.key, flux)}>
@@ -1918,9 +1981,9 @@ function UpgradesPanel() {
   }
   // grouped tech tree: Production / Orrery / Logistics — so the (now 13-node) tree reads as branches, not a flat list
   const sections: { key: string; label: string; ids: number[] }[] = [
-    { key: 'production', label: 'workshop.sec.production', ids: [0, 1, 2] },
-    { key: 'orrery', label: 'workshop.sec.orrery', ids: [9, 10, 11, 12] },
-    { key: 'logistics', label: 'workshop.sec.logistics', ids: [3, 5, 7, 8, 4, 6] },
+    { key: 'production', label: 'workshop.sec.production', ids: [0, 1, 2, 13, 14, 16] },
+    { key: 'orrery', label: 'workshop.sec.orrery', ids: [9, 10, 11, 12, 15, 19] },
+    { key: 'logistics', label: 'workshop.sec.logistics', ids: [3, 5, 7, 8, 4, 6, 17, 18] },
   ]
   return (
     <>
@@ -1936,6 +1999,16 @@ function UpgradesPanel() {
           })}
         </div>
       </div>
+      {/* overclock (#18) activation: a reversible Redline toggle, shown once the upgrade is owned */}
+      {(view.upgrades[18] ?? 0) > 0 && (
+        <button
+          onClick={() => setOverclock(!view.overclock_on)}
+          aria-pressed={view.overclock_on}
+          style={{ alignSelf: 'flex-start', marginBottom: 4, border: `1px solid ${view.overclock_on ? '#ff5a5a' : 'var(--c-border-raised)'}`, borderRadius: 'var(--r-pill)', padding: '4px 12px', cursor: 'pointer', background: view.overclock_on ? 'rgba(255,90,90,0.14)' : 'var(--c-surface-3)', color: view.overclock_on ? '#ff8a8a' : 'var(--c-text-secondary)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-heavy)', fontVariantNumeric: 'tabular-nums' }}
+        >
+          {view.overclock_on ? tr('workshop.overclock.on') : tr('workshop.overclock.off')}
+        </button>
+      )}
       {treeView ? (
         <WorkshopTree upgradeDefs={upgradeDefs} view={view} renderNode={renderCard} />
       ) : (
@@ -1945,7 +2018,7 @@ function UpgradesPanel() {
           return (
             <div key={sec.key} style={{ marginBottom: 'var(--sp-2_5)' }}>
               <h5 style={S.workshopSection}>{tr(sec.label)}</h5>
-              <div style={S.recipeGrid}>{cards}</div>
+              <div className="recipe-grid" style={S.recipeGrid}>{cards}</div>
             </div>
           )
         })
@@ -2022,7 +2095,7 @@ function ProductionBreakdown() {
 
 // A 3D mascot greeter pinned to the screen corner — the shape's gem + a speech box. Fixed (stays put as the
 // screen scrolls), and out of the dismissable help-note, so it's the persistent face of the Shop/Workshop.
-function MascotOverlay({ family, name, lines, thanks, bob = false }: { family: string; name: string; lines: string[]; thanks: string; bob?: boolean }) {
+function MascotOverlay({ family, name, lines, thanks, bob = false, preview = false, previewScene, previewAtmosphere, previewFinish }: { family: string; name: string; lines: string[]; thanks: string; bob?: boolean; preview?: boolean; previewScene?: number; previewAtmosphere?: number; previewFinish?: number }) {
   const [idx, setIdx] = useState(0)
   const [cheering, setCheering] = useState(false)
   const cheerN = useMascotCheer((s) => s.n)
@@ -2047,10 +2120,13 @@ function MascotOverlay({ family, name, lines, thanks, bob = false }: { family: s
         <strong style={{ display: 'block', color: '#e8eaf2', fontSize: 'var(--fs-caption)' }}>{name}</strong>
         <span style={{ ...S.boardDesc, display: 'block', margin: '2px 0 0', fontSize: 'var(--fs-caption)', fontStyle: 'italic' }}>“{text}”</span>
       </button>
-      <div ref={gemRef} className={bob ? 'float-bob' : undefined} style={{ position: 'relative', width: 112, height: 112, flexShrink: 0, filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.55))' }}>
-        {/* rendered exactly like the Pull (HeroView) so the mascot's gem reads identically to everywhere else */}
-        <div style={{ width: '100%', height: '100%', borderRadius: 'var(--r-md)', overflow: 'hidden' }}>
-          <HeroView family={family} rarity="Ssr" controls={false} motes={false} spin={0.6} compact />
+      <div ref={gemRef} className={bob ? 'float-bob' : undefined} style={{ position: 'relative', width: preview ? 132 : 112, height: preview ? 132 : 112, flexShrink: 0, filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.55))' }}>
+        {/* rendered exactly like the Pull (HeroView) so the mascot's gem reads identically to everywhere else. In
+            `preview` mode (the Shop) the mascot doubles as the cosmetic preview: it takes the hovered scene/
+            atmosphere/finish overrides, and runs controls + full (non-compact) so it path-traces when PT is on and
+            the render badge can cycle renderers. pointerEvents auto so you can drag/cycle it. */}
+        <div style={{ width: '100%', height: '100%', borderRadius: 'var(--r-md)', overflow: 'hidden', pointerEvents: preview ? 'auto' : undefined }}>
+          <HeroView family={family} rarity="Ssr" controls={preview} motes={false} spin={0.6} compact={!preview} previewScene={previewScene} previewAtmosphere={previewAtmosphere} previewFinish={previewFinish} />
         </div>
         {/* a few ambient flux motes drifting around the mascot */}
         <span className="float-bob" style={{ position: 'absolute', left: '10%', top: '62%', color: 'var(--c-accent-gold)', fontSize: 11, textShadow: '0 0 6px rgba(255,207,107,0.7)', pointerEvents: 'none' }}>✦</span>
@@ -2254,32 +2330,30 @@ function Meter({ label, pct, color }: { label: string; pct: number; color: strin
 
 // The charge-up: a glowing orb whose colour CLIMBS the rarity ladder (Common→…→the real result), each tier a
 // rising tick. The longer/brighter the climb, the rarer the haul — the "is it gold?!" suspense beat.
-function ChargeOrb({ bestRank, ms, ten, orbCore = '#fff' }: { bestRank: number; ms: number; ten: boolean; orbCore?: string }) {
+// A persistent "skip animations" preference (set from the ceremony's corner button, cleared in Settings) jumps
+// pulls straight to the reveal — the power-user grind path the gacha-ceremony research flags as non-negotiable.
+const SKIP_CEREMONY_KEY = 'shipshape-skip-ceremony'
+const skipCeremony = () => typeof localStorage !== 'undefined' && localStorage.getItem(SKIP_CEREMONY_KEY) === '1'
+
+// Settings toggle for the 3D pull ceremony — the re-enable for the in-ceremony "Skip animations" button.
+// Self-contained (its own localStorage-backed state) so it doesn't touch the big settings component's state.
+function CeremonyToggle() {
   const tr = useT()
-  const [lvl, setLvl] = useState(0)
-  useEffect(() => {
-    sfxClimbTick(0)
-    if (bestRank === 0) return
-    const per = ms / (bestRank + 1)
-    let i = 0
-    const id = setInterval(() => {
-      i += 1
-      setLvl(i)
-      sfxClimbTick(i)
-      if (i >= bestRank) clearInterval(id)
-    }, per)
-    return () => clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-  const color = RARITY_COLOR[RARITY_ORDER[Math.min(lvl, bestRank)]]
+  const [on, setOn] = useState(!skipCeremony())
+  const toggle = () => {
+    const next = !on
+    setOn(next)
+    try {
+      if (next) localStorage.removeItem(SKIP_CEREMONY_KEY)
+      else localStorage.setItem(SKIP_CEREMONY_KEY, '1')
+    } catch {
+      /* ignore */
+    }
+  }
   return (
-    <div style={S.chargeWrap}>
-      <div
-        className="charge-orb"
-        style={{ background: `radial-gradient(circle at 40% 35%, ${orbCore}, ${color})`, boxShadow: `0 0 ${34 + lvl * 26}px ${10 + lvl * 9}px ${color}`, transition: 'box-shadow .25s ease, background .25s ease' }}
-      />
-      <div style={S.chargeHint}>{ten ? tr('reveal.drawingTen') : tr('reveal.drawing')}{tr('reveal.tapToSkip')}</div>
-    </div>
+    <SettingRow label={tr('settings.pullCeremonyLabel')} tip={tr('settings.pullCeremonyTip')}>
+      <button style={{ ...S.toggle, ...(on ? S.toggleOn : {}) }} onClick={toggle}>{on ? tr('settings.toggleOn') : tr('settings.toggleOff')}</button>
+    </SettingRow>
   )
 }
 
@@ -2294,14 +2368,25 @@ function RevealModal() {
   const [phase, setPhase] = useState<'charge' | 'step' | 'summary'>('charge')
   const [step, setStep] = useState(0)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const leftCharge = useRef(false) // guard: the ceremony's onDone and a tap-to-skip must not both advance
+  // Which pulls earn an INDIVIDUAL reveal (gacha-style): a single pull always shows its one gem; a multi-pull
+  // spotlights only the NEW SSR+ (rank ≥ 3) one-by-one — commons/rares/epics land straight in the summary grid.
+  // Empty (a multi-pull with no new SSR+) ⇒ skip individual reveals entirely and go to the grid.
+  const revealQueue = useMemo<number[]>(() => {
+    if (!lastReveal) return []
+    if (lastReveal.length === 1) return [0]
+    return lastReveal.reduce<number[]>((acc, o, i) => {
+      const sh = shapes[o.shape_id]
+      if (sh && RARITY_ORDER.indexOf(sh.rarity) >= 3 && o.is_new) acc.push(i)
+      return acc
+    }, [])
+  }, [lastReveal, shapes])
   const best = lastReveal ? [...lastReveal].sort((a, b) => RARITY_ORDER.indexOf(b.rarity!) - RARITY_ORDER.indexOf(a.rarity!))[0] : null
   const bestShape = best ? shapes[best.shape_id] : undefined
-  const bestRank = bestShape ? RARITY_ORDER.indexOf(bestShape.rarity) : 0
-  const chargeMs = 650 + bestRank * 240
   // Per-reveal spectacle: SSR+ NEW (the "cutscene") gets layered, rarity-scaled bursts; others a soft pop.
-  const fireStep = (i: number) => {
+  const fireStep = (qi: number) => {
     if (!lastReveal) return
-    const o = lastReveal[i]
+    const o = lastReveal[revealQueue[qi]]
     const sh = o && shapes[o.shape_id]
     if (!sh) return
     const rank = RARITY_ORDER.indexOf(sh.rarity)
@@ -2322,13 +2407,14 @@ function RevealModal() {
   }
   useEffect(() => {
     if (!lastReveal) return
-    setPhase('charge')
+    leftCharge.current = false
     setStep(0)
-    sfxCharge(bestRank)
-    timer.current = setTimeout(() => {
-      setPhase('step')
-      fireStep(0)
-    }, chargeMs)
+    // A persistent "skip animations" preference jumps straight to the reveal; otherwise the 3D PullCeremony
+    // (the 'charge' phase) drives the timing + audio itself and calls advance() when it finishes or is skipped.
+    if (skipCeremony()) {
+      if (revealQueue.length) { setPhase('step'); fireStep(0) }
+      else setPhase('summary')
+    } else setPhase('charge')
     return () => {
       if (timer.current) clearTimeout(timer.current)
     }
@@ -2342,14 +2428,16 @@ function RevealModal() {
   const len = lastReveal.length
   const advance = () => {
     if (phase === 'charge') {
+      if (leftCharge.current) return // the ceremony's onDone and a tap-to-skip can both fire — transition once
+      leftCharge.current = true
       if (timer.current) clearTimeout(timer.current)
-      setPhase('step')
-      fireStep(0)
+      if (revealQueue.length) { setPhase('step'); fireStep(0) }
+      else setPhase('summary')
       return
     }
     if (phase === 'step') {
       const next = step + 1
-      if (next < len) { setStep(next); fireStep(next) }
+      if (next < revealQueue.length) { setStep(next); fireStep(next) }
       else if (len > 1) setPhase('summary')
       else dismissReveal()
       return
@@ -2360,14 +2448,19 @@ function RevealModal() {
   if (phase === 'charge') {
     return (
       <div style={S.modal} onClick={advance}>
-        <ChargeOrb bestRank={bestRank} ms={chargeMs} ten={len > 1} orbCore={ceremony.orbCore} />
+        <PullCeremony
+          pulls={lastReveal}
+          shapes={shapes}
+          onDone={advance}
+          onSkipAll={() => { try { localStorage.setItem(SKIP_CEREMONY_KEY, '1') } catch { /* ignore */ } advance() }}
+        />
       </div>
     )
   }
 
   if (phase === 'step') {
-    const o = lastReveal[step]
-    const sh = shapes[o.shape_id]
+    const o = lastReveal[revealQueue[step]]
+    const sh = o && shapes[o.shape_id]
     if (!sh) {
       return <div style={S.modal} onClick={advance}><div style={S.revealCard} onClick={(e) => e.stopPropagation()}><button className="btn-primary" style={S.pullBtn} onClick={advance}>{tr('reveal.continue')}</button></div></div>
     }
@@ -2375,7 +2468,7 @@ function RevealModal() {
     const cut = rank >= 3 && !!o.is_new // SSR+ and new ⇒ the reveal "cutscene"
     const lines = chatterFor(sh.family, 0)
     const line = lines.length ? lines[step % lines.length] : ''
-    const last = step + 1 >= len
+    const last = step + 1 >= revealQueue.length
     // basic stats for the pull card — production (shown per-MINUTE) + how it moves flux + its skill
     const eff = shapeEffect(sh.family, sh.genus, sh.euler_cost)
     const pat = fluxPattern(sh.family, sh.genus)
@@ -2383,11 +2476,22 @@ function RevealModal() {
     const emitIcon = { beam: '➡️', rotating: '🔄', scatter: '✳️', pulse: '💥' }[pat.emit]
     return (
       <div style={S.modal} onClick={advance}>
+        {/* SSR+ cutscene: a screen-wide colour flash on entrance (re-fires per SSR+ in a multi-pull) */}
+        {cut && <div key={`flash-${step}`} className="ceremony-flash" style={{ background: `radial-gradient(circle at 50% 44%, ${ceremony.flashTint ?? RARITY_COLOR[sh.rarity]}, transparent 60%)`, ['--flash-ms' as string]: '700ms' }} />}
         <div key={step} className={cut ? 'pop-in reveal-shake case-door' : 'pop-in case-door'} style={{ ...S.revealCard, position: 'relative', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
           {cut && <div className="flash" style={{ background: `radial-gradient(circle, ${ceremony.flashTint ?? RARITY_COLOR[sh.rarity]}, transparent 60%)` }} />}
           {cut && rank >= 4 && <div className="flash-ring" style={{ color: ceremony.ringTint ?? RARITY_COLOR[sh.rarity] }} />}
-          {len > 1 && <div style={S.revealCount}>{step + 1} / {len}</div>}
+          {revealQueue.length > 1 && <div style={S.revealCount}>{step + 1} / {revealQueue.length}</div>}
+          {/* SSR+ cutscene: a rarity star banner pops in (★ count = tier) above the gem */}
+          {cut && (
+            <div className="ssr-banner" style={{ position: 'relative', zIndex: 2, marginBottom: 2 }}>
+              <div className="ssr-stars" style={{ color: ceremony.flashTint ?? RARITY_COLOR[sh.rarity], fontSize: 'var(--fs-h4)' }}>{'★'.repeat(Math.min(rank + 1, 5))}</div>
+              <div style={{ color: ceremony.flashTint ?? RARITY_COLOR[sh.rarity], fontFamily: 'var(--font-display)', fontWeight: 'var(--fw-heavy)', fontSize: 'var(--fs-eyebrow)', letterSpacing: 2 }}>{sh.rarity.toUpperCase()}</div>
+            </div>
+          )}
           <div style={{ ...S.revealStage, position: 'relative' }}>
+            {/* SSR+ gets a slowly-rotating sunburst behind the gem (the classic gacha "rays") */}
+            {cut && <div className="ssr-rays" style={{ color: ceremony.flashTint ?? RARITY_COLOR[sh.rarity] }} />}
             <HeroView key={sh.family} family={sh.family} rarity={sh.rarity} controls={len === 1} spin={0.8} materialize />
             {/* NEW! badge overlaid on the 3D preview — glowing + pulsing (the "this is a fresh shape" peak) */}
             {o.is_new && (
@@ -3067,21 +3171,56 @@ function WelcomeModal() {
   )
 }
 
+// Live hover preview for a Shop scene: Pip the sphere refracting that (unequipped) scene's cosmos — raymarched,
+// or path-traced if you've turned that on (the previewScene override works in both paths). So you can see a
+// scene on a real gem before buying, without equipping it. (Finishes/lighting are mesh-only, so a raymarched
+// sphere can't show them — those would need a forced-mesh preview.)
+function ScenePreview({ sceneId }: { sceneId: number }) {
+  return (
+    <div style={{ width: 204, height: 150, borderRadius: 'var(--r-md)', overflow: 'hidden', background: 'var(--c-bg-stage)' }}>
+      <HeroView family="sphere" rarity="Ssr" controls={false} motes={false} spin={0.5} previewScene={sceneId} frameloop="always" />
+    </div>
+  )
+}
+
+// Remember the last-opened Shop category for the rest of the session, so leaving and returning keeps your place.
+let lastShopCat = 0
 function ShopView() {
   const { view, buyCosmetic, selectScene, buyCosmeticSlot, equipCosmeticSlot } = useGame()
   const tr = useT()
-  const [cat, setCat] = useState(0)
+  const [cat, setCatState] = useState(lastShopCat)
+  const setCat = (i: number) => { lastShopCat = i; setCatState(i) }
   const [popped, setPopped] = useState<number | null>(null)
+  const [hoverId, setHoverId] = useState<number | null>(null) // shop hover-preview: which item the gem is previewing
+  const hoverT = useRef<number | null>(null) // hover-intent debounce timer
   if (!view) return null
   const category = SHOP_CATEGORIES[cat]
   const isScene = category.slot === 'scene'
   const slot = typeof category.slot === 'number' ? category.slot : -1
+  // Hover-preview: hovering an item shows it on a preview gem before you buy/equip. Only the classes that change
+  // the HERO gem's look can preview (scene · atmosphere · finish); others have nothing to show on a static gem.
+  const previewable = category.key === 'scenes' || category.key === 'atmosphere' || category.key === 'finishes'
+  const pScene = category.key === 'scenes' ? hoverId ?? undefined : undefined
+  const pAtmo = category.key === 'atmosphere' ? hoverId ?? undefined : undefined
+  const pFinish = category.key === 'finishes' ? hoverId ?? undefined : undefined
+  // hover-intent: only swap the preview once the cursor SETTLES on an item, so sweeping the grid doesn't churn
+  // the preview (and, for atmospheres, repeatedly mount volumetric shaders that compile + stutter on first use).
+  const hoverPreview = (id: number) => {
+    if (!previewable) return
+    if (hoverT.current) clearTimeout(hoverT.current)
+    hoverT.current = window.setTimeout(() => setHoverId(id), 150)
+  }
+  const hoverLeave = (id: number) => {
+    if (hoverT.current) { clearTimeout(hoverT.current); hoverT.current = null }
+    setHoverId((h) => (h === id ? null : h))
+  }
   const equippedId = isScene ? view.scene : view.equipped?.[slot] ?? 0
   // Scenes you own (free default + bought scene cosmetics) — the pool the "Random scene" tile picks from.
   const ownedScenes = isScene ? [0, ...view.cosmetics.filter((c: number) => SCENES.some((s) => s.id === c))] : []
   const canShuffle = ownedScenes.length >= 2
   // Local styles — keeps the Shop self-contained (no edits to the shared style sheet).
-  const navWrap: CSSProperties = { display: 'flex', gap: 6, flexWrap: 'wrap', margin: '4px 0 8px' }
+  // sticky so the category strip stays reachable as you scroll a long cosmetic list (bg + blur so cards scroll under it cleanly)
+  const navWrap: CSSProperties = { position: 'sticky', top: 'calc(-1 * var(--sp-4))', zIndex: 6, display: 'flex', gap: 6, flexWrap: 'wrap', margin: '0 0 8px', padding: 'var(--sp-2) 0', background: 'rgba(13,13,22,0.92)', backdropFilter: 'blur(6px)', borderBottom: '1px solid var(--c-border)' }
   const pill: CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 'var(--fs-caption)', padding: '5px 11px', borderRadius: 'var(--r-pill)', border: '1px solid var(--c-border)', background: 'var(--c-surface-2)', color: 'var(--c-text-secondary)', cursor: 'pointer' }
   const pillOn: CSSProperties = { border: '1px solid #ffcf6b', color: '#ffcf6b', background: 'rgba(255,207,107,0.10)' }
   const swatch: CSSProperties = { height: 46, borderRadius: 'var(--r-md)', border: '1px solid rgba(255,255,255,0.10)' }
@@ -3093,7 +3232,7 @@ function ShopView() {
         <HelpNote id="help.shop"><p style={S.boardDesc}>{tr('shop.desc')}</p></HelpNote>
         <div style={S.shardBank}><span style={S.fluxIcon}>✦</span> {fmt(view.flux)} {tr('shop.fluxAvailable')}</div>
       </div>
-      <MascotOverlay family="octahedron" name={tr('shop.mascot.name')} lines={[tr('shop.mascot.line'), tr('shop.mascot.line2'), tr('shop.mascot.line3')]} thanks={tr('shop.mascot.thanks')} bob />
+      <MascotOverlay family="octahedron" name={tr('shop.mascot.name')} lines={[tr('shop.mascot.line'), tr('shop.mascot.line2'), tr('shop.mascot.line3')]} thanks={tr('shop.mascot.thanks')} bob preview previewScene={pScene} previewAtmosphere={pAtmo} previewFinish={pFinish} />
       {/* category nav — one pill per cosmetic class; coming-soon classes show a teaser */}
       <div style={navWrap}>
         {SHOP_CATEGORIES.map((c, i) => (
@@ -3163,8 +3302,14 @@ function ShopView() {
               pop()
             }
             return (
-              <div key={it.id} className={popped === it.id ? 'chip upgrade-pop' : 'chip'} style={{ ...S.recipeCard, border: `2px solid ${equipped ? '#ffcf6b' : owned ? '#3a3d4f' : '#23252f'}` }}>
-                <div style={{ ...swatch, background: it.swatch }} />
+              <div key={it.id} className={popped === it.id ? 'chip upgrade-pop' : 'chip'} onMouseEnter={() => hoverPreview(it.id)} onMouseLeave={() => hoverLeave(it.id)} style={{ ...S.recipeCard, border: `2px solid ${equipped ? '#ffcf6b' : owned ? '#3a3d4f' : '#23252f'}` }}>
+                {isScene ? (
+                  <Tooltip content={<ScenePreview sceneId={it.id} />} maxWidth={228} trigger="block">
+                    <div style={{ ...swatch, background: it.swatch, cursor: 'help' }} />
+                  </Tooltip>
+                ) : (
+                  <div style={{ ...swatch, background: it.swatch }} />
+                )}
                 <div>
                   <strong style={{ color: '#e8eaf2' }}>{it.name}{equipped ? ' ✓' : ''}</strong>
                   <p style={{ ...S.boardDesc, margin: '4px 0 0', fontSize: 'var(--fs-caption)' }}>{it.desc}</p>
@@ -3220,13 +3365,34 @@ function FluxChart({ data }: { data: number[] }) {
   )
 }
 
+const SESSION_START = Date.now() // module load ≈ app open — drives the "this session" timer
+
+// "2d 5h 12m" / "3h 12m" / "12m 5s" — compact elapsed-time formatter for the Ledger timers.
+function fmtDuration(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60
+  if (d > 0) return `${d}d ${h}h ${m}m`
+  if (h > 0) return `${h}h ${m}m`
+  if (m > 0) return `${m}m ${sec}s`
+  return `${sec}s`
+}
+
 function LedgerView() {
   const { view, fluxHistory, milestoneDefs } = useGame()
   const tr = useT()
   const [tab, setTab] = useState<'stats' | 'history'>('stats')
+  // a 1s live clock so the timers (time since start, this session) tick while you watch
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
   if (!view) return null
   const playMin = Math.max(0, (view.last_seen_ms - view.created_ms) / 60000)
   const playStr = playMin >= 60 ? (playMin / 60).toFixed(1) + 'h' : Math.floor(playMin) + 'm'
+  const sinceStart = Math.max(0, now - view.created_ms)
+  const sessionMs = Math.max(0, now - SESSION_START)
+  const avgPerPull = view.total_pulls > 0 ? view.lifetime_flux / view.total_pulls : 0
   const stat = (label: string, value: string) => (
     <div style={S.statCard}><span style={S.statVal}>{value}</span><span style={S.statLbl}>{label}</span></div>
   )
@@ -3268,15 +3434,22 @@ function LedgerView() {
       </div>
       {tab === 'history' ? <EventLog /> : <>
       <FluxChart data={fluxHistory} />
+      <h4 style={S.boardSub}>{tr('ledger.sectionTimers')}</h4>
+      <div style={S.statGrid}>
+        {stat(tr('ledger.statSinceStart'), fmtDuration(sinceStart))}
+        {stat(tr('ledger.statSession'), fmtDuration(sessionMs))}
+        {stat(tr('ledger.statPlaytime'), playStr)}
+        {stat(tr('ledger.statTotalPulls'), fmt(view.total_pulls))}
+      </div>
       <h4 style={S.boardSub}>{tr('ledger.sectionEconomy')}</h4>
       <div style={S.statGrid}>
         {stat(tr('ledger.statFluxNow'), fmt(view.flux))}
         {stat(tr('ledger.statFluxPerHr'), '+' + fmt(view.rate_per_hr))}
         {stat(tr('ledger.statLifetimeFlux'), fmt(view.lifetime_flux))}
+        {stat(tr('ledger.statAvgPerPull'), '+' + fmt(avgPerPull))}
         {stat(tr('ledger.statShards'), fmt(view.shards))}
         {stat(tr('ledger.statLifetimeShards'), fmt(view.lifetime_shards))}
         {stat(tr('ledger.statForges'), fmt(view.total_forges))}
-        {stat(tr('ledger.statPlaytime'), playStr)}
       </div>
       {/* Collection — every toward-a-cap stat is a bar; the level/multiplier stats stay as plain numerals */}
       <h4 style={S.boardSub}>{tr('ledger.sectionCollection')}</h4>
@@ -3290,6 +3463,7 @@ function LedgerView() {
         {stat(tr('ledger.statPlatonicSet'), view.platonic_set ? tr('ledger.statComplete') : '—')}
         {stat(tr('ledger.statBondsMaxed'), String(view.bond_levels.filter((b) => b >= 5).length))}
         {stat(tr('ledger.statKinSynergies'), String(view.active_synergies))}
+        {stat(tr('ledger.statTotalStars'), '★ ' + fmt(view.total_stars))}
       </div>
       <h4 style={S.boardSub}>{tr('ledger.sectionPullsByRarity')}</h4>
       <div style={S.statGrid}>
@@ -3336,7 +3510,7 @@ function LedgerView() {
                     <span>{ok ? '✅' : isNext ? '➡️' : '🔒'}</span>
                     <span style={{ fontSize: 17 }}>{info.icon}</span>
                     <span style={{ flex: 1, color: ok || isNext ? '#e8eaf2' : '#8a90a8' }}>{info.name}{isNext ? ` · ${tr('ledger.nextUp')}` : ''}</span>
-                    <span style={{ color: ok ? '#5fe0c6' : '#6b7088', fontWeight: 'var(--fw-bold)', fontSize: 'var(--fs-caption)' }}>+{Math.round(m.bonus * 100)}%</span>
+                    <span style={{ color: ok ? '#5fe0c6' : '#6b7088', fontWeight: 'var(--fw-bold)', fontSize: 'var(--fs-caption)', whiteSpace: 'nowrap' }}>{milestoneReward(m.kind, m.value)}</span>
                   </div>
                 )
               })}
@@ -3508,6 +3682,82 @@ function DataSettings() {
   )
 }
 
+// Cosmetics quick-popup — a compact picker reachable from the app bar on ANY tab. Equip owned cosmetics (or
+// quick-buy affordable ones) across every class without opening the full Shop, with a live preview of the gem
+// reflecting your current loadout's look. Reuses SHOP_CATEGORIES + the same core equip/buy actions as the Shop.
+function CosmeticsQuickPopup() {
+  const open = useCosmeticsQuick((s) => s.open)
+  const setOpen = useCosmeticsQuick((s) => s.setOpen)
+  const tr = useT()
+  const view = useGame((s) => s.view)
+  const shapes = useGame((s) => s.shapes)
+  const selectScene = useGame((s) => s.selectScene)
+  const buyCosmetic = useGame((s) => s.buyCosmetic)
+  const buyCosmeticSlot = useGame((s) => s.buyCosmeticSlot)
+  const equipCosmeticSlot = useGame((s) => s.equipCosmeticSlot)
+  const [cat, setCat] = useState(0)
+  if (!open || !view) return null
+  const category = SHOP_CATEGORIES[cat]
+  const isScene = category.slot === 'scene'
+  const slot = typeof category.slot === 'number' ? category.slot : -1
+  const equippedId = isScene ? view.scene : view.equipped?.[slot] ?? 0
+  // live preview gem: the first deployed shape (so it feels like "your" gem), else a flattering default
+  const previewSh = shapes[view.loadout?.[0] ?? -1]
+  const pf = previewSh?.family ?? 'dodecahedron'
+  const pr = previewSh?.rarity ?? 'Ssr'
+  const pick = (it: { id: number; cost: number }) => {
+    const owned = it.cost === 0 || view.cosmetics.includes(it.id)
+    if (owned) {
+      if (isScene) selectScene(it.id)
+      else equipCosmeticSlot(it.id, slot)
+      sfxTap()
+    } else if (view.flux >= it.cost) {
+      if (isScene) buyCosmetic(it.id, it.cost)
+      else buyCosmeticSlot(it.id, slot, it.cost)
+      sfxUpgrade(2)
+    }
+  }
+  const quickCard: CSSProperties = { boxSizing: 'border-box', width: 'min(440px, calc(100vw - 28px))', maxHeight: '90vh', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', background: 'radial-gradient(120% 90% at 50% 0%, #1a1c28 0%, #121320 55%, #0c0d15 100%)', border: '1px solid #34384a', borderRadius: 'var(--r-2xl)', padding: 'var(--sp-3)', boxShadow: '0 24px 60px rgba(0,0,0,0.7)' }
+  return (
+    <div style={S.modal} onClick={() => setOpen(false)}>
+      <div className="pop-in" style={quickCard} onClick={(e) => e.stopPropagation()}>
+        <div style={S.settingsHead}>
+          <strong style={{ fontSize: 'var(--fs-h4)' }}>💎 {tr('cosmeticsQuick.title')}</strong>
+          <span style={{ marginInlineStart: 'auto', marginInlineEnd: 10, fontSize: 'var(--fs-caption)', color: 'var(--c-text-dim)', fontVariantNumeric: 'tabular-nums' }}><span style={S.fluxIcon}>✦</span> {fmt(view.flux)}</span>
+          <button style={S.langBtn} onClick={() => setOpen(false)}>✕</button>
+        </div>
+        {/* live preview — NOT compact, so the equipped scene + atmosphere + finish all show and update on equip */}
+        <div style={{ height: 170, borderRadius: 'var(--r-lg)', overflow: 'hidden', background: '#0a0b14' }}>
+          <HeroView family={pf} rarity={pr} controls={false} autoRotate spin={0.5} frameloop="always" />
+        </div>
+        {/* category pills (compact, icon-only) */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {SHOP_CATEGORIES.map((c, idx) => (c.comingSoon ? null : (
+            <button key={c.key} onClick={() => setCat(idx)} title={tr(`shop.cat.${c.key}`)} aria-label={tr(`shop.cat.${c.key}`)} style={{ ...S.navBtn, ...(idx === cat ? S.navBtnActive : {}), padding: '4px 9px', fontSize: 14 }}>{c.icon}</button>
+          )))}
+        </div>
+        <p style={{ ...S.boardDesc, margin: 0, fontSize: 'var(--fs-caption)' }}>{tr(`shop.cat.${category.key}`)} · {tr(`shop.cat.${category.key}.sub`)}</p>
+        {/* swatch grid — click to equip (owned) or quick-buy (affordable) */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(74px, 1fr))', gap: 6 }}>
+          {category.items.map((it) => {
+            const owned = it.cost === 0 || view.cosmetics.includes(it.id)
+            const equipped = equippedId === it.id
+            const canBuy = !owned && view.flux >= it.cost
+            return (
+              <button key={it.id} onClick={() => pick(it)} disabled={!owned && !canBuy} title={owned ? it.name : `${it.name} · ${fmt(it.cost)} ✦`}
+                style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 3, padding: 4, borderRadius: 'var(--r-md)', border: `2px solid ${equipped ? 'var(--c-accent-teal)' : 'transparent'}`, background: '#16171f', cursor: owned || canBuy ? 'pointer' : 'not-allowed', opacity: owned || canBuy ? 1 : 0.4, textAlign: 'left' }}>
+                <div style={{ height: 38, borderRadius: 'var(--r-sm)', border: '1px solid rgba(255,255,255,0.1)', background: it.swatch }} />
+                <span style={{ fontSize: 9, lineHeight: 1.1, color: '#cdd2e0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{equipped ? '✓ ' : ''}{it.name}</span>
+                {!owned && <span style={{ fontSize: 8, color: canBuy ? 'var(--c-accent-gold)' : 'var(--c-text-faint)' }}>{fmt(it.cost)} ✦</span>}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function SettingsModal() {
   const tr = useT()
   const settingsOpen = useGame((s) => s.settingsOpen)
@@ -3545,6 +3795,10 @@ function SettingsModal() {
   const gfxPtScale = useGfx((s) => s.ptScale)
   const gfxPtSpp = useGfx((s) => s.ptSpp)
   const gfxPtHaze = useGfx((s) => s.ptHaze)
+  const gfxPtEnvCube = useGfx((s) => s.ptEnvCube)
+  const gfxPtEnvCubeRes = useGfx((s) => s.ptEnvCubeRes)
+  const gfxPtEnvCubeAmt = useGfx((s) => s.ptEnvCubeAmt)
+  const gfxMeshPtCycle = useGfx((s) => s.meshPtCycle)
   const gfxUpdate = useGfx((s) => s.update)
   const ptP = PT_PRESETS[gfxPtQuality] // preset the params fall back to
   const preset = presetFor(quality) // what each "Auto" override resolves to at the active quality
@@ -3595,6 +3849,7 @@ function SettingsModal() {
                   <SettingRow label={tr('settings.bgMusicLabel')} tip={tr(musicBg ? 'transport.bgOn' : 'transport.bgOff')}><button style={{ ...S.toggle, ...(musicBg ? S.toggleOn : {}) }} onClick={toggleMusicBg}>{musicBg ? tr('settings.toggleOn') : tr('settings.toggleOff')}</button></SettingRow>
                   <SettingRow label={tr('settings.musicSourceLabel')} tip={tr(musicSource === 'library' ? 'transport.sourceLibraryTip' : 'transport.sourceOrreryTip')}><button style={{ ...S.toggle, ...(musicSource === 'library' ? S.toggleOn : {}) }} onClick={toggleMusicSource}>{tr(musicSource === 'library' ? 'settings.musicSourceLibrary' : 'settings.musicSourceOrrery')}</button></SettingRow>
                   <SettingRow label={tr('settings.bgSfxLabel')}><button style={{ ...S.toggle, ...(sfxBg ? S.toggleOn : {}) }} onClick={toggleSfxBg}>{sfxBg ? tr('settings.toggleOn') : tr('settings.toggleOff')}</button></SettingRow>
+                  <CeremonyToggle />
                   <p style={S.hint}>{tr('settings.bgHint')}</p>
                   <p style={S.hint}>{tr('settings.audioHint')}</p>
                   <div style={{ borderTop: '1px solid var(--c-border)', marginTop: 'var(--sp-2)', paddingTop: 'var(--sp-2)' }}>
@@ -3678,6 +3933,10 @@ function SettingsModal() {
                   <GfxStepper label={tr('settings.pt.scale')} tip={tr('settings.tip.ptScale')} value={gfxPtScale ?? ptP.scale} min={0.25} max={1} step={0.05} fmt={(v) => `${Math.round(v * 100)}%`} onChange={(v) => gfxUpdate({ ptScale: v })} />
                   <GfxStepper label={tr('settings.pt.spp')} tip={tr('settings.tip.ptSpp')} value={gfxPtSpp ?? ptP.spp} min={1} max={64} step={1} onChange={(v) => gfxUpdate({ ptSpp: v })} />
                   <GfxStepper label={tr('settings.pt.haze')} tip={tr('settings.tip.ptHaze')} value={gfxPtHaze} min={0} max={0.25} step={0.02} fmt={(v) => (v <= 0 ? tr('settings.off') : v.toFixed(2))} onChange={(v) => gfxUpdate({ ptHaze: v })} />
+                  <SettingRow label={tr('settings.pt.envCube')} tip={tr('settings.tip.ptEnvCube')}><button style={{ ...S.toggle, ...(gfxPtEnvCube ? S.toggleOn : {}) }} onClick={() => gfxUpdate({ ptEnvCube: !gfxPtEnvCube })}>{gfxPtEnvCube ? tr('settings.toggleOn') : tr('settings.toggleOff')}</button></SettingRow>
+                  {gfxPtEnvCube && <GfxStepper label={tr('settings.pt.envCubeRes')} tip={tr('settings.tip.ptEnvCubeRes')} value={gfxPtEnvCubeRes} min={64} max={256} step={64} fmt={(v) => `${v}px`} onChange={(v) => gfxUpdate({ ptEnvCubeRes: v })} />}
+                  {gfxPtEnvCube && <GfxStepper label={tr('settings.pt.envCubeAmt')} tip={tr('settings.tip.ptEnvCubeAmt')} value={gfxPtEnvCubeAmt} min={0} max={1} step={0.05} fmt={(v) => `${Math.round(v * 100)}%`} onChange={(v) => gfxUpdate({ ptEnvCubeAmt: v })} />}
+                  <SettingRow label={tr('settings.pt.meshCycle')} tip={tr('settings.tip.ptMeshCycle')}><button style={{ ...S.toggle, ...(gfxMeshPtCycle ? S.toggleOn : {}) }} onClick={() => gfxUpdate({ meshPtCycle: !gfxMeshPtCycle })}>{gfxMeshPtCycle ? tr('settings.toggleOn') : tr('settings.toggleOff')}</button></SettingRow>
                 </>
               )}
             </>
@@ -3740,7 +3999,7 @@ function MilestoneToast() {
         <div style={{ color: '#ffd76b', fontWeight: 'var(--fw-heavy)', fontSize: 'var(--fs-eyebrow)', letterSpacing: 0.6 }}>{tr('milestone.toastBanner')}</div>
         <div style={{ color: '#e8eaf2', fontSize: 'var(--fs-body-sm)' }}>{info.name}</div>
       </div>
-      <span style={{ marginLeft: 'auto', color: '#5fe0c6', fontWeight: 'var(--fw-heavy)' }}>+{Math.round((def?.bonus ?? 0) * 100)}%</span>
+      <span style={{ marginLeft: 'auto', color: '#5fe0c6', fontWeight: 'var(--fw-heavy)', whiteSpace: 'nowrap' }}>{def ? milestoneReward(def.kind, def.value) : ''}</span>
       <div className="toast-drain" style={S.toastDrain} />
     </div>
   )

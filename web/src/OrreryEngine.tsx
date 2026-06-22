@@ -204,6 +204,8 @@ export function OrreryEngine() {
   const togglePause = useOrreryUi((s) => s.togglePause)
   const setHover = useOrreryUi((s) => s.setHover)
   const hoverId = useOrreryUi((s) => s.hoverId)
+  const showAllLines = useOrreryUi((s) => s.showAllLines)
+  const toggleAllLines = useOrreryUi((s) => s.toggleAllLines)
   if (!view) return null
   const loadout = view.loadout
   const owned = shapes.filter((s) => view.owned[s.id] > 0)
@@ -255,6 +257,10 @@ export function OrreryEngine() {
       <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 4, display: 'flex', gap: 'var(--sp-1_5)', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '70%' }}>
         <button style={{ ...pillBtn, ...(paused ? { borderColor: 'var(--c-accent-gold)', color: 'var(--c-accent-gold)' } : {}) }} onClick={togglePause}>{paused ? `▶ ${tr('orrery.play')}` : `⏸ ${tr('orrery.pause')}`}</button>
         <button style={pillBtn} onClick={() => useGame.getState().autoArrange()} title={tr('engine.auto')}>✨ {tr('orrery.auto')}</button>
+        {/* draw every emitter's flux path at once (3D only — the 2D board always shows all paths) */}
+        {is3d && (
+          <button style={{ ...pillBtn, ...(showAllLines ? { borderColor: 'var(--c-accent-teal)', color: 'var(--c-accent-teal)' } : {}) }} onClick={toggleAllLines} aria-pressed={showAllLines}>{tr('orrery.allLines')}</button>
+        )}
         <button style={pillBtn} onClick={() => setIs3d((v) => !v)}>{is3d ? tr('engine.orrery2d') : tr('engine.orrery3d')}</button>
       </div>
 
@@ -264,7 +270,7 @@ export function OrreryEngine() {
         <button
           className="ascend-glow"
           onClick={() => useGame.getState().recrystallize()}
-          style={{ position: 'absolute', top: 'var(--sp-6)', left: '50%', transform: 'translateX(-50%)', zIndex: 6, pointerEvents: 'auto', padding: '11px 24px', borderRadius: 'var(--r-pill)', border: '1.5px solid #e3d2ff', background: 'linear-gradient(180deg, #c39bff, #7d4fd6)', color: '#fff', fontWeight: 'var(--fw-heavy)', fontSize: 'var(--fs-body)', letterSpacing: 0.6, cursor: 'pointer', whiteSpace: 'nowrap' }}
+          style={{ position: 'absolute', top: 'var(--sp-6)', left: '50%', transform: 'translateX(-50%)', zIndex: 6, pointerEvents: 'auto', padding: '16px 44px', borderRadius: 'var(--r-pill)', border: '2px solid #efe4ff', background: 'linear-gradient(180deg, #d6b6ff, #7d4fd6)', color: '#fff', fontWeight: 'var(--fw-heavy)', fontSize: 'var(--fs-h4)', letterSpacing: 1, textShadow: '0 1px 9px rgba(58,18,116,0.65)', cursor: 'pointer', whiteSpace: 'nowrap' }}
         >
           ✦ {tr('engine.recrystallizeBtn')} ✦
         </button>

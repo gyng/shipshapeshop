@@ -28,6 +28,16 @@ const HERO: Record<string, VoiceSignature> = {
   julia: { baseFreq: 300, waveform: 'sine', jitter: 2.6, rate: 70 }, // Jules — ethereal, ever-shifting
   apollonian: { baseFreq: 340, waveform: 'sine', jitter: 2.2, rate: 66 }, // Bubbles — bright, bubbly, inviting
   kleinian: { baseFreq: 220, waveform: 'sine', jitter: 1.8, rate: 78 }, // Spire — resonant, cavernous, reflected
+  // NG+ cohort — Meta/4D slices and Transcendent algebraic/attractor jewels. Tuned to rhyme with their kin
+  // (Slabby↔Pip warmth, Dito↔Torus playful-nested lilt, Whirly↔Lorrie chaos flutter, Sixsy/Sexta record-holder poise).
+  spherinder_slice: { baseFreq: 256, waveform: 'sine', jitter: 1.2, rate: 90 }, // Slabby — warm, solid, unhurried (Pip's deeper 4D kin)
+  duocylinder: { baseFreq: 248, waveform: 'sine', jitter: 1.4, rate: 80 }, // Duoey — calm, even, paired/balanced
+  cell24_section: { baseFreq: 244, waveform: 'sine', jitter: 1.0, rate: 84 }, // Cubocta — poised, mirror-balanced (Dodi's ascended kin)
+  ditorus: { baseFreq: 274, waveform: 'sine', jitter: 2.4, rate: 74 }, // Dito — warm, playful, looping lilt (Torus family, nested)
+  hyperbolic_honeycomb: { baseFreq: 168, waveform: 'sine', jitter: 1.6, rate: 92 }, // Vault — deep, vast, echoing cloister (endless arches)
+  aizawa_attractor: { baseFreq: 290, waveform: 'triangle', jitter: 4.6, rate: 56 }, // Whirly — fluttery, restless, never-repeating (Lorrie's chaos cousin)
+  barth_sextic: { baseFreq: 252, waveform: 'sine', jitter: 1.4, rate: 82 }, // Sixsy — poised, jewelled, record-holder's calm (icosahedral symmetry)
+  endrass_octic: { baseFreq: 236, waveform: 'sawtooth', jitter: 1.2, rate: 78 }, // Sexta — proud, edged, record-holder (168 crossings)
 }
 
 function hash(s: string): number {

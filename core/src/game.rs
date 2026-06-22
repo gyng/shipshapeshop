@@ -18,6 +18,9 @@ const BASE_IDLE: f64 = 0.0; // an empty orrery earns nothing — production come
 const RATE_CAP: f64 = 10800.0; // Flux/hr cap before prestige (DESIGN §7); scaled ~12× with base_prod (first-run retune)
 const OFFLINE_CAP_MS: f64 = 24.0 * 3_600_000.0; // generous full-day cap — respects absence (only ever helps idle players, never speeds active play)
 const START_EULER_CAP: u32 = 6;
+// overpressure_valve (#18): flux that overflows the rate cap converts to Shards at this fixed exchange (in the
+// same density-scaled flux/hr units the cap clamp uses). ~4000 base flux per shard — a modest late-game stream.
+const SHARD_PER_OVERCAP_FLUX: f64 = 4000.0 * content::FLUX_DENSITY;
 const START_FLUX: f64 = 1000.0 * content::FLUX_DENSITY; // onboarding: ~10 pulls in hand immediately, no wait (first-run retune)
 const STARTER_SHAPE: usize = 0; // Pip the sphere — the friendliest common + the Euler-ballast anchor
 const BOARD_W: usize = 5; // the Engine floor is a 5×5 grid; placement is a spatial puzzle (2D adjacency)
@@ -37,6 +40,8 @@ const BOND_PAT_PERIOD_MS: f64 = 3_600_000.0; // pat-budget window: 1 hour
 const BOND_PAT_CAP_PER_SHAPE: u32 = 50; // max affinity a shape can gain from patting per window (anti-spam-grind)
 const BOND_THRESHOLDS: [u32; 6] = [0, 100, 300, 700, 1500, 3000]; // levels 0..5
 const PLATONIC_SET_MULT: f64 = 0.15; // +15% global for completing the Platonic set
+const POLYTOPE_SET_MULT: f64 = 0.15; // +15% for the full 4D-polytope table (mostly an NG+ goal)
+const KNOT_SET_MULT: f64 = 0.15; // +15% for the full knot/link table
 const SYNERGY_BONUS: f64 = 0.08; // +8% per deployed kin pair (duals/soulmates)
 const AFFINITY_PER_HR_DEPLOYED: f64 = 30.0; // passive bond gain while deployed
                                             // ── Orrery (periodic-orbit engine, behind `use_orrery`; see ORRERY_PLAN.md) ──
@@ -126,6 +131,10 @@ pub struct GameState {
     pub use_orrery: bool, // opt-in periodic-orbit engine; false ⇒ the static-board path is byte-identical
     #[serde(default)]
     pub orbit_tune: BTreeMap<u16, OrbitTune>, // per-shape orbit overrides (phase + direction); period stays seeded
+    #[serde(default)]
+    pub overclock_on: bool, // overclock (#19) session toggle: +60% cap, offline clamped to 4h. Default OFF ⇒ band bit-stable.
+    #[serde(default)]
+    pub overcap_carry: f64, // overpressure_valve (#18): fractional-shard carry so over-cap spill rounds bit-identically online + offline
 }
 
 #[derive(Serialize)]
@@ -211,6 +220,7 @@ pub struct GameStateView {
     pub lifetime_flux: f64,
     pub lifetime_shards: u64,
     pub total_forges: u32,
+    pub total_stars: u32, // sum of ★ levels across the whole collection — a mastery metric for the Ledger
     pub pulls_by_rarity: Vec<u64>,
     pub created_ms: f64,
     pub last_seen_ms: f64,
@@ -230,12 +240,14 @@ pub struct GameStateView {
     pub mult_milestone: f64,
     pub mult_facet: f64,
     pub mult_ballast: f64,
+    pub mult_euler_surplus: f64, // euler_surplus (#16): production bonus from UNSPENT Euler-budget headroom
     pub mult_crossdim: f64,
     pub mult_signature: f64,
     pub mult_shape_effects: f64, // aggregate of the deployed shapes' own effects (handle-lane★ · overdrive · knots · signature)
     pub upgrade_costs: Vec<(f64, u64)>, // NEXT-level (flux, shard) cost per upgrade — UI displays, never recomputes
     pub upgrade_unlocked: Vec<bool>,    // tech-tree gate per upgrade (prereq satisfied)
     pub facet_perk_costs: Vec<u64>,     // NEXT-level Facet cost per perk
+    pub overclock_on: bool, // overclock (#19) toggle state — UI shows the active "Redline" mode + its 4h offline cost
     // ── Orrery flux-emitter engine (UI mirrors emission/trace from these for the visuals) ──
     pub use_orrery: bool,
     pub orrery_radius: i32,            // hex grid radius
@@ -286,6 +298,8 @@ impl GameState {
             current_banner: 0,
             use_orrery: true,
             orbit_tune: BTreeMap::new(),
+            overclock_on: false,
+            overcap_carry: 0.0,
         }
     }
 
@@ -373,10 +387,14 @@ impl GameState {
 
     /// The Flux/hr cap on the *base* rate (BASE_IDLE + production), before global multipliers.
     fn cap_rate(&self) -> f64 {
-        // overflow_cap (#7) is a flat additive bump; overflow_resonance (facet #5) is MULTIPLICATIVE so the
-        // ceiling keeps scaling with prestige. Density-scaled.
+        // BOTH cap levers are MULTIPLICATIVE so the ceiling scales with the rest of the economy instead of falling
+        // behind (the old flat +300/hr overflow_cap was a ~+2.8%/lvl trap nobody was bound by). overflow_cap (#7,
+        // Flux-bought) +8%/lvl; overflow_resonance (facet #5, prestige-bought) +10%/lvl. Density-scaled.
+        let cap_bump = 1.0 + 0.08 * self.upgrade_level(7) as f64;
         let resonance = 1.0 + 0.10 * self.facet_level(5) as f64;
-        (RATE_CAP + 300.0 * self.upgrade_level(7) as f64) * content::FLUX_DENSITY * resonance
+        // overclock (#19): a reversible session toggle — +60% ceiling while ON (paid for by a 4h offline clamp).
+        let overclock = if self.overclock_on && self.upgrade_level(18) > 0 { 1.6 } else { 1.0 };
+        RATE_CAP * content::FLUX_DENSITY * cap_bump * resonance * overclock
     }
 
     /// Product of every global multiplier (prestige, set, bonds, synergy, …) — applied on top of the
@@ -387,11 +405,25 @@ impl GameState {
             * self.bond_mult()
             * self.synergy_mult()
             * self.genus_resonance_mult()
+            * self.doctrine_mult()
+            * self.euler_surplus_mult()
             * self.milestone_mult()
             * self.facet_meta_mult()
             * self.ballast_mult()
             * self.crossdim_mult()
             * self.signature_global_mult()
+    }
+
+    /// euler_surplus (#16): +6%/level production per point of UNSPENT Euler-budget headroom (capped at 6). The
+    /// first lever that rewards NOT deploying — leaving floor budget slack pays rent. A fully-deployed board
+    /// (headroom 0) sees ×1.0; a lean board profits. Integer headroom ⇒ exact, O(1).
+    fn euler_surplus_mult(&self) -> f64 {
+        let lvl = self.upgrade_level(16);
+        if lvl == 0 {
+            return 1.0;
+        }
+        let headroom = self.effective_euler_cap().saturating_sub(self.euler_used());
+        1.0 + 0.06 * headroom.min(6) as f64 * lvl as f64
     }
 
     pub fn rate_per_hr(&self) -> f64 {
@@ -466,10 +498,18 @@ impl GameState {
                     act = boost(act);
                     act2 = boost(act2);
                 }
+                // sink_doctrine (#15): open anchors (cone/disk/cylinder) become SINKS — a crossing beam is boosted
+                // ×1.5 THEN banked and stopped (Absorb), no longer chaining downstream. Placed AFTER lens_polish so
+                // the +50% is a stable, telegraphable boost. flux_view MUST mirror this EXACT swap (keep in sync) or
+                // the dust/ring desyncs from the banked truth.
+                if self.upgrade_level(15) > 0 && content::is_open_anchor(def.family) {
+                    act = flux::Act::Multiply { num: 5, den: 2 };
+                    act2 = flux::Act::Absorb;
+                }
                 flux::Emitter { cell: orrery::pack(q, r), dir: axis as u8, phase, emit, act, act2 }
             })
             .collect();
-        flux::Board { emitters, radius: self.orrery_radius() }
+        flux::Board { emitters, radius: self.orrery_radius(), rim_reflects: self.upgrade_level(19) as u8 }
     }
 
     /// Sustained production (flux/hr) = per-period average banked flux, mapped back to an hourly rate.
@@ -557,8 +597,16 @@ impl GameState {
                         flux::Act::Absorb => ("absorb", 1.0, 0),
                     }
                 };
-                let (act, act_mult, act_turn) = act_view(content::interaction(def));
-                let (act2, act2_mult, act2_turn) = act_view(content::interaction2(def));
+                let mut a1 = content::interaction(def);
+                let mut a2 = content::interaction2(def);
+                // sink_doctrine (#15): mirror flux_board's EXACT verb swap so the ring/dust telegraphs the sink
+                // (multiply ×1.5 + absorb), not a plain Multiply. Kept in sync with flux_board (truth).
+                if self.upgrade_level(15) > 0 && content::is_open_anchor(def.family) {
+                    a1 = flux::Act::Multiply { num: 5, den: 2 };
+                    a2 = flux::Act::Absorb;
+                }
+                let (act, act_mult, act_turn) = act_view(a1);
+                let (act2, act2_mult, act2_turn) = act_view(a2);
                 FluxEmitterView {
                     cell: (q, r),
                     dir: axis as u8,
@@ -578,9 +626,34 @@ impl GameState {
     }
 
     /// Family set bonus (M7): completing the 5 Platonic solids grants a permanent global multiplier.
+    /// Whether every shape in a NON-EMPTY family set (matching `pred`) is owned — shared by the set bonuses and
+    /// the NG+ ascent gate. The non-empty guard avoids a vacuous `all()` granting a bonus for an absent set.
+    fn owns_set(&self, pred: fn(&str) -> bool) -> bool {
+        let ids: Vec<usize> = (0..COUNT).filter(|&id| pred(SHAPES[id].family)).collect();
+        !ids.is_empty() && ids.iter().all(|&id| self.owned[id] > 0)
+    }
+
     pub fn set_bonus_mult(&self) -> f64 {
         let platonic = content::PLATONIC_IDS.iter().all(|&id| self.owned[id] > 0);
         1.0 + if platonic { PLATONIC_SET_MULT } else { 0.0 }
+            + if self.owns_set(content::is_polytope_4d) { POLYTOPE_SET_MULT } else { 0.0 }
+            + if self.owns_set(content::is_knot) { KNOT_SET_MULT } else { 0.0 }
+    }
+
+    /// The requirement to ASCEND (Recrystallize) FROM the current viewport dimension. The first ascent (3D→4D)
+    /// is the base core only — preserves onboarding + the existing band test. Each LATER ascent requires the
+    /// CURRENT cohort owned AND STARRED (plus the prior cohort raised + an idle milestone at NG+2), so the
+    /// in-game gate EQUALS the simulate completion metric and NG+ actually takes its target time. Without this,
+    /// the cohort size is moot (you could ascend past an empty cohort).
+    pub fn ascent_requirement_met(&self) -> bool {
+        let (meta, transc) = content::metashape_ids();
+        let all_at = |ids: &[usize], star: u32| ids.iter().all(|&id| self.owned[id] > 0 && self.star_level(id) >= star);
+        match self.viewport_dim {
+            0..=3 => self.core_complete(),
+            4 => all_at(meta, 1) && self.owns_set(content::is_polytope_4d), // NG+1: Meta owned+★1 + the 4D-polytope set
+            5 => all_at(transc, 1) && all_at(meta, 4), // NG+2: collect+★1 all 8 new Transcendent fractals AND master the prior Meta cohort to ★4 (Meta is 0.70%/pull → a tighter ~24–36h band than the noisier rare-Transcendent ★2)
+            _ => self.core_complete(), // NG+3-5: a rising-star ladder — designed but deferred (sketch in the blueprint)
+        }
     }
 
     /// Kin synergy: each kin pair with BOTH partners deployed adds a production multiplier (the shipping payoff).
@@ -634,7 +707,7 @@ impl GameState {
     }
     /// Floor space including the expand_floor upgrade (#0: +2 / level).
     pub fn effective_euler_cap(&self) -> u32 {
-        self.euler_cap + 2 * self.upgrade_level(0) + self.facet_level(1) // resonant_floor
+        self.euler_cap + 2 * self.upgrade_level(0) + self.facet_level(1) + self.milestone_euler_bonus() // resonant_floor + achievement budget
     }
 
     /// Anchor-grid radius. Grows just enough to comfortably seat the current Euler budget (one anchor per
@@ -649,11 +722,14 @@ impl GameState {
         r
     }
 
-    /// The WORKSHOP-bought floor radius: grows ONLY with the Euler cap (which `expand_floor` #0 + the
-    /// `resonant_floor` facet raise) — NOT with how many shapes you've deployed. This is the placement limit:
-    /// you can't seat more shapes than the floor has cells. Buy `expand_floor` to open the next hex ring.
+    /// The WORKSHOP-bought floor radius. Each `expand_floor` (#0) level opens the NEXT hex ring (radius 1+level →
+    /// 7,19,37,61 cells), so every level is visibly felt — never the old dead zone where the χ-derived radius sat
+    /// at 19 cells for L1..L6. It's also never smaller than the χ budget needs to SEAT (resonant_floor / milestone
+    /// budget can raise the cap independently of the floor upgrade, and you can't waste χ you can't place).
+    /// Clamped to the `ORRERY_RADIUS` ceiling (61 cells — the perf budget the mote/hex systems assume).
     fn floor_radius(&self) -> i32 {
-        Self::radius_for(self.effective_euler_cap() as i32)
+        let by_upgrade = 1 + self.upgrade_level(0) as i32; // expand_floor opens one ring per level
+        by_upgrade.max(Self::radius_for(self.effective_euler_cap() as i32)).min(ORRERY_RADIUS)
     }
 
     /// Number of placement cells on the bought floor — the hard cap on deployed shapes.
@@ -668,24 +744,50 @@ impl GameState {
         self.floor_radius().max(Self::radius_for(self.loadout.len() as i32))
     }
     fn affinity_mult(&self) -> f64 {
-        if self.upgrade_level(6) > 0 {
-            1.5
-        } else {
-            1.0
-        } // affinity_bloom
+        let base = if self.upgrade_level(6) > 0 { 1.5 } else { 1.0 }; // affinity_bloom
+        base + self.milestone_affinity_bonus() // + achievement Affinity bonuses
     }
-    /// genus_resonance (#1): +6% production per DISTINCT genus among deployed shapes.
+    /// genus_resonance (#1): +4% production per DISTINCT genus among deployed shapes, PER LEVEL — a scaling lever
+    /// (L1 +4%/genus, L2 +8%, L3 +12%) so a genus-diverse floor has a long axis to chase, not a one-and-done bump.
     fn genus_resonance_mult(&self) -> f64 {
-        if self.upgrade_level(1) == 0 {
+        let lvl = self.upgrade_level(1);
+        if lvl == 0 {
             return 1.0;
         }
         let mut genera: Vec<u32> = self.loadout.iter().map(|&id| SHAPES[id].genus).collect();
         genera.sort_unstable();
         genera.dedup();
-        1.0 + 0.06 * genera.len() as f64
+        1.0 + 0.04 * lvl as f64 * genera.len() as f64
     }
-    /// Tech-tree gate: an upgrade is unlocked when its prereq (if any) is at the required level.
+    /// Doctrine of Mastery / Variety (#13/#14) — the mutually-exclusive build fork, a global-production lever.
+    /// Mastery rewards a "go tall" board (★ invested into deployed shapes); Variety rewards "go wide" (distinct
+    /// shape families). Only one can ever be owned (EXCLUSIONS), so at most one branch contributes.
+    fn doctrine_mult(&self) -> f64 {
+        // Normally only one doctrine can be owned (the choke); with the polymath facet BOTH may apply, so multiply.
+        let mut m = 1.0;
+        if self.upgrade_level(13) > 0 {
+            let stars: u32 = self.loadout.iter().map(|&id| self.star_level(id)).sum();
+            m *= 1.0 + 0.04 * stars as f64;
+        }
+        if self.upgrade_level(14) > 0 {
+            let mut fams: Vec<&str> = self.loadout.iter().map(|&id| SHAPES[id].family).collect();
+            fams.sort_unstable();
+            fams.dedup();
+            m *= 1.0 + 0.05 * fams.len() as f64;
+        }
+        m
+    }
+    /// Tech-tree gate: an upgrade is unlocked when its prereq (if any) is at the required level AND its
+    /// mutually-exclusive sibling (if any) has NOT been taken — picking one doctrine permanently locks the other.
     pub fn upgrade_unlocked(&self, id: usize) -> bool {
+        // the polymath facet (#7) is a prestige RULE-CHANGER — it dissolves the doctrine choke so you may own both
+        if self.facet_level(7) == 0 {
+            if let Some(sib) = content::excluded_sibling(id) {
+                if self.upgrade_level(sib) > 0 {
+                    return false;
+                }
+            }
+        }
         match content::UPGRADES.get(id).and_then(|u| u.requires) {
             Some((req, lvl)) => self.upgrade_level(req) >= lvl,
             None => true,
@@ -709,36 +811,131 @@ impl GameState {
         true
     }
 
+    /// Distinct shapes owned within a rarity tier (for tier-completion achievements).
+    fn owned_in_tier(&self, r: Rarity) -> u32 {
+        content::rarity_ids(r).iter().copied().filter(|&id| self.owned[id] > 0).count() as u32
+    }
+    /// Whether achievement `i`'s condition currently holds — matched BY KEY so the table order is independent
+    /// of the logic (only save positions are positional; append-only). All conditions are pure reads of state.
     fn milestone_condition(&self, i: usize) -> bool {
-        match i {
-            0 => self.distinct_owned() >= 10,
-            1 => self.distinct_owned() >= 25,
-            2 => self.core_complete(),
-            3 => self.discovered.iter().filter(|&&d| d).count() >= 3,
-            4 => (0..COUNT).any(|id| self.bond_level(id) >= 5),
-            5 => self.synergy_count() >= 3,
-            6 => self.relics_owned() == content::rarity_range(Rarity::Relic).len() as u32,
-            7 => content::PLATONIC_IDS.iter().all(|&id| self.owned[id] > 0),
-            8 => self.ng_cycle >= 1,
+        let maxed_bonds = (0..COUNT).filter(|&id| self.bond_level(id) >= 5).count();
+        let equipped_slots = self.equipped.iter().filter(|&&e| e != 0).count();
+        let relic_n = content::rarity_ids(Rarity::Relic).len() as u32;
+        match content::MILESTONES[i].key {
+            // ── original 9 ──
+            "own_10" => self.distinct_owned() >= 10,
+            "own_25" => self.distinct_owned() >= 25,
+            "core_complete" => self.core_complete(),
+            "forge_3" => self.discovered.iter().filter(|&&d| d).count() >= 3,
+            "bond_5" => maxed_bonds >= 1,
+            "kin_3" => self.synergy_count() >= 3,
+            "all_relics" => self.relics_owned() == relic_n,
+            "platonic" => content::PLATONIC_IDS.iter().all(|&id| self.owned[id] > 0),
+            "ascend" => self.ng_cycle >= 1,
+            // ── collection ──
+            "own_40" => self.distinct_owned() >= 40,
+            "all_commons" => self.owned_in_tier(Rarity::Common) == content::rarity_ids(Rarity::Common).len() as u32,
+            "all_rares" => self.owned_in_tier(Rarity::Rare) == content::rarity_ids(Rarity::Rare).len() as u32,
+            "all_epics" => self.owned_in_tier(Rarity::Epic) == content::rarity_ids(Rarity::Epic).len() as u32,
+            "all_ur" => self.owned_in_tier(Rarity::Ur) == content::rarity_ids(Rarity::Ur).len() as u32,
+            "first_ur" => self.owned_in_tier(Rarity::Ur) >= 1,
+            // ── stars ──
+            "first_star" => (0..COUNT).any(|id| self.star_level(id) >= 1),
+            "star_master" => (0..COUNT).any(|id| self.star_level(id) >= 5),
+            "constellation" => (0..COUNT).filter(|&id| self.star_level(id) >= 1).count() >= 10,
+            // ── economy (lifetime flux, density-scaled units = what the player sees) ──
+            "flux_million" => self.lifetime_flux >= 1.0e6,
+            "flux_billion" => self.lifetime_flux >= 1.0e9,
+            "flux_trillion" => self.lifetime_flux >= 1.0e12,
+            // ── shards ──
+            "shards_100" => self.lifetime_shards >= 100,
+            "shards_5k" => self.lifetime_shards >= 5_000,
+            "shards_50k" => self.lifetime_shards >= 50_000,
+            "flush" => self.shards >= 2000, // a real hoard (resisting the forge) — not just a few dupes
+            // ── forge ──
+            "first_forge" => self.total_forges >= 1,
+            "forge_10" => self.total_forges >= 10,
+            "forge_50" => self.total_forges >= 50,
+            "all_recipes" => self.discovered.iter().filter(|&&d| d).count() >= content::RECIPES.len(),
+            "fusion_adept" => self.forged.iter().filter(|&&f| f).count() >= 5,
+            // ── bonds ──
+            "first_bond" => (0..COUNT).any(|id| self.bond_level(id) >= 1),
+            "soulbound_3" => maxed_bonds >= 3,
+            "soulbound_5" => maxed_bonds >= 5,
+            "soulbound_10" => maxed_bonds >= 10,
+            // ── orrery / board ──
+            "deploy_5" => self.loadout.len() >= 5,
+            "deploy_10" => self.loadout.len() >= 10,
+            "synergy_5" => self.synergy_count() >= 5,
+            "floor_full" => !self.loadout.is_empty() && self.euler_used() >= self.effective_euler_cap(),
+            // ── shop / cosmetics ──
+            "first_cosmetic" => !self.cosmetics.is_empty(),
+            "cosmetics_5" => self.cosmetics.len() >= 5,
+            "cosmetics_15" => self.cosmetics.len() >= 15,
+            "equip_3" => equipped_slots >= 3,
+            "fully_dressed" => equipped_slots >= COSMETIC_SLOTS,
+            "redecorated" => self.scene != 0,
+            // ── prestige ──
+            "ascend_2" => self.ng_cycle >= 2,
+            "ascend_3" => self.ng_cycle >= 3,
+            "reach_4d" => self.viewport_dim >= 4,
+            // ── gacha ──
+            "pull_100" => self.pity.counter >= 100,
+            "pull_1000" => self.pity.counter >= 1000,
+            "ur_5" => self.pulls_by_rarity.get(4).copied().unwrap_or(0) >= 5,
+            // ── dedication / meta ──
+            "completionist" => self.core_complete() && self.relics_owned() == relic_n,
+            "grand_tour" => self.ng_cycle >= 1 && self.core_complete(),
+            "devoted" => maxed_bonds >= 5 && self.core_complete(),
             _ => false,
         }
     }
-    /// Latch any newly-achieved milestones (idempotent; called from tick).
+    /// Latch any newly-achieved milestones (idempotent; called from tick). A Flux-effect milestone pays out its
+    /// one-time grant the moment it latches.
     fn refresh_milestones(&mut self) {
         for i in 0..content::MILESTONE_COUNT {
             if !self.milestones_done[i] && self.milestone_condition(i) {
                 self.milestones_done[i] = true;
+                if let content::MilestoneEffect::Flux(f) = content::MILESTONES[i].effect {
+                    let grant = f * content::FLUX_DENSITY;
+                    self.flux += grant;
+                    self.lifetime_flux += grant;
+                }
             }
         }
     }
+    /// Sum a chosen numeric milestone effect over the latched achievements.
+    fn milestone_sum(&self, pick: impl Fn(content::MilestoneEffect) -> f64) -> f64 {
+        self.milestones_done
+            .iter()
+            .enumerate()
+            .filter(|&(i, &done)| done && i < content::MILESTONE_COUNT)
+            .map(|(i, _)| pick(content::MILESTONES[i].effect))
+            .sum()
+    }
+    /// Global production multiplier from Production milestones (1.0 + Σ).
     pub fn milestone_mult(&self) -> f64 {
-        let mut m = 1.0;
-        for (i, &done) in self.milestones_done.iter().enumerate() {
-            if done && i < content::MILESTONE_COUNT {
-                m += content::MILESTONES[i].bonus;
-            }
-        }
-        m
+        1.0 + self.milestone_sum(|e| if let content::MilestoneEffect::Production(f) = e { f } else { 0.0 })
+    }
+    /// +hours to the offline catch-up cap from Offline milestones.
+    fn milestone_offline_hours(&self) -> f64 {
+        self.milestone_sum(|e| if let content::MilestoneEffect::Offline(h) = e { h } else { 0.0 })
+    }
+    /// Duplicate-pull shard multiplier from Shards milestones (1.0 + Σ).
+    fn milestone_shard_mult(&self) -> f64 {
+        1.0 + self.milestone_sum(|e| if let content::MilestoneEffect::Shards(f) = e { f } else { 0.0 })
+    }
+    /// Forge-cost multiplier from Forge milestones: ×(1 − Σ), floored so a forge is never free.
+    fn milestone_forge_mult(&self) -> f64 {
+        (1.0 - self.milestone_sum(|e| if let content::MilestoneEffect::Forge(f) = e { f } else { 0.0 })).max(0.25)
+    }
+    /// +affinity-gain from Affinity milestones (added onto the affinity multiplier).
+    fn milestone_affinity_bonus(&self) -> f64 {
+        self.milestone_sum(|e| if let content::MilestoneEffect::Affinity(f) = e { f } else { 0.0 })
+    }
+    /// +Euler floor budget from Euler milestones.
+    fn milestone_euler_bonus(&self) -> u32 {
+        self.milestone_sum(|e| if let content::MilestoneEffect::Euler(n) = e { n as f64 } else { 0.0 }) as u32
     }
 
     pub fn facet_level(&self, id: usize) -> u32 {
@@ -856,11 +1053,9 @@ impl GameState {
             Rarity::Epic
         };
         let base = content::base_forge_cost(rarity);
-        if self.upgrade_level(5) > 0 {
-            base / 2
-        } else {
-            base
-        }
+        let after_mastery = if self.upgrade_level(5) > 0 { base / 2 } else { base }; // forge_mastery (#5)
+        // achievement Forge discounts stack on top, multiplicatively; never let a forge become free.
+        ((after_mastery as f64 * self.milestone_forge_mult()).floor() as u64).max(1)
     }
 
     /// Shards it would cost to forge a # b right now (0 if the pair can't be forged) — for the bench/UI.
@@ -913,12 +1108,73 @@ impl GameState {
         content::connected_sum(a, b).map_or(-1, |o| o as i32)
     }
 
+    /// Projected `rate_per_hr` IF this upgrade were one level higher — the what-if behind the Workshop's "→ +X/hr"
+    /// badge (TS subtracts this from the current rate). A PROJECTION: ignores affordability (so you see the impact
+    /// before you can afford it) and never recomputes the economy in TS. At max level it returns the current rate
+    /// (Δ 0). Mirrors `preview_forge`. O(1)-ish: one state clone + one rate eval, on demand only.
+    pub fn rate_after_upgrade(&self, id: usize) -> f64 {
+        if id >= self.upgrades.len() {
+            return self.rate_per_hr();
+        }
+        let mut g = self.clone();
+        if g.upgrades[id] < content::UPGRADES[id].max_level {
+            g.upgrades[id] += 1;
+        }
+        g.rate_per_hr()
+    }
+
+    /// Projected `rate_per_hr` IF this facet perk were one level higher — same what-if contract as `rate_after_upgrade`.
+    pub fn rate_after_facet(&self, id: usize) -> f64 {
+        if id >= self.facet_perks.len() {
+            return self.rate_per_hr();
+        }
+        let mut g = self.clone();
+        if g.facet_perks[id] < content::FACET_PERKS[id].max_level {
+            g.facet_perks[id] += 1;
+        }
+        g.rate_per_hr()
+    }
+
+    /// overpressure_valve (#18): Shards/hr recovered from flux that OVERFLOWS the rate cap (currently deleted by
+    /// the `.min(cap_rate())` clamp). Reads the SAME production basis the clamp uses (orrery avg vs static), so
+    /// "over-cap" matches exactly what was discarded. Zero while under the cap ⇒ never accelerates core flux.
+    fn overcap_shard_rate_per_hr(&self) -> f64 {
+        let lvl = self.upgrade_level(17);
+        if lvl == 0 {
+            return 0.0;
+        }
+        let prod = if self.use_orrery {
+            self.flux_avg_prod_per_hr()
+        } else {
+            self.deployed_production()
+        };
+        let room = (self.cap_rate() - BASE_IDLE).max(0.0);
+        let over = (prod - room).max(0.0);
+        over * (0.10 * lvl as f64) / SHARD_PER_OVERCAP_FLUX
+    }
+
+    /// Accrue over-cap spill shards across an elapsed span. Shared by `tick` (online) AND `compute_offline`, so
+    /// the two paths are IDENTICAL by construction; the fractional `overcap_carry` threads through both ⇒ online
+    /// and offline round bit-for-bit the same. O(1) (the over-cap rate is piecewise-constant between actions).
+    fn accrue_overcap_shards(&mut self, span_ms: f64) {
+        let rate = self.overcap_shard_rate_per_hr();
+        if rate <= 0.0 {
+            return;
+        }
+        let s = rate * (span_ms / MS_PER_HOUR) + self.overcap_carry;
+        let whole = s.floor();
+        self.shards += whole as u64;
+        self.lifetime_shards += whole as u64;
+        self.overcap_carry = s - whole;
+    }
+
     /// Foreground accumulation (rate is piecewise-constant between actions → O(1)).
     pub fn tick(&mut self, now_ms: f64) {
         let dt = (now_ms - self.last_seen_ms).max(0.0);
         let gain = self.rate_per_hr() * (dt / MS_PER_HOUR);
         self.flux += gain;
         self.lifetime_flux += gain;
+        self.accrue_overcap_shards(dt); // overpressure_valve (#18): bank shards from over-cap spill
         self.add_affinity(dt);
         self.refresh_milestones();
         self.last_seen_ms = now_ms;
@@ -927,7 +1183,14 @@ impl GameState {
     /// Closed-form offline catch-up (same formula, capped). Instant even after weeks away.
     pub fn compute_offline(&mut self, now_ms: f64) -> OfflineReport {
         let elapsed = (now_ms - self.last_seen_ms).max(0.0);
-        let cap = OFFLINE_CAP_MS + self.upgrade_level(3) as f64 * 12.0 * MS_PER_HOUR; // patience (#3)
+        let cap = OFFLINE_CAP_MS + self.upgrade_level(3) as f64 * 12.0 * MS_PER_HOUR // patience (#3)
+            + self.milestone_offline_hours() * MS_PER_HOUR; // + achievement Offline bonuses
+        // overclock (#19): while ON, away-time generosity is the price of the +60% active ceiling — offline ≤ 4h.
+        let cap = if self.overclock_on && self.upgrade_level(18) > 0 {
+            cap.min(4.0 * MS_PER_HOUR)
+        } else {
+            cap
+        };
         let capped = elapsed.min(cap);
         let gained = if self.use_orrery {
             self.flux_offline_gain(capped) // exact periodic, closed-form O(1)
@@ -936,6 +1199,7 @@ impl GameState {
         };
         self.flux += gained;
         self.lifetime_flux += gained;
+        self.accrue_overcap_shards(capped); // overpressure_valve (#18): same helper as tick ⇒ offline rounds identically
         self.add_affinity(capped);
         self.last_seen_ms = now_ms;
         OfflineReport {
@@ -945,8 +1209,8 @@ impl GameState {
         }
     }
 
-    fn first_missing(&self, range: std::ops::Range<usize>) -> Option<usize> {
-        range.into_iter().find(|&id| self.owned[id] == 0)
+    fn first_missing(&self, ids: &[usize]) -> Option<usize> {
+        ids.iter().copied().find(|&id| self.owned[id] == 0)
     }
 
     fn grant(&mut self, id: usize, r: Rarity) -> (bool, u64) {
@@ -957,6 +1221,7 @@ impl GameState {
         } else {
             let mut mult = if self.upgrade_level(4) > 0 { 1.5 } else { 1.0 }; // shard_dividend (#4)
             mult *= 1.0 + 0.15 * self.facet_level(3) as f64; // collectors_eye
+            mult *= self.milestone_shard_mult(); // achievement Shards bonuses
             let s = (shard_value(r) as f64 * mult).floor() as u64;
             self.shards += s;
             self.lifetime_shards += s;
@@ -968,19 +1233,14 @@ impl GameState {
     /// shape; lower tiers are random in-tier. Applies the Resonance Spark (UR-priority, SSR-spill).
     /// Which shape to grant for a rolled tier. On a themed banner, a rate-up roll biases the pick toward a
     /// featured shape in that tier (preferring a missing one); otherwise the standard steering applies.
-    fn pick_pull_shape(
-        &self,
-        rarity: Rarity,
-        range: &std::ops::Range<usize>,
-        counter: u64,
-    ) -> usize {
+    fn pick_pull_shape(&self, rarity: Rarity, ids: &[usize], counter: u64) -> usize {
         let b = self.current_banner as usize;
         if b < content::BANNER_COUNT && !content::BANNERS[b].featured.is_empty() {
             let featured: Vec<usize> = content::BANNERS[b]
                 .featured
                 .iter()
                 .copied()
-                .filter(|id| range.contains(id))
+                .filter(|id| ids.contains(id))
                 .collect();
             if !featured.is_empty() && banner_unit(self.master_seed, counter) < BANNER_RATEUP {
                 return featured
@@ -991,11 +1251,12 @@ impl GameState {
             }
         }
         match rarity {
-            // top tiers (incl. metashapes) steer to the first missing shape, then fall back to a dupe
+            // top tiers (incl. metashapes) steer to the first missing shape, then fall back to a dupe. The index
+            // picks into the tier's id LIST (was `range.start + i`) — bit-identical while base tiers stay ordered.
             Rarity::Ur | Rarity::Ssr | Rarity::Meta | Rarity::Transcendent => self
-                .first_missing(range.clone())
-                .unwrap_or(range.start + shape_index(self.master_seed, counter, range.len())),
-            _ => range.start + shape_index(self.master_seed, counter, range.len()),
+                .first_missing(ids)
+                .unwrap_or(ids[shape_index(self.master_seed, counter, ids.len())]),
+            _ => ids[shape_index(self.master_seed, counter, ids.len())],
         }
     }
 
@@ -1022,7 +1283,7 @@ impl GameState {
             self.viewport_dim >= 4,
             self.viewport_dim >= 5,
         );
-        let range = content::rarity_range(roll.rarity);
+        let ids = content::rarity_ids(roll.rarity);
 
         // Rare "lucky find": a small chance the pull turns up a missing Relic instead of the rolled shape.
         let relic_chance = if self.current_banner == 0 {
@@ -1032,11 +1293,11 @@ impl GameState {
         };
         let (id, out_rarity) = match (
             relic_unit(self.master_seed, c_before) < relic_chance,
-            self.first_missing(content::rarity_range(Rarity::Relic)),
+            self.first_missing(content::rarity_ids(Rarity::Relic)),
         ) {
             (true, Some(rid)) => (rid, Rarity::Relic),
             _ => (
-                self.pick_pull_shape(roll.rarity, &range, c_before),
+                self.pick_pull_shape(roll.rarity, ids, c_before),
                 roll.rarity,
             ),
         };
@@ -1055,8 +1316,8 @@ impl GameState {
         let (mut spark_shape_id, mut spark_is_new) = (-1i32, false);
         if roll.spark_fired {
             let claim = self
-                .first_missing(content::rarity_range(Rarity::Ur))
-                .or_else(|| self.first_missing(content::rarity_range(Rarity::Ssr)));
+                .first_missing(content::rarity_ids(Rarity::Ur))
+                .or_else(|| self.first_missing(content::rarity_ids(Rarity::Ssr)));
             if let Some(sid) = claim {
                 let r = SHAPES[sid].rarity;
                 let (new, _) = self.grant(sid, r);
@@ -1422,7 +1683,9 @@ impl GameState {
 
     pub fn relics_owned(&self) -> u32 {
         // only the Relic tier — metashapes (Meta/Transcendent) sit past it and are counted separately.
-        content::rarity_range(Rarity::Relic)
+        content::rarity_ids(Rarity::Relic)
+            .iter()
+            .copied()
             .filter(|&id| self.owned[id] > 0)
             .count() as u32
     }
@@ -1433,7 +1696,7 @@ impl GameState {
         if self.shards < RELIC_COST {
             return -1;
         }
-        let next = content::rarity_range(Rarity::Relic).find(|&id| self.owned[id] == 0);
+        let next = content::rarity_ids(Rarity::Relic).iter().copied().find(|&id| self.owned[id] == 0);
         match next {
             Some(id) => {
                 self.shards -= RELIC_COST;
@@ -1446,7 +1709,7 @@ impl GameState {
 
     /// Recrystallize = ascend the viewport dimension (NG+). Keeps collection + shards; resets the run.
     pub fn recrystallize(&mut self) -> bool {
-        if !self.core_complete() {
+        if !self.ascent_requirement_met() {
             return false;
         }
         self.ng_cycle += 1;
@@ -1454,6 +1717,11 @@ impl GameState {
         self.prestige_mult = self.prestige_base().powi(self.ng_cycle as i32); // ascendant raises the base
         self.euler_cap = START_EULER_CAP + self.ng_cycle; // +1 budget headroom per ascent
         self.loadout.clear();
+        // CLEAR the placement state too, or it goes stale: board_cells holds loadout indices that synergy_count
+        // (run every tick, in BOTH paths) would index into the now-empty loadout → panic. orbit_tune is keyed by
+        // shape so it's harmless-but-pointless once the board is empty; wipe both for a clean fresh board each ascent.
+        self.board_cells.clear();
+        self.orbit_tune.clear();
         // crystalline_start head-start (flux-denominated → density-scaled)
         self.flux = (500.0 * self.ng_cycle as f64 + 600.0 * self.facet_level(2) as f64) * content::FLUX_DENSITY;
         self.facets += 3 + self.ng_cycle as u64 + self.facet_level(6) as u64; // facet_yield (#6): +1/level per ascent
@@ -1473,6 +1741,43 @@ impl GameState {
                 *c = 1;
             }
         }
+    }
+    /// Dev: reset the COLLECTION so first-time unlocks (shapes, recipes, achievements, bonds, ★ levels,
+    /// cosmetics) can be re-experienced from scratch. Currency, upgrades, and prestige are KEPT, so you can
+    /// immediately re-pull and watch the new-shape / SSR / achievement moments fire again.
+    pub fn dev_reset_unlocks(&mut self) {
+        for c in self.owned.iter_mut() {
+            *c = 0;
+        }
+        self.owned[STARTER_SHAPE] = 1; // keep the starter (Pip — the Euler-ballast anchor)
+        self.loadout.clear();
+        self.board_cells.clear();
+        self.orbit_tune.clear();
+        for b in self.bonds.iter_mut() {
+            *b = 0;
+        }
+        for g in self.pat_gained.iter_mut() {
+            *g = 0;
+        }
+        for d in self.discovered.iter_mut() {
+            *d = false;
+        }
+        for f in self.forged.iter_mut() {
+            *f = false;
+        }
+        for m in self.milestones_done.iter_mut() {
+            *m = false;
+        }
+        self.cosmetics.clear();
+        for e in self.equipped.iter_mut() {
+            *e = 0;
+        }
+        self.scene = 0;
+        self.pity = PityState::default();
+        for p in self.pulls_by_rarity.iter_mut() {
+            *p = 0;
+        }
+        self.total_forges = 0;
     }
     /// Dev: wipe & repopulate the orrery for an early/mid/late-game configuration (tier 0/1/2) so the
     /// generative music + incremental layering can be auditioned at each stage. Grants tier-appropriate
@@ -1494,7 +1799,7 @@ impl GameState {
             _ => &[Rarity::Common, Rarity::Rare, Rarity::Epic, Rarity::Ssr, Rarity::Ur],
         };
         for &r in rarities {
-            for id in content::rarity_range(r) {
+            for &id in content::rarity_ids(r) {
                 if self.owned[id] == 0 {
                     self.owned[id] = 1;
                 }
@@ -1682,7 +1987,7 @@ impl GameState {
             forged: self.forged.clone(),
             platonic_set: content::PLATONIC_IDS.iter().all(|&id| self.owned[id] > 0),
             relics_owned: self.relics_owned(),
-            relic_count: content::rarity_range(Rarity::Relic).len() as u32,
+            relic_count: content::rarity_ids(Rarity::Relic).len() as u32,
             pull_count: content::PULL_COUNT as u32,
             relic_cost: RELIC_COST,
             recipe_costs: content::RECIPES.iter().map(|r| self.pair_forge_cost(r.a, r.b)).collect(),
@@ -1692,6 +1997,7 @@ impl GameState {
             lifetime_flux: self.lifetime_flux,
             lifetime_shards: self.lifetime_shards,
             total_forges: self.total_forges,
+            total_stars: (0..COUNT).map(|id| self.star_level(id)).sum(),
             pulls_by_rarity: self.pulls_by_rarity.clone(),
             created_ms: self.created_ms,
             last_seen_ms: self.last_seen_ms,
@@ -1710,6 +2016,7 @@ impl GameState {
             mult_milestone: self.milestone_mult(),
             mult_facet: self.facet_meta_mult(),
             mult_ballast: self.ballast_mult(),
+            mult_euler_surplus: self.euler_surplus_mult(),
             mult_crossdim: self.crossdim_mult(),
             mult_signature: self.signature_global_mult(),
             mult_shape_effects: {
@@ -1734,6 +2041,7 @@ impl GameState {
             facet_perk_costs: (0..content::FACET_PERK_COUNT)
                 .map(|i| content::facet_perk_cost(i, self.facet_level(i)))
                 .collect(),
+            overclock_on: self.overclock_on,
             use_orrery: self.use_orrery,
             orrery_radius: self.orrery_radius(),
             orrery_cell_cap: self.floor_cells(),
@@ -1834,6 +2142,14 @@ impl Game {
     pub fn forge_cost(&self, a: usize, b: usize) -> u64 {
         self.state.pair_forge_cost(a, b)
     }
+    /// Projected Flux/hr if `upgrade` / `facet` were one level higher — the Workshop "→ +X/hr" badge subtracts the
+    /// current `rate_per_hr` from this. A projection (ignores affordability); the economy stays Rust-computed.
+    pub fn rate_after_upgrade(&self, id: usize) -> f64 {
+        self.state.rate_after_upgrade(id)
+    }
+    pub fn rate_after_facet(&self, id: usize) -> f64 {
+        self.state.rate_after_facet(id)
+    }
     pub fn claim_relic(&mut self) -> i32 {
         self.state.claim_relic()
     }
@@ -1845,6 +2161,9 @@ impl Game {
     }
     pub fn dev_unlock_all(&mut self) {
         self.state.dev_unlock_all()
+    }
+    pub fn dev_reset_unlocks(&mut self) {
+        self.state.dev_reset_unlocks()
     }
     pub fn dev_orrery_preset(&mut self, tier: u32) {
         self.state.dev_orrery_preset(tier)
@@ -1884,6 +2203,14 @@ impl Game {
         self.state.use_orrery = on;
         if on {
             self.state.ensure_anchors();
+        }
+    }
+    /// overclock (#19): flip the reversible Redline session toggle. Banks accrued production at the CURRENT cap
+    /// first (tick), so flipping never retroactively rewrites earnings. No-op until the upgrade is owned.
+    pub fn set_overclock(&mut self, on: bool, now_ms: f64) {
+        self.state.tick(now_ms);
+        if self.state.upgrade_level(18) > 0 {
+            self.state.overclock_on = on;
         }
     }
     /// Drag a deployed shape's anchor to hex cell `(q,r)` — swaps with the occupant if taken; off-grid is a
@@ -2000,13 +2327,27 @@ pub fn milestones_json() -> String {
     #[derive(Serialize)]
     struct MilestoneRow {
         key: &'static str,
-        bonus: f64,
+        kind: &'static str, // production | offline | shards | forge | affinity | euler | flux
+        value: f64,         // magnitude in the effect's natural unit (fraction; or hours / count / flux-grant)
     }
     let rows: Vec<MilestoneRow> = content::MILESTONES
         .iter()
-        .map(|m| MilestoneRow {
-            key: m.key,
-            bonus: m.bonus,
+        .map(|m| {
+            use content::MilestoneEffect::*;
+            let (kind, value) = match m.effect {
+                Production(f) => ("production", f),
+                Offline(h) => ("offline", h),
+                Shards(f) => ("shards", f),
+                Forge(f) => ("forge", f),
+                Affinity(f) => ("affinity", f),
+                Euler(n) => ("euler", n as f64),
+                Flux(f) => ("flux", f * content::FLUX_DENSITY), // the real granted amount (display matches the player's flux)
+            };
+            MilestoneRow {
+                key: m.key,
+                kind,
+                value,
+            }
         })
         .collect();
     serde_json::to_string(&rows).unwrap()
@@ -2569,6 +2910,223 @@ mod tests {
     }
 
     #[test]
+    fn expand_floor_opens_a_ring_each_level() {
+        // Regression for the dead-zone bug: pre-fix, floor_radius was derived from the χ cap, which never crossed
+        // the radius-3 threshold (needs χ≥20; cap only reaches 18), so L1..L6 all sat at radius 2 / 19 cells — the
+        // expensive late levels opened ZERO cells. Now each level opens a real hex ring up to the perf ceiling.
+        let mut g = GameState::new(1, 0.0);
+        g.flux = 1e12;
+        let c0 = g.floor_cells(); // base (L0): radius 1 = 7 cells
+        g.buy_upgrade(0);
+        let c1 = g.floor_cells(); // L1: radius 2 = 19
+        g.buy_upgrade(0);
+        let c2 = g.floor_cells(); // L2: radius 3 = 37
+        g.buy_upgrade(0);
+        let c3 = g.floor_cells(); // L3: radius 4 = 61 (ORRERY_RADIUS ceiling)
+        assert_eq!((c0, c1, c2, c3), (7, 19, 37, 61), "each of the first 3 levels opens a real ring");
+        assert!(c1 > c0 && c2 > c1 && c3 > c2, "strictly growing — no dead level");
+        g.buy_upgrade(0); // L4: past the ceiling
+        assert_eq!(g.floor_cells(), 61, "floor clamps at ORRERY_RADIUS");
+        assert!(g.effective_euler_cap() >= 6 + 2 * 4, "but L4 still raises the Euler budget (more deployable shapes)");
+    }
+
+    #[test]
+    fn overflow_cap_is_multiplicative_and_stacks_with_resonance() {
+        // Re-tune: overflow_cap was a flat +300/hr (~+2.8%/lvl) trap; now +8%/lvl multiplicative, stacking with the
+        // overflow_resonance facet (+10%/lvl), which is left unchanged.
+        let mut g = GameState::new(1, 0.0);
+        let base = g.cap_rate();
+        g.upgrades[7] = 1; // overflow_cap L1
+        assert!((g.cap_rate() - base * 1.08).abs() < 1e-3, "L1 = +8% multiplicative");
+        g.upgrades[7] = 4; // max
+        assert!((g.cap_rate() - base * 1.32).abs() < 1e-3, "L4 = +32%");
+        g.facet_perks[5] = 4; // overflow_resonance L4 (+40%)
+        assert!((g.cap_rate() - base * 1.32 * 1.40).abs() < 1e-3, "stacks multiplicatively with the resonance facet");
+    }
+
+    #[test]
+    fn auto_pull_gated_behind_solver_not_overflow_cap() {
+        // Re-gate: automation (auto_pull) now hangs off solver_mk2 (the auto-arranger), not the overflow_cap trap —
+        // so players no longer have to buy a dead upgrade to reach automation.
+        let mut g = GameState::new(1, 0.0);
+        assert!(!g.upgrade_unlocked(8), "auto_pull locked initially");
+        g.upgrades[0] = 4; // expand_floor L4
+        g.upgrades[7] = 1; // overflow_cap L1 — used to unlock auto_pull, now must NOT
+        assert!(!g.upgrade_unlocked(8), "overflow_cap no longer gates auto_pull");
+        g.upgrades[11] = 1; // solver_mk2 (its own gate, expand_floor L2, is already satisfied)
+        assert!(g.upgrade_unlocked(8), "solver_mk2 now unlocks auto_pull");
+    }
+
+    #[test]
+    fn genus_resonance_scales_per_level_and_per_distinct_genus() {
+        let mut g = GameState::new(1, 0.0);
+        g.owned[0] = 1; // sphere — genus 0
+        g.owned[10] = 1; // torus — genus 1
+        g.deploy(0);
+        g.deploy(10); // 2 distinct genera on the floor
+        assert!((g.genus_resonance_mult() - 1.0).abs() < 1e-9, "L0 = no bonus");
+        g.upgrades[1] = 1; // L1: +4%/genus × 2 = +8%
+        assert!((g.genus_resonance_mult() - 1.08).abs() < 1e-9, "L1, 2 genera = +8%");
+        g.upgrades[1] = 3; // L3: +12%/genus × 2 = +24% — the long axis the diversity build now chases
+        assert!((g.genus_resonance_mult() - 1.24).abs() < 1e-9, "L3, 2 genera = +24%");
+    }
+
+    #[test]
+    fn rate_after_upgrade_projects_without_mutating() {
+        // The what-if behind the Workshop Δ/hr badge: projects a higher rate for the next multiplier level, but
+        // is a pure projection (no state mutation, no flux spent).
+        let mut g = GameState::new(1, 0.0);
+        g.owned[0] = 1;
+        g.owned[10] = 1;
+        g.deploy(0);
+        g.deploy(10); // some production on the floor
+        g.upgrades[1] = 1; // genus_resonance L1
+        let now = g.rate_per_hr();
+        let after = g.rate_after_upgrade(1); // projects L2 (+more % per genus)
+        assert!(after > now, "next genus_resonance level projects a higher rate ({now} -> {after})");
+        assert_eq!(g.upgrade_level(1), 1, "projection did not mutate the real level");
+        assert!((g.rate_per_hr() - now).abs() < 1e-9, "projection did not change the live rate");
+    }
+
+    #[test]
+    fn doctrines_are_mutually_exclusive() {
+        let mut g = GameState::new(1, 0.0);
+        g.upgrades[0] = 2; // expand_floor L2 — the doctrines' prereq
+        assert!(g.upgrade_unlocked(13) && g.upgrade_unlocked(14), "both doctrines open before choosing");
+        g.upgrades[13] = 1; // pick Mastery
+        assert!(!g.upgrade_unlocked(14), "picking one doctrine permanently locks the other (the choke)");
+        g.flux = 1e12;
+        g.shards = 1_000_000;
+        assert!(!g.buy_upgrade(14), "buy_upgrade refuses the excluded sibling even when affordable");
+    }
+
+    #[test]
+    fn mastery_and_variety_doctrines_scale_production() {
+        let mut g = GameState::new(1, 0.0);
+        g.owned[0] = 64; // sphere — plenty of dupes → stars
+        g.owned[10] = 64; // torus — a DIFFERENT family
+        g.deploy(0);
+        g.deploy(10);
+        let base = g.globals_mult();
+        g.upgrades[13] = 1; // Mastery: +4% per ★ across deployed shapes
+        let stars = g.star_level(0) + g.star_level(10);
+        assert!(stars > 0, "the board has stars to reward");
+        assert!((g.globals_mult() / base - (1.0 + 0.04 * stars as f64)).abs() < 1e-9, "mastery = +4% per ★ (go TALL)");
+        g.upgrades[13] = 0;
+        g.upgrades[14] = 1; // Variety: +5% per distinct family — 2 families here → +10%
+        assert!((g.globals_mult() / base - 1.10).abs() < 1e-9, "variety = +5% × 2 distinct families = +10% (go WIDE)");
+    }
+
+    #[test]
+    fn polymath_facet_dissolves_the_doctrine_choke() {
+        let mut g = GameState::new(1, 0.0);
+        g.upgrades[0] = 2; // expand_floor L2
+        g.upgrades[13] = 1; // own Mastery
+        assert!(!g.upgrade_unlocked(14), "without polymath, the other doctrine stays locked");
+        g.facet_perks[7] = 1; // polymath — the rule-changer
+        assert!(g.upgrade_unlocked(14), "polymath unlocks the other doctrine");
+        g.owned[0] = 64;
+        g.owned[10] = 64;
+        g.deploy(0);
+        g.deploy(10);
+        g.upgrades[14] = 1; // now own BOTH
+        let stars = g.star_level(0) + g.star_level(10);
+        let expect = (1.0 + 0.04 * stars as f64) * 1.10; // mastery × variety(2 families)
+        let mut g0 = g.clone();
+        g0.upgrades[13] = 0;
+        g0.upgrades[14] = 0;
+        assert!((g.globals_mult() / g0.globals_mult() - expect).abs() < 1e-6, "both doctrines stack multiplicatively under polymath");
+    }
+
+    #[test]
+    fn euler_surplus_rewards_unspent_euler_headroom() {
+        let mut g = GameState::new(1, 0.0);
+        assert!((g.euler_surplus_mult() - 1.0).abs() < 1e-9, "L0: no bonus");
+        let h0 = g.effective_euler_cap() - g.euler_used(); // fresh board: full headroom
+        g.upgrades[16] = 2; // euler_surplus L2
+        assert!((g.euler_surplus_mult() - (1.0 + 0.06 * h0.min(6) as f64 * 2.0)).abs() < 1e-9, "L2 bonus = +6%×2 per spare χ (≤6)");
+        g.owned[10] = 1; // deploy a torus (euler_cost > 0, unlike the free χ=2 sphere) → consume headroom
+        g.deploy(10);
+        let h1 = g.effective_euler_cap() - g.euler_used();
+        assert!(h1 < h0, "deploying a non-trivial shape consumed Euler headroom");
+        assert!((g.euler_surplus_mult() - (1.0 + 0.06 * h1.min(6) as f64 * 2.0)).abs() < 1e-9, "bonus tracks the live headroom");
+    }
+
+    #[test]
+    fn euler_surplus_caps_at_6_headroom() {
+        let mut g = GameState::new(1, 0.0);
+        g.upgrades[0] = 6; // expand_floor → effective cap 6 + 2×6 = 18, headroom 18 (nothing deployed)
+        g.upgrades[16] = 1;
+        assert!(g.effective_euler_cap() - g.euler_used() > 6, "headroom exceeds the cap");
+        assert!((g.euler_surplus_mult() - (1.0 + 0.06 * 6.0)).abs() < 1e-9, "the per-χ bonus is capped at 6 headroom");
+    }
+
+    #[test]
+    fn overclock_off_is_bitstable_and_on_trades_cap_for_offline() {
+        let mut g = GameState::new(1, 0.0);
+        g.upgrades[18] = 1; // own overclock, but OFF (default) — must be bit-identical to not owning it
+        let base_cap = {
+            let mut g0 = g.clone();
+            g0.upgrades[18] = 0;
+            g0.cap_rate()
+        };
+        assert!((g.cap_rate() - base_cap).abs() < 1e-9, "owned-but-OFF overclock is bit-stable (cozy default protects the casual band)");
+        g.overclock_on = true; // ON
+        assert!((g.cap_rate() - base_cap * 1.6).abs() < 1.0, "ON lifts the production ceiling +60%");
+        g.last_seen_ms = 0.0;
+        let r = g.compute_offline(100.0 * 3_600_000.0); // 100h away
+        assert!(r.capped_ms <= 4.0 * 3_600_000.0 + 1.0, "ON clamps offline catch-up to 4h (the price of the active ceiling)");
+    }
+
+    #[test]
+    fn sink_doctrine_swaps_open_anchor_verb_to_absorb() {
+        let cone_id = SHAPES.iter().position(|s| s.family == "cone").expect("cone shape exists");
+        let mut g = GameState::new(1, 0.0);
+        g.owned[cone_id] = 1;
+        g.deploy(cone_id);
+        let board0 = g.flux_board();
+        assert!(!board0.emitters.is_empty(), "the cone deployed an emitter");
+        assert!(board0.emitters.iter().all(|e| e.act2 != flux::Act::Absorb), "no sink before the doctrine — the dead Absorb verb stays dead");
+        g.upgrades[15] = 1; // sink_doctrine
+        let board1 = g.flux_board();
+        let e = &board1.emitters[0];
+        assert_eq!(e.act, flux::Act::Multiply { num: 5, den: 2 }, "sink primary = ×2.5");
+        assert_eq!(e.act2, flux::Act::Absorb, "sink secondary = absorb (bank + stop, severing the chain)");
+    }
+
+    #[test]
+    fn overpressure_zero_under_cap_and_online_offline_round_identically() {
+        // (a) a normal sub-cap board spills nothing — overpressure NEVER touches/accelerates core flux.
+        let mut g = GameState::new(1, 0.0);
+        g.owned[10] = 1;
+        g.deploy(10);
+        g.upgrades[17] = 3;
+        assert_eq!(g.overcap_shard_rate_per_hr(), 0.0, "sub-cap board spills no shards");
+        let before = g.shards;
+        g.last_seen_ms = 0.0;
+        g.compute_offline(1000.0 * 3_600_000.0);
+        assert_eq!(g.shards, before, "no spill shards accrue while under the cap");
+
+        // (b) online (many small ticks) and offline (one span) accrue IDENTICAL spill shards over the same span —
+        // both call the shared accrue_overcap_shards helper and thread the fractional carry (exercises the carry
+        // iff the dev board runs over cap; equal either way).
+        let mut online = GameState::new(2, 0.0);
+        online.dev_unlock_all();
+        online.dev_orrery_preset(2);
+        online.upgrades[17] = 3;
+        online.last_seen_ms = 0.0;
+        let mut offline = online.clone();
+        let step = 0.37 * 3_600_000.0; // odd step to stress fractional rounding
+        let mut t = 0.0;
+        for _ in 0..50 {
+            t += step;
+            online.tick(t);
+        }
+        offline.compute_offline(t);
+        assert_eq!(online.shards, offline.shards, "spill shards round bit-identically online vs offline (carry determinism)");
+    }
+
+    #[test]
     fn milestones_latch_permanently_and_boost_production() {
         let mut g = GameState::new(1, 0.0);
         assert!((g.milestone_mult() - 1.0).abs() < 1e-9);
@@ -2584,6 +3142,57 @@ mod tests {
         }
         g.tick(2000.0);
         assert!(g.milestones_done[0], "milestone stays latched");
+    }
+
+    #[test]
+    fn achievement_effects_apply_by_kind() {
+        let mut g = GameState::new(1, 0.0);
+        let idx = |k: &str| {
+            content::MILESTONES
+                .iter()
+                .position(|m| m.key == k)
+                .unwrap_or_else(|| panic!("missing achievement key {k}"))
+        };
+        // baseline — no varied effects active
+        let base_euler = g.effective_euler_cap();
+        let base_forge_mult = g.milestone_forge_mult();
+        assert!((g.milestone_shard_mult() - 1.0).abs() < 1e-9);
+        assert_eq!(g.milestone_offline_hours(), 0.0);
+        assert_eq!(g.milestone_affinity_bonus(), 0.0);
+
+        g.milestones_done[idx("deploy_5")] = true; // Euler(1)
+        assert_eq!(g.effective_euler_cap(), base_euler + 1, "Euler achievement raises the floor budget");
+
+        g.milestones_done[idx("shards_100")] = true; // Shards(0.05)
+        assert!(g.milestone_shard_mult() > 1.0, "Shards achievement boosts dupe shards");
+
+        g.milestones_done[idx("flux_million")] = true; // Offline(4)
+        assert!((g.milestone_offline_hours() - 4.0).abs() < 1e-9, "Offline achievement extends the away cap");
+
+        g.milestones_done[idx("forge_10")] = true; // Forge(0.10)
+        assert!(g.milestone_forge_mult() < base_forge_mult, "Forge achievement discounts forging");
+
+        g.milestones_done[idx("first_bond")] = true; // Affinity(0.15)
+        assert!(g.milestone_affinity_bonus() > 0.0, "Affinity achievement speeds bonds");
+
+        // none of the above are Production — they must NOT inflate the production multiplier
+        assert!((g.milestone_mult() - 1.0).abs() < 1e-9, "varied effects leave production untouched");
+        g.milestones_done[idx("own_40")] = true; // Production(0.05)
+        assert!(g.milestone_mult() > 1.0, "Production achievement boosts production");
+    }
+
+    #[test]
+    fn flux_achievement_grants_once_on_latch() {
+        let mut g = GameState::new(1, 0.0);
+        let i = content::MILESTONES.iter().position(|m| m.key == "first_forge").unwrap();
+        let before = g.flux;
+        g.total_forges = 1; // satisfy first_forge's condition
+        g.refresh_milestones();
+        assert!(g.milestones_done[i], "first_forge latched");
+        let after = g.flux;
+        assert!(after > before, "Flux achievement paid its one-time grant on latch");
+        g.refresh_milestones(); // idempotent
+        assert!((g.flux - after).abs() < 1e-6, "Flux grant is one-time, never repeated");
     }
 
     #[test]
@@ -2687,5 +3296,37 @@ mod tests {
             g.owned[id] = 1;
         }
         assert!((g.set_bonus_mult() - 1.15).abs() < 1e-9);
+    }
+
+    #[test]
+    fn polytope_and_knot_set_bonuses_apply() {
+        let mut g = GameState::new(1, 0.0);
+        let base = g.set_bonus_mult();
+        for (id, s) in SHAPES.iter().enumerate() {
+            if content::is_polytope_4d(s.family) {
+                g.owned[id] = 1;
+            }
+        }
+        assert!((g.set_bonus_mult() - base - POLYTOPE_SET_MULT).abs() < 1e-9, "completing the 4D-polytope set adds its bonus");
+        for (id, s) in SHAPES.iter().enumerate() {
+            if content::is_knot(s.family) {
+                g.owned[id] = 1;
+            }
+        }
+        assert!((g.set_bonus_mult() - base - POLYTOPE_SET_MULT - KNOT_SET_MULT).abs() < 1e-9, "the knot set adds its bonus too");
+    }
+
+    #[test]
+    fn recrystallize_after_auto_arrange_does_not_panic() {
+        let mut g = GameState::new(1, 0.0);
+        for id in 0..content::PULL_COUNT {
+            g.owned[id] = 1; // own the core → eligible to ascend
+        }
+        g.auto_arrange(); // populates board_cells + the loadout
+        assert!(g.recrystallize(), "ascend succeeds once the core is complete");
+        // regression: a tick right after ascend used to index a stale board_cells into the now-empty loadout
+        g.tick(1_000.0);
+        let _ = g.rate_per_hr();
+        let _ = g.synergy_count();
     }
 }

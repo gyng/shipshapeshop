@@ -70,6 +70,7 @@ export interface View {
   lifetime_flux: number
   lifetime_shards: number
   total_forges: number
+  total_stars: number
   pulls_by_rarity: number[]
   created_ms: number
   last_seen_ms: number
@@ -88,12 +89,14 @@ export interface View {
   mult_milestone: number
   mult_facet: number
   mult_ballast: number
+  mult_euler_surplus: number // euler_surplus (#16): production bonus from UNSPENT Euler-budget headroom
   mult_crossdim: number
   mult_signature: number
   mult_shape_effects: number
   upgrade_costs: [number, number][]
   upgrade_unlocked: boolean[]
   facet_perk_costs: number[]
+  overclock_on: boolean // overclock (#18) Redline toggle state
   use_orrery: boolean
   orrery_radius: number
   orrery_cell_cap: number
@@ -140,7 +143,8 @@ export interface UpgradeDef {
 
 export interface MilestoneDef {
   key: string
-  bonus: number
+  kind: import('../content/milestones').MilestoneKind
+  value: number // magnitude in the effect's natural unit (fraction; or hours / floor-count / one-time flux)
 }
 
 export interface FacetDef {
@@ -240,6 +244,8 @@ interface Store {
   forge: (a: number, b: number) => void
   previewForge: (a: number, b: number) => number
   forgeCostFor: (a: number, b: number) => number
+  rateIfUpgrade: (id: number) => number // projected Flux/hr if upgrade `id` were one level higher (Rust truth)
+  rateIfFacet: (id: number) => number
   claimRelic: () => void
   devOpen: boolean
   toggleDev: () => void
@@ -268,6 +274,7 @@ interface Store {
   buyFacetPerk: (id: number) => void
   setBanner: (id: number) => void
   setUseOrrery: (on: boolean) => void
+  setOverclock: (on: boolean) => void // overclock (#18) Redline toggle — +60% cap, offline clamped to 4h
   setAnchor: (id: number, q: number, r: number) => void
   rotateLane: (id: number) => void
   setPhase: (id: number, phase: number) => void
@@ -529,6 +536,10 @@ export const useGame = create<Store>((set, get) => ({
   },
   // Read-only preview for the free-form bench: the shape id A # B would produce, or -1 if it can't be forged.
   previewForge: (a, b) => (game ? game.preview_forge(a, b) : -1),
+  // Read-only what-if for the Workshop Δ/hr badge: projected Flux/hr if upgrade/facet `id` were one level higher.
+  // Rust truth (clones + bumps the level + re-evaluates rate_per_hr); the UI subtracts the current rate. No TS math.
+  rateIfUpgrade: (id) => (game ? game.rate_after_upgrade(id) : 0),
+  rateIfFacet: (id) => (game ? game.rate_after_facet(id) : 0),
   // Read-only: shards it would cost to forge A # B right now (0 if not forgeable) — never recomputed in TS.
   // (wasm marshals the u64 as a bigint; the store mirrors it as a plain number.)
   forgeCostFor: (a, b) => (game ? Number(game.forge_cost(a, b)) : 0),
@@ -574,7 +585,7 @@ export const useGame = create<Store>((set, get) => ({
     set({ secretaryId: id })
   },
   devAddFlux: () => {
-    game?.dev_add_flux(10000)
+    game?.dev_add_flux(1_000_000)
     get().refresh()
     persist()
   },
@@ -682,6 +693,11 @@ export const useGame = create<Store>((set, get) => ({
   },
   setUseOrrery: (on) => {
     game?.set_use_orrery(on, Date.now())
+    get().refresh()
+    persist()
+  },
+  setOverclock: (on) => {
+    game?.set_overclock(on, Date.now())
     get().refresh()
     persist()
   },

@@ -41,8 +41,9 @@ function CornellRoom() {
  * Cornell-box scene swaps the nebula dome for the famous test room. No EffectComposer/Bloom and no animated
  * distortion on the glass — both flicker with transmission.
  */
-export function Stage({ children, controls = false, autoRotate = false, rarity = 'Common', compact = false, frameloop }: { children: ReactNode; controls?: boolean; autoRotate?: boolean; rarity?: RarityName; motes?: boolean; compact?: boolean; frameloop?: 'always' | 'demand' | 'never' }) {
-  const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
+export function Stage({ children, controls = false, autoRotate = false, rarity = 'Common', compact = false, frameloop, previewScene, previewAtmosphere }: { children: ReactNode; controls?: boolean; autoRotate?: boolean; rarity?: RarityName; motes?: boolean; compact?: boolean; frameloop?: 'always' | 'demand' | 'never'; previewScene?: number; previewAtmosphere?: number }) {
+  const storeScene = useGame((s) => s.view?.scene ?? 0)
+  const scene = sceneById(previewScene ?? storeScene) // shop hover-preview: show a scene without equipping it
   const L = lightingById(useGame((s) => s.view?.equipped?.[SLOT_LIGHTING] ?? 0)) // equipped Lighting mood (Shop cosmetic)
   const cornell = scene.special === 'cornell'
   const rank = RANK[rarity]
@@ -69,8 +70,9 @@ export function Stage({ children, controls = false, autoRotate = false, rarity =
           {/* motes always render now (the per-view toggle is gone); the gfx particle setting (g.sparkle) still scales/disables them */}
           <Sparkles count={Math.round((36 + rank * 28) * g.sparkle)} scale={[8, 6, 6]} size={2.2 + rank * 0.5} speed={0.18} opacity={0.7} color={scene.stars} />
           {rank >= 2 && <Sparkles count={Math.round((20 + rank * 22) * g.sparkle)} scale={[4.5, 4.5, 4.5]} size={3.4} speed={0.5} opacity={0.9} color={RARITY_COLOR[rarity]} />}
-          {/* equipped Atmosphere cosmetic: drifting motes only on the close-up hero (fog would muddy the gem) */}
-          <Atmosphere fog={false} moteScale={[8, 6, 6]} motePos={[0, 0, 0]} />
+          {/* equipped Atmosphere cosmetic: drifting motes + (full hero only) a backdrop fog whose start is pushed
+              past the gem so the focal jewel stays crisp; compact previews stay fog-free to read cleanly */}
+          <Atmosphere defaultFog={null} fog fogNearMin={6} overrideId={previewAtmosphere} gemOcclude={1.3} moteScale={[8, 6, 6]} motePos={[0, 0, 0]} />{/* gemOcclude → clouds veil the hero gem; overrideId = shop hover-preview */}
           <Suspense fallback={null}>
             {children}
             {g.hdri ? (

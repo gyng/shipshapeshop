@@ -9,9 +9,9 @@ import type { UpgradeDef, View } from './game/store'
 
 // Branch colours — keep in sync with the section grouping in App.tsx (Production / Orrery / Logistics).
 const BRANCH: Record<string, { ids: number[]; color: string }> = {
-  production: { ids: [0, 1, 2], color: 'var(--c-accent-teal)' },
-  orrery: { ids: [9, 10, 11, 12], color: 'var(--c-accent-gold)' },
-  logistics: { ids: [3, 4, 5, 6, 7, 8], color: '#b388ff' },
+  production: { ids: [0, 1, 2, 13, 14, 16], color: 'var(--c-accent-teal)' },
+  orrery: { ids: [9, 10, 11, 12, 15, 19], color: 'var(--c-accent-gold)' },
+  logistics: { ids: [3, 4, 5, 6, 7, 8, 17, 18], color: '#b388ff' },
 }
 function branchColor(id: number): string {
   for (const b of Object.values(BRANCH)) if (b.ids.includes(id)) return b.color

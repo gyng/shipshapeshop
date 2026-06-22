@@ -8,18 +8,21 @@ export const SHAPE_GLYPH: Record<string, string> = {
   // Rare
   torus: '🍩', mobius: '♾️', genus2: '🥨', hyperboloid: '⏳', catenoid: '⌛', helicoid: '🌀', trefoil: '🪢', monkey_saddle: '🐴',
   // Epic
-  klein_bottle: '🍶', rp2: '🎭', boys_surface: '🎀', cross_cap: '🧢', figure8_knot: '🎱', torus_knot_2_5: '🪢', gyroid: '🧽', schwarz_p: '🧱',
+  klein_bottle: '🍶', roman_surface: '🜂', boys_surface: '🎀', whitney_umbrella: '☂', figure8_knot: '🎱', torus_knot_2_5: '🪢', gyroid: '🧽', schwarz_p: '🧱',
   // SSR
   heptoroid: '🕸️', costa: '🕳️', borromean: '🔗', seifert: '🍥', lorenz: '🦋', schwarz_d: '🪟', triple_torus: '🥯',
   // UR
   tesseract: '🧩', cell_16: '🔷', cell_24: '🔮', cell_120: '👑', cell_600: '⛈️', klein_quartic: '🎼', hopf: '🪐', mazur: '👹',
   // Relics
-  utah_teapot: '🫖', stanford_bunny: '🐰', benchy: '🚤', stanford_dragon: '🐉', suzanne: '🐵', spot: '🐮', cow: '🐄', armadillo: '🦔', lucy: '👼', csaszar: '🍩',
+  utah_teapot: '🫖', stanford_bunny: '🐰', benchy: '🚤', stanford_dragon: '🐉', suzanne: '🐵', spot: '🐮', endrass_octic: '❇️', armadillo: '🦔', lucy: '👼', csaszar: '🍩',
   menger: '🔲', sierpinski: '🔻', dini: '🐚', torus_knot_2_7: '✴️',
   // NG+ metashapes (Meta + the Transcendent fractal cohort)
   clifford_torus: '🛟', cable_knot: '🧶', mandelbulb: '🪸',
   mandelbox: '📦', julia: '🌌', apollonian: '🫧', kleinian: '🏛️',
   twisted_torus: '➰', cut_hollow_sphere: '🥣', blobby: '🦠',
+  // NG+ cohort expansion: 4D cross-sections (Meta) + algebraic/attractor jewels (Transcendent)
+  spherinder_slice: '🧈', duocylinder: '🪟', cell24_section: '💠', ditorus: '🧿',
+  hyperbolic_honeycomb: '⛪', aizawa_attractor: '🌪️', barth_sextic: '🔯',
 }
 
 export const glyphOf = (family: string): string => SHAPE_GLYPH[family] ?? '✦'

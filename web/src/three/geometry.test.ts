@@ -9,11 +9,11 @@ import { getGeometry } from './geometry'
 const ALL_FAMILIES = [
   'sphere', 'cube', 'tetrahedron', 'octahedron', 'dodecahedron', 'icosahedron', 'cylinder', 'cone', 'disk',
   'ellipsoid', 'torus', 'mobius', 'genus2', 'hyperboloid', 'catenoid', 'helicoid', 'trefoil', 'monkey_saddle',
-  'klein_bottle', 'rp2', 'boys_surface', 'cross_cap', 'figure8_knot', 'torus_knot_2_5', 'gyroid', 'schwarz_p',
+  'klein_bottle', 'roman_surface', 'boys_surface', 'whitney_umbrella', 'figure8_knot', 'torus_knot_2_5', 'gyroid', 'schwarz_p',
   'heptoroid', 'costa', 'borromean', 'seifert', 'lorenz', 'schwarz_d', 'triple_torus', 'tesseract', 'cell_16',
   'cell_24', 'cell_120', 'cell_600', 'klein_quartic', 'hopf', 'mazur',
   // Relics (procedural fallback geometry; real meshes load via the shared relics layer at runtime)
-  'utah_teapot', 'stanford_bunny', 'benchy', 'stanford_dragon', 'suzanne', 'spot', 'cow', 'armadillo', 'lucy', 'csaszar',
+  'utah_teapot', 'stanford_bunny', 'benchy', 'stanford_dragon', 'suzanne', 'spot', 'endrass_octic', 'armadillo', 'lucy', 'csaszar',
   // NG+ metashapes + the fractal capstone cohort
   'clifford_torus', 'cable_knot', 'mandelbulb', 'mandelbox', 'julia', 'apollonian', 'kleinian',
   // warped classics (Ssr)

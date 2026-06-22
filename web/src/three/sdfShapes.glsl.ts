@@ -370,6 +370,158 @@ const H_BLOBBY = /* glsl */ `
     return d;
   }`
 
+// ── Roster-rebalance cohort: algebraic & attractor jewels (all raymarched, no mesh) ──────────────────────
+// Barth sextic — the degree-6 surface with the most ordinary double points (65) any sextic can have, with full
+// icosahedral symmetry (φ everywhere). Field bsField = 4(φ²x²−y²)(φ²y²−z²)(φ²z²−x²) − (1+2φ)(|p|²−1)²; the DE
+// is the field over |∇field| (6-tap central difference), sphere-clipped. k down-scales the step so the thin
+// pinch-necks don't tunnel.
+const H_BARTH = /* glsl */ `
+  float bsField(vec3 p){
+    float PHI=1.618034, P2=PHI*PHI;
+    float a=P2*p.x*p.x - p.y*p.y;
+    float b=P2*p.y*p.y - p.z*p.z;
+    float c=P2*p.z*p.z - p.x*p.x;
+    float r2=dot(p,p)-1.0;
+    return 4.0*a*b*c - (1.0+2.0*PHI)*r2*r2;
+  }
+  float sdfBarth(vec3 p){
+    vec2 e=vec2(0.002,0.0);
+    vec3 g=vec3(
+      bsField(p+e.xyy)-bsField(p-e.xyy),
+      bsField(p+e.yxy)-bsField(p-e.yxy),
+      bsField(p+e.yyx)-bsField(p-e.yyx))/(2.0*e.x);
+    float d=bsField(p)/max(length(g),1e-3);
+    return max(d*0.28, length(p)-1.0);
+  }`
+
+// {4,3,5} hyperbolic honeycomb — a fold fractal in the spirit of Apollonian/Kleinian: iterated sphere-inversion
+// in the bounding spheres of a Coxeter cell. Each step inverts p through the nearest of four cell-wall spheres
+// (tetrahedral arrangement) and accumulates the inversion scale; the DE is the scaled distance to the nearest
+// wall. Reads as an endless arcade of identical arches. Bounded by the unit sphere.
+const H_HONEYCOMB = /* glsl */ `
+  float sdfHoneycomb(vec3 p){
+    // four mutually-tangent inversion spheres at the corners of a regular tetrahedron (the {4,3,5} cell walls)
+    vec3 c0=vec3( 0.5773, 0.5773, 0.5773);
+    vec3 c1=vec3( 0.5773,-0.5773,-0.5773);
+    vec3 c2=vec3(-0.5773, 0.5773,-0.5773);
+    vec3 c3=vec3(-0.5773,-0.5773, 0.5773);
+    float R2=0.9, s=1.0, dmin=1e9;
+    for(int i=0;i<8;i++){
+      // invert through whichever wall-sphere p is currently inside (closest centre)
+      vec3 c=c0; float best=dot(p-c0,p-c0);
+      float t=dot(p-c1,p-c1); if(t<best){best=t;c=c1;}
+      t=dot(p-c2,p-c2); if(t<best){best=t;c=c2;}
+      t=dot(p-c3,p-c3); if(t<best){best=t;c=c3;}
+      float k=R2/max(dot(p-c,p-c),1e-4);
+      p=c+(p-c)*k; s*=k;
+      dmin=min(dmin,best);
+    }
+    float wall=(sqrt(max(dmin,0.0))-sqrt(R2))/s;
+    return max(0.6*wall, length(p)-1.0);
+  }`
+
+// Aizawa attractor — a parametric double-spiral tube. We approximate the strange attractor's signature
+// tornado-and-pinch silhouette with a swept circular path: a coil whose RADIUS pinches at the top (the funnel)
+// and whose HEIGHT climbs, using the nearest-winding snap idiom from H_HELIX (snap p to its closest coil turn,
+// then distance to that turn's centreline minus the tube radius). Bounded by the unit sphere (radius 1.1).
+const H_AIZAWA = /* glsl */ `
+  float sdfAizawa(vec3 p){
+    float turns=3.5, tube=0.075;
+    float a=atan(p.z,p.x);
+    float rxz=length(p.xz);
+    float best=1e9;
+    // snap to the nearest few windings; the coil radius pinches toward the top (tornado funnel). The coil climbs
+    // 1.7 units over 'turns' revolutions, so the winding nearest p.y is ~ (p.y/1.7 + 0.5)*turns full turns up.
+    float k0=floor((clamp(p.y/1.7,-0.5,0.5)+0.5)*turns - a/6.2831853 + 0.5);
+    for(int n=-1;n<=2;n++){
+      float k=k0+float(n);
+      float ph=a + 6.2831853*k;             // unwrapped angle along the coil
+      float u=ph/(6.2831853*turns);         // 0..1 progression up the funnel
+      float h=mix(-0.85,0.85,clamp(u,0.0,1.0));      // height climbs
+      float rad=mix(0.62,0.10,clamp(u,0.0,1.0));     // radius pinches (tornado)
+      vec2 ctr=vec2(rad, h);                 // coil centreline in (radius, height)
+      best=min(best, length(vec2(rxz,p.y)-ctr));
+    }
+    return max(best - tube, length(p)-1.1);
+  }`
+
+// Endrass octic — a degree-8 surface famous for carrying 168 real ordinary double points (the record for octics
+// long held by Endrass). The genuine polynomial is unwieldy; we render a FAITHFUL high-node degree-8 nodal field
+// in the same family: a symmetric octic combination of the coordinate quadrics whose zero-set is a many-pointed
+// compact nodal jewel (distinct from the smooth CG mascots beside it). DE = field/|∇field| (forward difference),
+// scaled in/out, sphere-clipped. The point is the crossings, not a literal Endrass reconstruction.
+const H_ENDRASS = /* glsl */ `
+  float enField(vec3 p){
+    float x=p.x,y=p.y,z=p.z;
+    float x2=x*x,y2=y*y,z2=z*z;
+    float r2=x2+y2+z2;
+    // degree-8 nodal field: a symmetric octic with many sign changes → a lattice of double points.
+    float q = (x2-y2)*(y2-z2)*(z2-x2);          // degree 6, vanishes on the symmetry planes
+    float oct = x2*x2*x2*x2 + y2*y2*y2*y2 + z2*z2*z2*z2; // degree 8 cage
+    return 64.0*q*(r2-0.42) - (oct - 0.30*r2*r2*r2*r2) + 0.06;
+  }
+  float sdfEndrass(vec3 p){
+    p*=0.78;
+    float e=0.0025;
+    float f=enField(p);
+    vec3 g=vec3(
+      enField(p+vec3(e,0.0,0.0))-f,
+      enField(p+vec3(0.0,e,0.0))-f,
+      enField(p+vec3(0.0,0.0,e))-f)/e;
+    float d=0.30*f/max(length(g),1e-3);
+    return max(d, length(p)-1.25)/0.78;
+  }`
+
+// Roman (Steiner) surface — the quartic F = x²y²+y²z²+z²x² − K·xyz, an immersion of ℝP² with three pinch lines
+// and four lobes. Analytic gradient → DE = F/|∇F|, sphere-clipped. abs(F) banding keeps the thin lobes from
+// vanishing at grazing angles.
+const H_ROMAN = /* glsl */ `
+  float sdfRoman(vec3 p){
+    float K=1.0, x=p.x,y=p.y,z=p.z;
+    float x2=x*x,y2=y*y,z2=z*z;
+    float F=x2*y2 + y2*z2 + z2*x2 - K*x*y*z;
+    vec3 g=vec3(
+      2.0*x*(y2+z2) - K*y*z,
+      2.0*y*(x2+z2) - K*x*z,
+      2.0*z*(x2+y2) - K*x*y);
+    float d=abs(F)/(length(g)+1e-3);
+    return max(d, length(p)-1.2);
+  }`
+
+// Whitney umbrella — the pinch-point surface F = x² − y²z (a sheet that crosses itself along a half-line and
+// terminates in a single pinch). Analytic gradient; the self-intersection seam IS the feature. Thickened so the
+// thin sheet reads as glass; sphere-clipped.
+const H_WHITNEY = /* glsl */ `
+  float sdfWhitney(vec3 p){
+    float x=p.x,y=p.y,z=p.z;
+    float F=x*x - y*y*z;
+    vec3 g=vec3(2.0*x, -2.0*y*z, -y*y);
+    float d=F/(length(g)+1e-3) - 0.05;
+    return max(d, length(p)-1.1);
+  }`
+
+// Costa surface — its OWN SDF (off the catenoid+ring mesh path). Smooth-min of: an upper catenoid flare, a
+// mirrored lower flare, and a central planar annulus at y≈0, with a cos(4·θ) waist modulation for Costa's
+// 4-fold square symmetry. Each flare is a Lipschitz-corrected revolution shell (slope a/r, like the catenoid).
+const H_COSTA = /* glsl */ `
+  float csMin(float a, float b, float k){ float h=clamp(0.5+0.5*(b-a)/k,0.0,1.0); return mix(b,a,h)-k*h*(1.0-h); }
+  float sdfCosta(vec3 p){
+    float a=0.34, t=0.05, h=0.62;
+    float rxz=length(p.xz);
+    float th=atan(p.z,p.x);
+    float waist=1.0 + 0.18*cos(4.0*th);     // 4-fold square symmetry of the Costa surface
+    // upper flare: catenoid opening upward from y=h
+    float ru=a*0.5*(exp((p.y-h)/a)+exp(-(p.y-h)/a))*waist;
+    float du=abs(rxz-ru)*(a/max(ru,1e-4))-t; du=max(du, p.y-1.05); du=max(du,-(p.y)+0.06);
+    // lower flare: the mirror image opening downward
+    float rl=a*0.5*(exp((-p.y-h)/a)+exp(-(-p.y-h)/a))*waist;
+    float dl=abs(rxz-rl)*(a/max(rl,1e-4))-t; dl=max(dl,-p.y-1.05); dl=max(dl,(p.y)+0.06);
+    // central planar annulus at y≈0 — the middle "end" that makes Costa three-ended
+    float ann=max(abs(p.y)-t, max(rxz-0.95*waist, 0.30-rxz));
+    float d=csMin(du,dl,0.10); d=csMin(d,ann,0.10);
+    return max(d, length(p)-1.2);
+  }`
+
 interface ShapeDef { helpers?: string; expr: string }
 // family → { helper fns it needs, body of `float sdfActive(vec3 p)` }. Only the active shape's def is injected.
 const SHAPE_DEFS: Record<string, ShapeDef> = {
@@ -392,9 +544,12 @@ const SHAPE_DEFS: Record<string, ShapeDef> = {
   ellipsoid: { expr: 'vec3 r=vec3(1.18,0.72,0.96); float k0=length(p/r); float k1=length(p/(r*r)); return k0*(k0-1.0)/k1;' },
   mazur: { helpers: H_MAZUR, expr: 'float d=length(p)-0.92; d+=(mzNoise(p*2.5)-0.5)*0.26; d+=(mzNoise(p*5.0)-0.5)*0.12; return d*0.55;' },
   // Classical surfaces of revolution / ruled — thin shells (opOnion) to match their parametric-surface meshes.
-  hyperboloid: { expr: 'float d=abs(length(p.xz)-sqrt(0.26+p.y*p.y*0.85))-0.05; d=max(d,abs(p.y)-0.95); return d*0.7;' },
-  catenoid: { expr: 'float a=0.42; float r=a*0.5*(exp(p.y/a)+exp(-p.y/a)); float d=abs(length(p.xz)-r)-0.05; d=max(d,abs(p.y)-0.7); return d*0.55;' },
-  helicoid: { expr: 'float k=2.2; float c=cos(k*p.y),s=sin(k*p.y); vec2 q=mat2(c,-s,s,c)*p.xz; float d=abs(q.y)*0.45; d=max(d,length(p.xz)-0.95); d=max(d,abs(p.y)-0.85); return d;' },
+  // Open surfaces of revolution / ruled — radial offset divided by the surface SLOPE so the distance is
+  // Lipschitz-safe (|grad| ≤ 1): the sphere-tracer can't overshoot the thin shell, so the walls no longer
+  // tunnel/vanish at grazing or axial views. (catenoid slope = cosh = r/a → ×(a/r); helicoid uses √(1+k²ρ²).)
+  hyperboloid: { expr: 'float r=sqrt(0.26+p.y*p.y*0.85); float slope=sqrt(1.0+(0.85*p.y)*(0.85*p.y)/max(r*r,1e-4)); float d=abs(length(p.xz)-r)/slope-0.05; d=max(d,abs(p.y)-0.95); return d;' },
+  catenoid: { expr: 'float a=0.42; float r=a*0.5*(exp(p.y/a)+exp(-p.y/a)); float d=abs(length(p.xz)-r)*(a/max(r,1e-4))-0.05; d=max(d,abs(p.y)-0.7); return d;' },
+  helicoid: { expr: 'float k=2.2; float c=cos(k*p.y),s=sin(k*p.y); vec2 q=mat2(c,-s,s,c)*p.xz; float rho=length(p.xz); float slope=sqrt(1.0+k*k*rho*rho); float d=abs(q.y)/slope*0.8; d=max(d,rho-0.95); d=max(d,abs(p.y)-0.85); return d;' },
   gyroid: { expr: tpms('dot(s, c.zxy)') },
   schwarz_p: { expr: tpms('c.x+c.y+c.z') },
   schwarz_d: { expr: tpms('s.x*s.y*s.z + s.x*c.y*c.z + c.x*s.y*c.z + c.x*c.y*s.z') },
@@ -411,6 +566,35 @@ const SHAPE_DEFS: Record<string, ShapeDef> = {
   julia: { helpers: H_JULIA, expr: 'return sdfJulia(p*1.4)/1.4;' },
   apollonian: { helpers: H_APOLLO, expr: 'return max(sdfApollonian(p)*0.9 - 0.06, length(p)-1.02);' },
   kleinian: { helpers: H_KLEINIAN, expr: 'return max(sdfKleinian(p) - 0.06, length(p)-1.05);' },
+  // ── NG+ cohort expansion: 4D cross-sections (Meta) + algebraic/attractor jewels (Transcendent) ──
+  // Spherinder slice → a rounded SLAB (wide, flat, soft corners): an exact rounded box (Iñigo Quílez box − r).
+  spherinder_slice: { helpers: H_BOX, expr: 'return sdfBox(p, vec3(0.95,0.34,0.95)) - 0.18;' },
+  // Duocylinder ridge → a torus whose tube cross-section is SQUARED: take the (radial, axial) offset and use a
+  // rounded-box 2D distance instead of length() → a square-profile donut. Genus 1; rounded so it reads as a gem.
+  duocylinder: { expr: 'vec2 q=vec2(length(p.xz)-0.66, p.y); vec2 d=abs(q)-vec2(0.26); return min(max(d.x,d.y),0.0)+length(max(d,0.0))-0.07;' },
+  // Cuboctahedron (24-cell equatorial section) → EXACT: intersection (max) of a cube ({100} planes) and an
+  // octahedron ({111} planes), the two solids sharing corners. p=abs(p) folds to one octant for both terms.
+  cell24_section: { expr: 'p=abs(p); float oct=(p.x+p.y+p.z-1.3)*0.5773; float cub=max(p.x,max(p.y,p.z))-0.92; return max(oct,cub);' },
+  // Ditorus → a "torus of a torus": take a torus distance t (major radius R, tube r), then make the TUBE a
+  // hollow annular shell via abs(t)-w so a second tunnel runs through the dough — "a hole through my hole".
+  // Intersect with a sphere bound so it reads as a clean gem. Genus 2, orientable. R/r/w tuned so both the
+  // donut hole and the dough-tunnel read clearly: R=0.62 (donut radius), r=0.28 (dough thickness), w=0.085 (shell).
+  ditorus: { expr: 'float t=length(vec2(length(p.xz)-0.62,p.y))-0.28; float d=abs(t)-0.085; return max(d, length(p)-1.12);' },
+  // ── Roster rebalance: in-place swaps to algebraic & attractor jewels (all raymarched) ──
+  // hyperbolic_honeycomb → a {4,3,5} Coxeter sphere-inversion fold fractal — endless arches.
+  hyperbolic_honeycomb: { helpers: H_HONEYCOMB, expr: 'return sdfHoneycomb(p);' },
+  // aizawa_attractor → a parametric tornado-coil tube (nearest-winding snap).
+  aizawa_attractor: { helpers: H_AIZAWA, expr: 'return sdfAizawa(p);' },
+  // barth_sextic → the 65-node degree-6 surface, icosahedral symmetry (φ everywhere).
+  barth_sextic: { helpers: H_BARTH, expr: 'return sdfBarth(p);' },
+  // roman_surface → Steiner's four-lobed quartic immersion of ℝP².
+  roman_surface: { helpers: H_ROMAN, expr: 'return sdfRoman(p);' },
+  // whitney_umbrella → the pinch-point surface x²−y²z; the self-intersection seam is the feature.
+  whitney_umbrella: { helpers: H_WHITNEY, expr: 'return sdfWhitney(p);' },
+  // endrass_octic → a faithful many-node degree-8 nodal jewel (the Endrass 168-node family).
+  endrass_octic: { helpers: H_ENDRASS, expr: 'return sdfEndrass(p);' },
+  // costa (RENDER FIX) → its own SDF (two catenoid flares + a planar annulus, 4-fold waist) — off the mesh path.
+  costa: { helpers: H_COSTA, expr: 'return sdfCosta(p);' },
   helix: { helpers: H_HELIX, expr: 'return max(sdfHelix(p)*0.7, length(p)-1.0);' },
   mobius: { helpers: H_MOBIUS, expr: 'return sdfMobius(p);' },
   klein_bottle: { helpers: H_KLEINB, expr: 'return sdfKleinBottle(p*2.7)/2.7;' },

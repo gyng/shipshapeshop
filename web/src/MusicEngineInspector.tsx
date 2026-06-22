@@ -25,7 +25,7 @@ function chordSymbol(chord: number[]): string {
   const maj7 = ivs.has(11)
   const dom7 = ivs.has(10)
   const ninth = ivs.has(2)
-  let q = ''
+  let q: string
   if (minor && flatFive && dom7) q = 'm7♭5'
   else if (minor) q = dom7 ? (ninth ? 'm9' : 'm7') : 'm'
   else q = maj7 ? (ninth ? 'maj9' : 'maj7') : dom7 ? (ninth ? '9' : '7') : ''

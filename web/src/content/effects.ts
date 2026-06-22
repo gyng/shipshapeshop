@@ -1,6 +1,6 @@
 // DISPLAY for each shape's topology effect (Rust computes the actual numbers — this mirrors the archetype
 // sets in core/src/content.rs for the inspector card only). Stars (★) scale every effect's magnitude.
-const NONORIENTABLE = new Set(['mobius', 'klein_bottle', 'rp2', 'boys_surface', 'cross_cap', 'klein_quartic'])
+const NONORIENTABLE = new Set(['mobius', 'klein_bottle', 'roman_surface', 'boys_surface', 'whitney_umbrella', 'klein_quartic'])
 const KNOTS = new Set(['trefoil', 'figure8_knot', 'torus_knot_2_5', 'torus_knot_2_7', 'borromean', 'seifert', 'hopf', 'cable_knot'])
 const POLY4D = new Set(['tesseract', 'cell_16', 'cell_24', 'cell_120', 'cell_600', 'clifford_torus'])
 

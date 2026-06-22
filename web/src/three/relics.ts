@@ -14,14 +14,13 @@ import { getGeometry } from './geometry'
 
 // `face` (radians, optional): the model's intrinsic front direction in its canonical XZ frame. When set, the
 // orrery orients the relic to point its FRONT along its flux beam (instead of free-spinning) — for models with
-// an obvious facing (cow, bunny, …). Omit it for rotationally-symmetric relics (heptoroid, csaszar) → they spin.
+// an obvious facing (spot, bunny, …). Omit it for rotationally-symmetric relics (heptoroid, csaszar) → they spin.
 // Tune per-model in ±π/2 steps if a model points the wrong way.
 export type RelicCfg = { url: string; kind: 'ply' | 'obj'; rot?: [number, number, number]; face?: number }
 
 export const RELIC_MODELS: Record<string, RelicCfg> = {
   stanford_bunny: { url: '/models/bunny.ply', kind: 'ply', rot: [0, Math.PI, 0], face: 0 },
   benchy: { url: '/models/benchy.ply', kind: 'ply', rot: [-Math.PI / 2, 0, 0], face: 0 },
-  cow: { url: '/models/cow.obj', kind: 'obj', rot: [0, Math.PI / 2, 0], face: 0 },
   spot: { url: '/models/spot.obj', kind: 'obj', rot: [0, Math.PI, 0], face: 0 },
   armadillo: { url: '/models/armadillo.ply', kind: 'ply', rot: [0, 0, 0], face: 0 },
   lucy: { url: '/models/lucy.ply', kind: 'ply', rot: [0, 0, 0], face: 0 },

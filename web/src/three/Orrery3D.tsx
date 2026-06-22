@@ -11,12 +11,16 @@ import { RenderTechBadge } from './RenderTechBadge'
 import { CursorLight } from './CursorLight'
 import { useGame, type ShapeRow, type FluxEmitter } from '../game/store'
 import { useOrreryUi, gemScreens } from '../orreryUi'
-import { sceneById, boardSkinById, SLOT_BOARD } from '../content/cosmetics'
+import { sceneById, boardSkinById, SLOT_BOARD, atmosphereById, SLOT_ATMOSPHERE } from '../content/cosmetics'
+import { FluxBeams } from './FluxBeams'
 import { useGfxPreset } from '../gfx'
 
 const RANK: Record<keyof typeof RARITY_COLOR, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4, Meta: 4, Transcendent: 4 }
 const HEX = 0.62 // hex centre-to-corner (world units)
 const SQ3 = Math.sqrt(3)
+// y of the "show all flux lines" floor overlay — just above the hex pads (pad tops ~ -0.36) and the mote base
+// plane (motes ride at y≈0.04), low enough to read as a decal ON the floor, not a fence floating over it.
+const LINE_Y = 0.06
 // the six pointy-top axial directions (mirrors orrery::HEX_DIRS / flux::step in the core)
 const DIRS: [number, number][] = [[1, 0], [1, -1], [0, -1], [-1, 0], [-1, 1], [0, 1]]
 
@@ -34,19 +38,26 @@ function worldToAxial(x: number, z: number): [number, number] {
   const qf = ((SQ3 / 3) * x - (1 / 3) * z) / HEX
   const rf = ((2 / 3) * z) / HEX
   let rx = Math.round(qf)
-  let ry = Math.round(-qf - rf)
+  const ry = Math.round(-qf - rf)
   let rz = Math.round(rf)
   const dx = Math.abs(rx - qf)
   const dy = Math.abs(ry - (-qf - rf))
   const dz = Math.abs(rz - rf)
+  // cube-rounding: re-derive the worst-rounded coord from the other two. We only return axial [rx, rz], so when
+  // ry is the worst it's simply dropped (rx/rz already correct) — no need to recompute the unused ry.
   if (dx > dy && dx > dz) rx = -ry - rz
-  else if (dy > dz) ry = -rx - rz
-  else rz = -rx - ry
+  else if (dy <= dz) rz = -rx - ry
   return [rx, rz]
 }
 const hexDist = (q: number, r: number) => (Math.abs(q) + Math.abs(q + r) + Math.abs(r)) / 2
 // While dragging, gems stop catching the ray so the floor keeps receiving pointer-move (no stall over a gem).
 const NOOP_RAYCAST: THREE.Object3D['raycast'] = () => {}
+
+// PURCHASE-PULSE shared signal (module-level, not a prop): Scene stamps `.t = 1` when an upgrade/facet is
+// bought; every StaticGem READS it as a board-wide brightness term, and Scene's once-per-frame useFrame is the
+// SINGLE owner of its decay. A mutable ref (vs a changing prop) means a pulse never re-renders the gems.
+const pulseRef = { t: 0 }
+const PULSE_DECAY = 1.6 // ~0.6s tail (t: 1 -> 0); a brief flash, not a lingering glow
 
 // Scratch vectors for the per-frame WASD pan + screen projection (reused so the hot loop allocates nothing).
 const UP = new THREE.Vector3(0, 1, 0)
@@ -66,13 +77,26 @@ function AnchorRing({ q, r, color }: { q: number; r: number; color: string }) {
   )
 }
 
-// A faint hex pad marking a placeable cell; brightens when it's on the hovered shape's flux path.
-function HexPad({ q, r, lit, pad = '#1a1c28', litCol = '#ffcf6b' }: { q: number; r: number; lit: boolean; pad?: string; litCol?: string }) {
+// A faint hex pad marking a placeable cell; brightens when it's on the hovered shape's flux path. `fresh` pads
+// (newly grown by expand_floor) POP in (scale 0→1) so a Workshop floor-expand visibly lands on the board.
+function HexPad({ q, r, lit, fresh = false, pad = '#1a1c28', litCol = '#ffcf6b' }: { q: number; r: number; lit: boolean; fresh?: boolean; pad?: string; litCol?: string }) {
   const [x, , z] = axialToWorld(q, r)
+  const ref = useRef<THREE.Mesh>(null)
+  // pop clock: starts at 0 only for a freshly-grown pad; established pads skip the animation entirely.
+  const pop = useRef(fresh ? 0 : 1)
+  useFrame((_, dt) => {
+    const m = ref.current
+    if (!m || pop.current >= 1) return
+    pop.current = Math.min(1, pop.current + dt / 0.3) // ~0.3s pop-in
+    // easeOutBack: a small overshoot past 1 then settle, for a satisfying "snap" rather than a linear grow.
+    const t = pop.current
+    const s = 1 + 2.7 * (t - 1) * (t - 1) * (t - 1) + 1.7 * (t - 1) * (t - 1)
+    m.scale.setScalar(s)
+  })
   return (
     // Pointy-top grid (see axialToWorld) → three's 6-gon cylinder already has a vertex at +Z, so NO rotation.
     // Circumradius = HEX tiles edge-to-edge; ×0.97 leaves a thin, even grout.
-    <mesh position={[x, -0.38, z]}>
+    <mesh ref={ref} position={[x, -0.38, z]} scale={fresh ? 0 : 1}>
       <cylinderGeometry args={[HEX * 0.97, HEX * 0.97, 0.04, 6]} />
       <meshStandardMaterial
         color={lit ? litCol : pad}
@@ -183,6 +207,9 @@ function StaticGem({
   const light = useRef<THREE.PointLight>(null)
   const rank = RANK[shape.rarity]
   const col = RARITY_COLOR[shape.rarity]
+  // verb-keyed AURA: the gem's point-light leans toward its flux verb's colour (gold ×, violet bend, cyan fork,
+  // red sink) so the board telegraphs "what each shape DOES" at a glance; the mesh itself keeps its rarity identity.
+  const auraCol = useMemo(() => new THREE.Color(col).lerp(new THREE.Color(ACT_COLOR[emitter.act] ?? col), 0.6), [col, emitter.act])
   const g = useGfxPreset()
   useRelics() // real Relic mesh once loaded (so a benchy on the board is a boat, not the box placeholder)
   // emission heartbeat: a quick light flare on each tick (gems all fire in sync with the cycle)
@@ -226,7 +253,9 @@ function StaticGem({
     const tk = Math.floor(clock.current)
     if (tk !== lastTick.current) { lastTick.current = tk; flare.current = 1 }
     flare.current = Math.max(0, flare.current - dt * 3) // gentler decay
-    if (light.current) light.current.intensity = baseLight * (1 + flare.current * 0.18) // subtler pulse (was 0.6)
+    // intensity = base × (tick-flare) + board-wide PURCHASE-PULSE term (read-only; Scene owns its decay). A buy
+    // flashes every gem ~+0.45× brighter, eased so it's a soft swell rather than a hard pop.
+    if (light.current) light.current.intensity = baseLight * (1 + flare.current * 0.18 + pulseRef.t * pulseRef.t * 0.45)
     const g = grp.current
     if (!g) return
     const target = dragCell ? axialToWorld(dragCell[0], dragCell[1]) : home
@@ -241,7 +270,7 @@ function StaticGem({
   })
   return (
     <group ref={grp}>
-      <pointLight ref={light} color={col} intensity={baseLight} distance={2.4} decay={1.6} />
+      <pointLight ref={light} color={auraCol} intensity={baseLight} distance={2.4} decay={1.6} />
       <EffectRing act={emitter.act} mult={emitter.act_mult} act2={emitter.act2} act2mult={emitter.act2_mult} />
       <EmitIndicator emit={emitter.emit} dir={emitter.dir} hovered={hovered} />
       <mesh
@@ -271,6 +300,55 @@ function StaticGem({
 const POOL = 2400
 const TRAVEL = 1.12 // base cells/sec on the grid (slow drift; per-mote speed varies)
 const FALL_DUR = 1.5 // seconds to fade once a mote falls off the edge
+// STATIC "show all flux lines" overlay (behind the showAllLines toggle): draws EVERY emitter's traced beam
+// path as world-space lines on the floor, the 3D analogue of OrreryBoard's tracePts polylines. Reuses the same
+// walk as pathCells / flux::trace (step the facing, follow redirects, stop on absorb / past the rim) but emits
+// WORLD-SPACE segment pairs per emitter (coloured by its verb) instead of a hovered-cell Set. Round bodies
+// (rotating) + scatter fan all six directions; beams/pulse trace just their facing. The path starts AT the
+// gem cell so the beam visibly leaves the shape (matches the 2D board, whose tracePts seeds with the gem cell).
+function FluxLines({ emitters, radius }: { emitters: FluxEmitter[]; radius: number }) {
+  const lines = useMemo(() => {
+    const occ = new Map<string, FluxEmitter>()
+    for (const em of emitters) occ.set(`${em.cell[0]},${em.cell[1]}`, em)
+    return emitters.map((e) => {
+      const dirs = e.emit === 'rotating' || e.emit === 'scatter' ? [0, 1, 2, 3, 4, 5] : [e.dir]
+      const pts: number[] = []
+      for (const d0 of dirs) {
+        let q = e.cell[0], r = e.cell[1], dir = d0
+        let [px, , pz] = axialToWorld(q, r)
+        for (let s = 0; s < 24; s++) {
+          q += DIRS[dir][0]; r += DIRS[dir][1]
+          const [nx, , nz] = axialToWorld(q, r)
+          // one segment = a pair of endpoints (LineSegments draws disjoint A→B,C→D pairs from a flat buffer)
+          pts.push(px, LINE_Y, pz, nx, LINE_Y, nz)
+          px = nx; pz = nz
+          if (hexDist(q, r) > radius) break
+          const hit = occ.get(`${q},${r}`)
+          if (hit) {
+            if (hit.act === 'absorb' || hit.act2 === 'absorb') break
+            const redir = hit.act === 'redirect' ? hit.act_turn : hit.act2 === 'redirect' ? hit.act2_turn : 0
+            if (redir) dir = (((dir + redir) % 6) + 6) % 6
+          }
+        }
+      }
+      const geo = new THREE.BufferGeometry()
+      geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pts), 3))
+      return { geo, color: ACT_COLOR[e.act] ?? '#3a3d4e' }
+    })
+  }, [emitters, radius])
+  // dispose the previous frame's geometries when the loadout changes (BufferGeometry isn't GC'd by three)
+  useEffect(() => () => { for (const l of lines) l.geo.dispose() }, [lines])
+  return (
+    <group>
+      {lines.map((l, i) => (
+        <lineSegments key={i} geometry={l.geo} raycast={NOOP_RAYCAST} frustumCulled={false}>
+          <lineBasicMaterial color={l.color} transparent opacity={0.35} depthWrite={false} blending={THREE.AdditiveBlending} />
+        </lineSegments>
+      ))}
+    </group>
+  )
+}
+
 function FluxStream({ emitters, radius, tickSec, paused, hoverCell }: { emitters: FluxEmitter[]; radius: number; tickSec: number; paused: boolean; hoverCell: [number, number] | null }) {
   const occ = useMemo(() => {
     const m = new Map<string, FluxEmitter>()
@@ -522,6 +600,7 @@ function Scene() {
   const paused = useOrreryUi((s) => s.paused)
   const hoverId = useOrreryUi((s) => s.hoverId)
   const setHover = useOrreryUi((s) => s.setHover)
+  const showAllLines = useOrreryUi((s) => s.showAllLines)
   const [dragId, setDragId] = useState<number | null>(null)
   const [dragCell, setDragCell] = useState<[number, number] | null>(null)
 
@@ -562,10 +641,69 @@ function Scene() {
   const cells = view?.orrery_cells ?? []
   const radius = view?.orrery_radius ?? 4
   const loadout = view?.loadout ?? []
+
+  // PURCHASE-PULSE: ref-compare the summed upgrade + facet-perk levels each render; any INCREASE = a buy just
+  // landed → stamp the board-wide pulse. Cheap (a sum over two small arrays), no per-frame WASM, no extra render.
+  const buySumRef = useRef(-1)
+  const buySum = (view?.upgrades ?? []).reduce((a, b) => a + b, 0) + (view?.facet_perks ?? []).reduce((a, b) => a + b, 0)
+  if (buySumRef.current >= 0 && buySum > buySumRef.current) pulseRef.t = 1
+  buySumRef.current = buySum
+
+  // expand_floor RING-POP: diff this render's cell-key set against the previous one; cells NOT seen before are
+  // `fresh` and pop in. The first pass (initial board load) is seeded as all-known, so only genuine growth pops.
+  const prevCellsRef = useRef<Set<string> | null>(null)
+  const cellKeys = cells.map(([q, r]) => `${q},${r}`)
+  const prevSet = prevCellsRef.current
+  const freshCells = useMemo(() => {
+    const f = new Set<string>()
+    if (prevSet) for (const k of cellKeys) if (!prevSet.has(k)) f.add(k)
+    return f
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cellKeys.join('|')])
+  prevCellsRef.current = new Set(cellKeys)
+  // Cells along the HOVERED shape's flux path → lights those hex pads ("where does my beam go"). Mirrors the
+  // 2D board's tracePts + core flux::trace: walk the facing, follow redirects, stop on absorb / past the rim.
+  const pathCells = useMemo(() => {
+    const set = new Set<string>()
+    if (hoverId == null || dragId != null) return set
+    const e = emitters[loadout.indexOf(hoverId)]
+    if (!e) return set
+    const occ = new Map<string, (typeof emitters)[number]>()
+    for (const em of emitters) occ.set(`${em.cell[0]},${em.cell[1]}`, em)
+    const dirs = e.emit === 'rotating' || e.emit === 'scatter' ? [0, 1, 2, 3, 4, 5] : [e.dir]
+    for (const d0 of dirs) {
+      let q = e.cell[0], r = e.cell[1], dir = d0
+      for (let s = 0; s < 24; s++) {
+        q += DIRS[dir][0]; r += DIRS[dir][1]
+        if (hexDist(q, r) > radius) break
+        set.add(`${q},${r}`)
+        const hit = occ.get(`${q},${r}`)
+        if (hit) {
+          if (hit.act === 'absorb' || hit.act2 === 'absorb') break
+          const redir = hit.act === 'redirect' ? hit.act_turn : hit.act2 === 'redirect' ? hit.act2_turn : 0
+          if (redir) dir = (((dir + redir) % 6) + 6) % 6
+        }
+      }
+    }
+    return set
+  }, [hoverId, dragId, loadout, emitters, radius])
+  // Equipped Atmosphere "flux beams": a volumetric light shaft per emitter, along its facing, where flux flows.
+  const atmoBeams = atmosphereById(view?.equipped?.[SLOT_ATMOSPHERE] ?? 0).beams
+  const beams = useMemo(() => {
+    if (!atmoBeams) return []
+    return emitters.map((e) => {
+      const [bx, , bz] = axialToWorld(e.cell[0], e.cell[1])
+      return { pos: [bx, 0.05, bz] as [number, number, number], angleY: dirAngleY(e.dir), color: atmoBeams.color ?? board.sparkle }
+    })
+     
+  }, [emitters, atmoBeams, board.sparkle])
   const tickSec = (view?.orrery_tick_ms ?? 1000) / 1000
 
   // project each stationary gem to screen-% so the DOM flux-number overlay pops "+N" over a real shape
-  useFrame((state) => {
+  useFrame((state, dt) => {
+    // SINGLE owner of the purchase-pulse decay (runs once per frame; gems only READ pulseRef.t, never decay it,
+    // or N gems would drain it N× too fast). Pauses with the board so a frozen scene doesn't bleed the flash.
+    if (!paused) pulseRef.t = Math.max(0, pulseRef.t - dt * PULSE_DECAY)
     const cam = state.camera
     const out: { x: number; y: number }[] = []
     for (const e of emitters) {
@@ -630,7 +768,7 @@ function Scene() {
 
       {/* hex pads — lit along the hovered shape's flux path */}
       {cells.map(([q, r]) => (
-        <HexPad key={`${q},${r}`} q={q} r={r} lit={false} pad={board.padUnlit} litCol={board.padLit} />
+        <HexPad key={`${q},${r}`} q={q} r={r} lit={pathCells.has(`${q},${r}`)} fresh={freshCells.has(`${q},${r}`)} pad={board.padUnlit} litCol={board.padLit} />
       ))}
 
       {/* hovered shape: ring on its home cell */}
@@ -671,6 +809,9 @@ function Scene() {
 
       {/* the flux they shed, travelling + interacting across the grid */}
       <FluxStream emitters={emitters} radius={radius} tickSec={tickSec} paused={paused || dragId !== null} hoverCell={hoverId != null ? emitters[loadout.indexOf(hoverId)]?.cell ?? null : null} />
+      {/* static "show all flux lines" overlay — every emitter's traced beam path, on the floor (toggle) */}
+      {showAllLines && <FluxLines emitters={emitters} radius={radius} />}
+      {atmoBeams && beams.length > 0 && <FluxBeams beams={beams} intensity={atmoBeams.intensity} length={atmoBeams.length} />}
 
       <ContactShadows position={[0, -0.345, 0]} opacity={0.5} scale={16} blur={2.6} far={4} />
       <Sparkles count={Math.round(50 * g.sparkle)} scale={[10, 4, 10]} position={[0, 1.4, 0]} size={1.5} speed={0.3} color={board.sparkle} />

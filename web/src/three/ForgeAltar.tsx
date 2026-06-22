@@ -9,6 +9,7 @@ import { ScenePostFX } from './ScenePostFX'
 import { RenderTechBadge } from './RenderTechBadge'
 import { useGame, type ShapeRow } from '../game/store'
 import { sceneById } from '../content/cosmetics'
+import { Atmosphere } from './Atmosphere'
 import { useGfxPreset } from '../gfx'
 
 // A lit pedestal: dark metal plinth + glowing rim + a coloured point light that illuminates the gem above it.
@@ -87,7 +88,7 @@ export function ForgeAltar({ a, b, out, discovered }: { a?: ShapeRow; b?: ShapeR
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
     <Canvas dpr={g.dpr} shadows={g.shadows} gl={{ powerPreference: 'high-performance' }} camera={{ position: [0, 1.5, 5], fov: 42 }}>
       <color attach="background" args={['#0b0c16']} />
-      <fog attach="fog" args={['#0b0c16', 8, 28]} />
+      <Atmosphere defaultFog={['#0b0c16', 8, 28]} moteScale={[5, 3, 3]} motePos={[0, 1, 0]} />
       <ambientLight intensity={0.7} />
       <hemisphereLight args={['#cfd6ff', '#1a1530', 0.6]} />
       <directionalLight position={[3, 6, 4]} intensity={2.2} castShadow shadow-mapSize={[1024, 1024]} />

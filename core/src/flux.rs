@@ -77,6 +77,9 @@ pub struct Emitter {
 pub struct Board {
     pub emitters: Vec<Emitter>,
     pub radius: i32,
+    /// mirrored_rim (#19): how many times a quantum may REFLECT back inward off the grid edge (0 = off, the
+    /// historical behaviour — a beam leaving the grid just banks). Set from the upgrade level in `flux_board`.
+    pub rim_reflects: u8,
 }
 
 /// One hex step from `cell` in direction `dir`.
@@ -107,16 +110,31 @@ impl Board {
         // in-flight branches (a Split forks new ones); each travels ≤ LOOP_CAP cells, a shared budget bounds the
         // total work so a lattice of splitters can't explode. Single-branch (no Split) is identical to the old
         // straight-line trace; act2 just applies a second effect on the same cell (Pass for one-effect shapes).
-        let mut stack: Vec<(Cell, u8, u64)> = vec![(step(origin, dir0), dir0, amount0)];
+        let mut stack: Vec<(Cell, u8, u64, u8)> = vec![(step(origin, dir0), dir0, amount0, self.rim_reflects)];
         let mut budget = LOOP_CAP * 4;
-        while let Some((mut cell, mut dir, mut amt)) = stack.pop() {
+        while let Some((mut cell, mut dir, mut amt, mut reflects)) = stack.pop() {
             let mut steps = LOOP_CAP;
             loop {
                 if amt == 0 {
                     break;
                 }
-                if steps == 0 || budget == 0 || !self.on_grid(cell) {
-                    banked = banked.saturating_add(amt); // loop cap / off-grid → bank the remainder
+                if steps == 0 || budget == 0 {
+                    banked = banked.saturating_add(amt); // loop cap → bank the remainder
+                    break;
+                }
+                if !self.on_grid(cell) {
+                    // mirrored_rim (#19): a beam leaving the grid REFLECTS back inward (180°) once per remaining
+                    // reflect — reversing dir then stepping from the off-grid cell lands on the last on-grid cell
+                    // (HEX_DIRS d+3 = −d, so step undoes the move that went off). Each reflection spends budget so
+                    // the loop stays bounded; rim_reflects=0 ⇒ byte-identical to the old "off-grid banks" path.
+                    if reflects > 0 && amt > 0 {
+                        reflects -= 1;
+                        dir = turn_dir(dir, 3);
+                        cell = step(cell, dir);
+                        budget -= 1;
+                        continue;
+                    }
+                    banked = banked.saturating_add(amt);
                     break;
                 }
                 steps -= 1;
@@ -132,7 +150,7 @@ impl Board {
                             Act::Split { turn } => {
                                 let bdir = turn_dir(dir, turn);
                                 if budget > 0 {
-                                    stack.push((step(cell, bdir), bdir, amt)); // fork branches off, full amount
+                                    stack.push((step(cell, bdir), bdir, amt, self.rim_reflects)); // fork: fresh reflect budget
                                 }
                             }
                             Act::Absorb => {
@@ -170,7 +188,7 @@ impl Board {
                     }
                 }
                 Emit::Pulse { amount, period } => {
-                    if tt % (period.max(1) as u32) == 0 {
+                    if tt.is_multiple_of(period.max(1) as u32) {
                         total = total.saturating_add(self.trace(e.cell, e.dir, amount));
                     }
                 }
@@ -197,15 +215,27 @@ impl Board {
     /// — the "support" a shape provides to OTHER shapes' flux passing through it. Same banking result as `trace`.
     fn trace_attr(&self, origin: Cell, dir0: u8, amount0: u64, amp: &mut [u64]) -> u64 {
         let mut banked = 0u64;
-        let mut stack: Vec<(Cell, u8, u64)> = vec![(step(origin, dir0), dir0, amount0)];
+        let mut stack: Vec<(Cell, u8, u64, u8)> = vec![(step(origin, dir0), dir0, amount0, self.rim_reflects)];
         let mut budget = LOOP_CAP * 4;
-        while let Some((mut cell, mut dir, mut amt)) = stack.pop() {
+        while let Some((mut cell, mut dir, mut amt, mut reflects)) = stack.pop() {
             let mut steps = LOOP_CAP;
             loop {
                 if amt == 0 {
                     break;
                 }
-                if steps == 0 || budget == 0 || !self.on_grid(cell) {
+                if steps == 0 || budget == 0 {
+                    banked = banked.saturating_add(amt);
+                    break;
+                }
+                if !self.on_grid(cell) {
+                    // mirrored_rim (#19): mirror trace's reflection so the support-attribution matches the banked truth.
+                    if reflects > 0 && amt > 0 {
+                        reflects -= 1;
+                        dir = turn_dir(dir, 3);
+                        cell = step(cell, dir);
+                        budget -= 1;
+                        continue;
+                    }
                     banked = banked.saturating_add(amt);
                     break;
                 }
@@ -237,7 +267,7 @@ impl Board {
                                     if let Some(j) = j {
                                         amp[j] = amp[j].saturating_add(amt); // the forked copy is support
                                     }
-                                    stack.push((step(cell, bdir), bdir, amt));
+                                    stack.push((step(cell, bdir), bdir, amt, self.rim_reflects));
                                 }
                             }
                             Act::Absorb => {
@@ -260,9 +290,9 @@ impl Board {
     /// Per-emitter flux attribution over one full period (µ-units summed across the period). This is the data a
     /// "DPS meter" reads. **Accounting principle — source attribution:** every banked unit is credited to the
     /// shape that EMITTED it (incl. any multipliers along its path), so `direct` is each shape's true output.
-    ///  - `direct[i]` = flux banked from emitter i's own quanta.   (Σ `direct` == one period's total banked flux.)
-    ///  - `amp[i]`    = extra flux emitter i's multiply/amplify cell added to OTHER shapes' quanta — a *support*
-    ///                  re-attribution of value already inside the emitters' `direct`, NOT added to the total.
+    /// - `direct[i]` = flux banked from emitter i's own quanta. (Σ `direct` == one period's total banked flux.)
+    /// - `amp[i]` = extra flux emitter i's multiply/amplify cell added to OTHER shapes' quanta — a *support*
+    ///   re-attribution of value already inside the emitters' `direct`, NOT added to the total.
     pub fn contributions(&self) -> (Vec<u64>, Vec<u64>) {
         let n = self.emitters.len();
         let mut direct = vec![0u64; n];
@@ -285,7 +315,7 @@ impl Board {
                         }
                     }
                     Emit::Pulse { amount, period } => {
-                        if tt % (period.max(1) as u32) == 0 {
+                        if tt.is_multiple_of(period.max(1) as u32) {
                             add(&mut direct, self.trace_attr(e.cell, e.dir, amount, &mut amp));
                         }
                     }
@@ -336,7 +366,7 @@ mod tests {
     #[test]
     fn beam_falls_off_and_banks_full_amount() {
         // a lone beamer on a radius-3 grid: its quantum travels to the edge and banks its amount each tick.
-        let b = Board { emitters: vec![emitter(0, 0, 0, Emit::Beam { amount: 10 }, Act::Pass)], radius: 3 };
+        let b = Board { emitters: vec![emitter(0, 0, 0, Emit::Beam { amount: 10 }, Act::Pass)], radius: 3, rim_reflects: 0 };
         assert_eq!(b.flux_at(0), 10);
         assert_eq!(b.period(), 1);
         let (prefix, l) = b.period_prefix();
@@ -352,7 +382,7 @@ mod tests {
                 emitter(0, 0, 0, Emit::Beam { amount: 10 }, Act::Pass),
                 emitter(1, 0, 0, Emit::None, Act::Multiply { num: 3, den: 1 }),
             ],
-            radius: 4,
+            radius: 4, rim_reflects: 0,
         };
         assert_eq!(b.flux_at(0), 30);
     }
@@ -366,15 +396,39 @@ mod tests {
                 emitter(1, 0, 3, Emit::None, Act::Redirect { turn: 3 }), // turn 180°
                 emitter(-1, 0, 0, Emit::None, Act::Redirect { turn: 3 }),
             ],
-            radius: 5,
+            radius: 5, rim_reflects: 0,
         };
         let f = b.flux_at(0); // must return (not hang) and bank the quantum
         assert!(f >= 7, "loop-capped flux should still be banked, got {f}");
     }
 
     #[test]
+    fn rim_reflects_recrosses_multiplier_and_caps_reflections() {
+        // mirrored_rim (#19): a ×2 cell sits on a beam's path to the rim. With reflection the beam bounces back
+        // inward and re-crosses it; with rim_reflects=1 that happens EXACTLY once (the cap), so ×2 lands twice.
+        let mult = emitter(1, 0, 0, Emit::None, Act::Multiply { num: 2, den: 1 });
+        let a = pack(0, 0);
+        let b0 = Board { emitters: vec![mult.clone()], radius: 3, rim_reflects: 0 };
+        let b1 = Board { emitters: vec![mult], radius: 3, rim_reflects: 1 };
+        assert_eq!(b0.trace(a, 0, 10), 20, "no reflection: crosses the ×2 once = 20 (byte-identical to before)");
+        assert_eq!(b1.trace(a, 0, 10), 40, "one reflection: re-crosses the ×2 = 40 (capped at exactly 1 bounce)");
+    }
+
+    #[test]
+    fn rim_reflect_terminates() {
+        // reflection + a redirector could fold a beam around forever; the shared budget still force-banks it.
+        let b = Board {
+            emitters: vec![emitter(2, 0, 0, Emit::None, Act::Redirect { turn: 2 })],
+            radius: 5,
+            rim_reflects: 3,
+        };
+        let f = b.trace(pack(0, 0), 0, 10); // reaching the assert means it RETURNED (didn't hang)
+        assert!(f > 0, "a reflecting + redirecting board still terminates and banks, got {f}");
+    }
+
+    #[test]
     fn rotating_has_period_6_and_is_deterministic() {
-        let b = Board { emitters: vec![emitter(0, 0, 0, Emit::Rotating { amount: 5 }, Act::Pass)], radius: 3 };
+        let b = Board { emitters: vec![emitter(0, 0, 0, Emit::Rotating { amount: 5 }, Act::Pass)], radius: 3, rim_reflects: 0 };
         assert_eq!(b.period(), 6);
         let (p1, _) = b.period_prefix();
         let (p2, _) = b.period_prefix();
@@ -388,7 +442,7 @@ mod tests {
                 emitter(0, 0, 0, Emit::Rotating { amount: 8 }, Act::Pass),
                 emitter(2, -1, 0, Emit::Beam { amount: 4 }, Act::Multiply { num: 2, den: 1 }),
             ],
-            radius: 4,
+            radius: 4, rim_reflects: 0,
         };
         let (prefix, l) = b.period_prefix();
         // brute-force sum the first N ticks; compare to the closed form
@@ -410,7 +464,7 @@ mod tests {
                 emitter(0, 0, 0, Emit::Beam { amount: 10 }, Act::Pass),
                 emitter(1, 0, 0, Emit::None, Act::Multiply { num: 3, den: 1 }),
             ],
-            radius: 4,
+            radius: 4, rim_reflects: 0,
         };
         let (direct, amp) = b.contributions();
         let (prefix, l) = b.period_prefix();
@@ -430,7 +484,7 @@ mod tests {
                 emitter(0, 0, 0, Emit::Beam { amount: 10 }, Act::Pass),
                 Emitter { cell: pack(1, 0), dir: 0, phase: 0, emit: Emit::None, act: Act::Split { turn: 2 }, act2: Act::Pass },
             ],
-            radius: 5,
+            radius: 5, rim_reflects: 0,
         };
         assert_eq!(b.flux_at(0), 20);
         // the splitter is credited the forked copy as support, the beamer keeps source-attribution of both.
@@ -447,7 +501,7 @@ mod tests {
                 emitter(0, 0, 0, Emit::Beam { amount }, Act::Pass),
                 Emitter { cell: pack(1, 0), dir: 0, phase: 0, emit: Emit::None, act: Act::Amplify { add: 5 }, act2: Act::Pass },
             ],
-            radius: 5,
+            radius: 5, rim_reflects: 0,
         };
         assert_eq!(board(10).flux_at(0), 15); // 10 + 5
         assert_eq!(board(1_000_000).flux_at(0), 1_000_005); // FLAT: +5 regardless of magnitude, never ×
@@ -465,7 +519,7 @@ mod tests {
                 emitter(0, 0, 0, Emit::Beam { amount: 5 }, Act::Pass),
                 Emitter { cell: pack(1, 0), dir: 0, phase: 0, emit: Emit::None, act: Act::Multiply { num: 2, den: 1 }, act2: Act::Multiply { num: 3, den: 1 } },
             ],
-            radius: 4,
+            radius: 4, rim_reflects: 0,
         };
         assert_eq!(b.flux_at(0), 30);
     }

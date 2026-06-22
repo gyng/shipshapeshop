@@ -9,6 +9,7 @@ import { ScenePostFX } from './ScenePostFX'
 import { RenderTechBadge } from './RenderTechBadge'
 import { useGame, type ShapeRow } from '../game/store'
 import { sceneById } from '../content/cosmetics'
+import { Atmosphere } from './Atmosphere'
 import { useGfxPreset } from '../gfx'
 
 const RANK: Record<keyof typeof RARITY_COLOR, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4, Meta: 4, Transcendent: 4 }
@@ -94,7 +95,7 @@ export function FactoryFloor({ shapes, loadout, boardCells = [], boardW = 5, boa
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
     <Canvas dpr={g.dpr} shadows={g.shadows} gl={{ powerPreference: 'high-performance' }} camera={{ position: [0, 3.6, 6.2], fov: 42 }}>
       <color attach="background" args={['#0a0b14']} />
-      <fog attach="fog" args={['#0a0b14', 9, 30]} />
+      <Atmosphere defaultFog={['#0a0b14', 9, 30]} moteScale={[12, 5, 12]} motePos={[0, 1.8, 0]} />
       <ambientLight intensity={0.6} />
       <hemisphereLight args={['#cfe0ff', '#181228', 0.7]} />
       <directionalLight position={[3, 7, 4]} intensity={1.8} castShadow shadow-mapSize={[1024, 1024]} />

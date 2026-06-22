@@ -53,15 +53,17 @@ export function sceneGemMatProps(color: string, rank: number, open: boolean, gla
 export const sceneGemEmissiveBase = (rank: number, glass: boolean): number => (glass ? 0.22 + rank * 0.08 : 0.5 + rank * 0.12)
 
 /** The hero gem (pull reveal + inspector): real transmission glass, dispersion scaling with rarity. */
-export function HeroGem({ family, rarity, spin = 0.4, materialize = false }: { family: string; rarity: RarityName; spin?: number; materialize?: boolean }) {
+export function HeroGem({ family, rarity, spin = 0.4, materialize = false, finishOverride }: { family: string; rarity: RarityName; spin?: number; materialize?: boolean; finishOverride?: number }) {
   const ref = useRef<THREE.Mesh>(null)
   const matRef = useRef<THREE.MeshPhysicalMaterial>(null)
   const formT = useRef(0)
   const rank = RARITY_RANK[rarity]
   const g = useGfxPreset()
   // Equipped gem finish (Shop cosmetic) — its overrides merge over the rarity-derived base, so rarity still
-  // reads through (a finish changes the *surface*, never the gem's identity).
-  const finish = gemFinishById(useGame((s) => s.view?.equipped?.[SLOT_FINISH] ?? 0)).mat
+  // reads through (a finish changes the *surface*, never the gem's identity). `finishOverride` lets the shop
+  // hover-preview a finish without equipping it.
+  const equippedFinish = useGame((s) => s.view?.equipped?.[SLOT_FINISH] ?? 0)
+  const finish = gemFinishById(finishOverride ?? equippedFinish).mat
   useRelics() // swap in the real Relic mesh once it loads (benchy/armadillo/… are real meshes, not placeholders)
   const geometry = shapeGeometry(family)
   const open = OPEN_FAMILIES.has(family)

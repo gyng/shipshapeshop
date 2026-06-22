@@ -10,6 +10,7 @@ import { RenderTechBadge } from './RenderTechBadge'
 import { CursorLight } from './CursorLight'
 import { useGame, type ShapeRow } from '../game/store'
 import { sceneById, decorById, SLOT_DECOR } from '../content/cosmetics'
+import { Atmosphere } from './Atmosphere'
 import { useGfxPreset } from '../gfx'
 
 // Soft "home" bounds — gems wander inside it and spring back when knocked/thrown beyond it.
@@ -367,7 +368,7 @@ export function RoomScene({ roster, secretaryId, onTap }: { roster: ShapeRow[]; 
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
     <Canvas resize={{ offsetSize: true }} dpr={g.dpr} shadows={g.shadows} gl={{ powerPreference: 'high-performance' }} camera={{ position: [0, 3.1, 5.6], fov: 46 }}>
       <color attach="background" args={['#0a0b14']} />
-      <fog attach="fog" args={['#0a0b14', 10, 26]} />
+      <Atmosphere defaultFog={['#0a0b14', 10, 26]} moteScale={[12, 4, 8]} motePos={[0, 1.6, 0]} />
       <ambientLight intensity={0.65} />
       <hemisphereLight args={['#cfe0ff', '#181228', 0.75]} />
       <directionalLight position={[3, 7, 4]} intensity={1.6} castShadow shadow-mapSize={[1024, 1024]} />

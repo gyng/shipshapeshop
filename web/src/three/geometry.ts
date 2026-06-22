@@ -13,7 +13,7 @@ import { MarchingCubes } from 'three/examples/jsm/objects/MarchingCubes.js'
 // Open / non-orientable / single-sided surfaces — these MUST render double-sided or backface culling
 // leaves them looking holey/wrong (closed solids stay front-side for cheaper fill).
 export const OPEN_FAMILIES = new Set<string>([
-  'mobius', 'klein_bottle', 'rp2', 'boys_surface', 'cross_cap',
+  'mobius', 'klein_bottle', 'roman_surface', 'boys_surface', 'whitney_umbrella',
   'catenoid', 'helicoid', 'hyperboloid', 'monkey_saddle', 'costa', 'seifert', 'disk', 'dini', 'cut_hollow_sphere',
   'gyroid', 'schwarz_p', 'schwarz_d', // TPMS chunks are open at the cell boundary
 ])
@@ -566,9 +566,9 @@ function build(family: string): THREE.BufferGeometry {
     case 'figure8_knot': return new THREE.TorusKnotGeometry(0.7, 0.22, 160, 20, 3, 2)
     case 'torus_knot_2_5': return new THREE.TorusKnotGeometry(0.7, 0.2, 160, 20, 2, 5)
     case 'klein_bottle': return parametric(kleinBottle, 110, 40)
-    case 'rp2': return parametric(kleinFig8(2), 100, 40)
+    case 'roman_surface': return parametric(kleinFig8(2), 100, 40) // Steiner's ℝP² immersion (raymarched on hero; mesh thumbnail)
     case 'boys_surface': return parametric(kleinFig8(3), 120, 40)
-    case 'cross_cap': return parametric(kleinFig8(0.5), 100, 40)
+    case 'whitney_umbrella': return parametric(kleinFig8(0.5), 100, 40) // pinch-point thumbnail (raymarched on hero)
     case 'gyroid': return isosurfaceShell(gyroidF)
     case 'schwarz_p': return isosurfaceShell(schwarzPF)
     case 'schwarz_d': return isosurfaceShell(schwarzDF)
@@ -595,7 +595,6 @@ function build(family: string): THREE.BufferGeometry {
     case 'stanford_dragon': return new THREE.TorusKnotGeometry(0.58, 0.2, 200, 20, 3, 7)
     case 'suzanne': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.0, 0.88, 1.12); return g }
     case 'spot': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.35, 0.8, 0.9); return g }
-    case 'cow': { const g = new THREE.SphereGeometry(1, 28, 18); g.scale(1.4, 0.82, 0.86); return g }
     case 'armadillo': return new THREE.IcosahedronGeometry(1.05, 1)
     case 'lucy': return new THREE.CapsuleGeometry(0.34, 1.15, 8, 16)
     case 'csaszar': return new THREE.TorusGeometry(0.7, 0.3, 6, 14)

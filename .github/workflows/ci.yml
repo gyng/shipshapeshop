@@ -54,6 +54,9 @@ jobs:
       - name: Web — typecheck
         run: pnpm -C web run typecheck
 
+      - name: Web — lint (ESLint)
+        run: pnpm -C web run lint
+
       - name: Web — tests
         run: pnpm -C web test
 

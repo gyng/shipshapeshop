@@ -163,7 +163,12 @@ Crafting is **optional and progressively disclosed** — it never gates the casu
   Narratively, NG+ = *re-meet everyone from a higher vantage* (see `CHARACTERS.md`).
 - **Endgame honesty:** no revenue ⇒ no infinite treadmill, so this is a **finite, completable** game.
   **Loop 1** (100% codex + all families + viewport v=4) is the summit; **designed NG+ escalation caps at
-  cycle 5** (a "Crystalline Apex" finale + the deepest bond cutscenes). Cycles 6–8 exist as optional
+  cycle 5** (a "Crystalline Apex" finale + the deepest bond cutscenes).
+- **Per-tier pacing target (2026-06 retune):** an *engaged* run takes ~**1–2h** (base) → ~**6–8h** (NG+1) →
+  ~**24–36h** (NG+2) of ACTIVE play — a ~5× escalation per ascent; a twice-a-day idler experiences this as a
+  calendar ~day / ~week. Enforced by the ascent gate (`ascent_requirement_met`): each ascent past the first
+  requires the *current* cohort owned **+ starred** (and the prior cohort re-mastered at NG+2), so the journey
+  has real beats instead of a trivially-skipped cohort. Locked by the `ng_journey_tiers_stay_in_band` sim test. Cycles 6–8 exist as optional
   endless-mode (a "fastest-ascent" self-challenge), **not** fake infinite content. The emotional/bond depth
   is correctly back-loaded onto NG+, which carries everything forward — so months of attachment accrue
   *across* cycles, not within loop 1.

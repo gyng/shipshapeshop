@@ -3,6 +3,9 @@ import * as THREE from 'three'
 import { EffectComposer, Bloom, ToneMapping, Vignette, DepthOfField, N8AO } from '@react-three/postprocessing'
 import { ToneMappingMode } from 'postprocessing'
 import { useGfxPreset } from '../gfx'
+import { useGame } from '../game/store'
+import { atmosphereById, SLOT_ATMOSPHERE } from '../content/cosmetics'
+import { HeatShimmer } from './HeatShimmer'
 
 /**
  * The shared post chain for the real-geometry scenes (the hero Stage + the diorama boards): ONE definition of
@@ -32,13 +35,17 @@ export function ScenePostFX({
   // DoF focus point MUST be a Vector3 (the effect reads .distanceTo each frame); a plain [0,0,0] array → NaN
   // focus distance → a runaway bokeh gather that hangs the GPU. Memoised so it's not reallocated per render.
   const dofTarget = useMemo(() => new THREE.Vector3(0, 0, 0), [])
+  const shimmer = atmosphereById(useGame((s) => s.view?.equipped?.[SLOT_ATMOSPHERE] ?? 0)).shimmer
   const useAo = g.ssao
   const useDof = g.dof && dof && !compact
   const useBloom = g.bloom && !compact
   const useVig = vignette && !compact
-  if (!useAo && !useDof && !useBloom) return null // nothing enabled → renderer ACES grades the frame
+  const useShimmer = !!shimmer && !compact // equipped Atmosphere's heat-haze (screen-space)
+  if (!useAo && !useDof && !useBloom && !useShimmer) return null // nothing enabled → renderer ACES grades the frame
 
   const fx: ReactElement[] = []
+  // heat-haze first: a uv distortion the later effects then sample through
+  if (useShimmer && shimmer) fx.push(<HeatShimmer key="shimmer" intensity={shimmer.intensity} speed={shimmer.speed} />)
   // AO first — darken contacts/crevices before the glow + tonemap. N8AO is depth-based (no normal pass).
   if (useAo) fx.push(<N8AO key="ao" halfRes aoRadius={0.6} distanceFalloff={1} intensity={2.2} />)
   // focus the centred gem (Vector3 target → tracks through orbit/zoom), in-focus band in WORLD units, and the
