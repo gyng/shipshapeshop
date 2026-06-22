@@ -195,10 +195,11 @@ export function HeroView({
     // it, occluded behind it) + its haze/hue feed the refraction; on HIGH gfx + skyey moods the gem refracts it.
     const atmoEl = <Atmosphere defaultFog={null} fog fogNearMin={6} overrideId={previewAtmosphere} gemOcclude={1.3} moteScale={[8, 6, 6]} motePos={[0, 0, 0]} />
     const sceneBody = <>{gemEl}{atmoEl}</>
-    // Both the path-traced + raymarch SDF heroes auto-spin via uTime, so they run on the continuous loop. An
-    // explicit `frameloop` prop (e.g. 'never' for hidden previews) always wins. (Temporal accumulation — a
-    // demand-loop converge-then-idle pass — was reverted: its off-screen FBO render never reached the composer.)
-    const ptFrameloop = frameloop
+    // PATH-TRACED → demand frameloop: PathTraceGem eases its spin to a stop when idle and stops invalidating, so a
+    // still inspector costs ~0 GPU (it holds the last frame); it self-invalidates while spinning/settling and wakes
+    // on orbit/hover. The single-ray RAYMARCH path auto-spins via uTime (no idle logic) so it stays on the
+    // continuous loop. An explicit `frameloop` prop (e.g. 'never' for hidden previews) always wins.
+    const ptFrameloop = frameloop ?? (pathTraced ? 'demand' : undefined)
     content = (
       <Canvas frameloop={ptFrameloop} resize={{ offsetSize: true }} className={controls ? 'orbit-canvas' : undefined} camera={{ position: [0, 0, 5], fov: 42 }} dpr={pathTraced ? ptDpr : g.dpr} gl={{ antialias: true, powerPreference: 'high-performance' }}>
         {/* previews (hover/mascot/compact): compile the gem + atmosphere shaders OFF-SCREEN and reveal once linked,

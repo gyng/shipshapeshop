@@ -1,5 +1,5 @@
 import { useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { RARITY_COLOR } from './Gem'
@@ -18,6 +18,12 @@ import { usePathTraceParams, useGfxPreset, useGfx } from '../gfx'
 // Reuses RaymarchGem's analytic SDF fields, so it covers the SDF families (meshes/4D need a BVH — out of scope).
 
 const RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4, Meta: 4, Transcendent: 4 }
+
+// IDLE-FREEZE (perf): when the inspector isn't being interacted with, the gem eases its spin to a stop and the
+// demand render loop goes quiet — a still, path-traced product shot at ~0 GPU. Any orbit/hover wakes it (and the
+// showcase `autoRotate` previews are treated as never-idle, so they keep spinning). NO accumulation FBO — the
+// single-pass trace still renders straight through HeroView's EffectComposer (that's why this is robust).
+const IDLE_MS = 800
 
 const VERT = /* glsl */ `
   void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }
@@ -284,11 +290,27 @@ export function PathTraceGem({ family, rarity, controls = true, autoRotate = fal
 
   const ref = useRef<THREE.ShaderMaterial>(null)
   const seed = useRef(0)
+  const invalidate = useThree((s) => s.invalidate)
+  const tAccum = useRef(0)        // accumulated spin/mote time; advances only while active → freezes when idle
+  const spinSpeed = useRef(1)     // eased 0..1 (active→1, idle→0) so the spin settles smoothly, never a hard stop
+  const lastInteract = useRef(performance.now())
+  const lastT = useRef(performance.now())
+  const wake = () => { lastInteract.current = performance.now(); invalidate() }
   useFrame((state) => {
     const m = ref.current
     if (!m) return
     const u = m.uniforms
-    u.uTime.value = state.clock.elapsedTime
+    const now = performance.now()
+    const dt = Math.min(0.05, (now - lastT.current) / 1000)
+    lastT.current = now
+    // active = a NON-interactive showcase preview (mascots/hover — always lively), OR interacted within IDLE_MS.
+    // The interactive inspector (controls=true) is NOT force-active by autoRotate, so it settles to a still when
+    // you stop touching it (and the camera auto-orbit is off below, so nothing self-wakes the loop).
+    const active = (autoRotate && !controls) || (now - lastInteract.current < IDLE_MS)
+    spinSpeed.current += ((active ? 1 : 0) - spinSpeed.current) * Math.min(1, dt * 4)
+    if (spinSpeed.current < 0.001) spinSpeed.current = 0
+    tAccum.current += dt * spinSpeed.current
+    u.uTime.value = tAccum.current
     u.uSeed.value = seed.current = (seed.current + 1) % 1024 // decorrelate the RNG each frame (no accumulation)
     state.gl.getDrawingBufferSize(u.uRes.value)
     const cam = state.camera
@@ -307,6 +329,9 @@ export function PathTraceGem({ family, rarity, controls = true, autoRotate = fal
     u.uIor.value = 1.45 + rank * 0.05 + fin.iorAdd
     u.uEmissive.value = fin.emissive
     u.uAbsorbMul.value = fin.absorbMul
+    // keep the demand loop alive while spinning or still settling; once fully idle, stop invalidating → the
+    // composer holds the last rendered frame (a clean still) at ~0 GPU until an orbit/hover wakes it.
+    if (active || spinSpeed.current > 0) invalidate()
   })
 
   return (
@@ -322,9 +347,18 @@ export function PathTraceGem({ family, rarity, controls = true, autoRotate = fal
         <shaderMaterial key={`${family}-${ptp.bounces}-${ptp.steps}-${ptp.spp}`} ref={ref} glslVersion={THREE.GLSL3} vertexShader={VERT} fragmentShader={frag} uniforms={uniforms} />
       </mesh>
       {controls && (
-        <OrbitControls makeDefault enablePan={false} enableZoom autoRotate={autoRotate} autoRotateSpeed={0.6} minDistance={3} maxDistance={9} rotateSpeed={0.9}
+        <OrbitControls makeDefault enablePan={false} enableZoom autoRotate={false} minDistance={3} maxDistance={9} rotateSpeed={0.9}
+          onStart={wake} onChange={wake}
           mouseButtons={{ LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE }}
           touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }} />
+      )}
+      {/* invisible camera-enclosing sphere: a plain HOVER (no drag) wakes the gem from its frozen idle — the
+          fullscreen trace quad lives in clip space and can't be reliably raycast. colorWrite/depthWrite off → never drawn. */}
+      {controls && (
+        <mesh onPointerMove={wake} onPointerDown={wake} renderOrder={-20}>
+          <sphereGeometry args={[20, 8, 8]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} colorWrite={false} side={THREE.BackSide} />
+        </mesh>
       )}
     </>
   )
