@@ -483,7 +483,110 @@ export function sfxUpgrade(intensity: number) {
   tone(base * Math.pow(1.18, notes), 0.34, notes * 0.05, 'sine', 0.1) // resolve note
 }
 
+// ── Expedition combat SFX (the spectator Watch is the engineered peak — it should sing) ──
+/** A hit — short triangle thunk; bigger damage = a touch lower + louder (capped so a ×4 replay isn't a jackhammer). */
+export function sfxHit(dmg: number) {
+  const big = Math.min(1, dmg / 300)
+  tone(240 - big * 70, 0.09, 0, 'triangle', 0.06 + big * 0.04)
+}
+/** A heal — gentle rising sine pair. */
+export function sfxHeal() {
+  tone(523, 0.12, 0, 'sine', 0.05)
+  tone(784, 0.16, 0.06, 'sine', 0.045)
+}
+/** An Ultimate — a rising 5-note flourish; rank brightens it. */
+export function sfxUlt(rank: number) {
+  const base = 392 + rank * 40
+  for (let i = 0; i < 5; i++) tone(base * Math.pow(1.2, i), 0.13, i * 0.05, 'sawtooth', 0.07)
+  tone(base * 3, 0.4, 0.28, 'sine', 0.08)
+}
+/** A KO — a falling sine. */
+export function sfxFaint() {
+  tone(330, 0.1, 0, 'sine', 0.07)
+  tone(165, 0.32, 0.08, 'sine', 0.07)
+}
+/** Battle outcome stings. */
+export function sfxVictory() {
+  const base = 523
+  for (let i = 0; i < 4; i++) tone(base * [1, 1.26, 1.5, 2][i], 0.22, i * 0.1, 'triangle', 0.09)
+}
+export function sfxDefeat() {
+  tone(294, 0.3, 0, 'sine', 0.08)
+  tone(220, 0.45, 0.14, 'sine', 0.08)
+}
+
 const RANK: Record<string, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4, Meta: 4, Transcendent: 4 }
 export function rarityRank(r: string | null): number {
   return r ? (RANK[r] ?? 0) : 0
+}
+
+// ── Pull "ball drop" ceremony SFX (appended; the engineered PEAK of the gacha loop) ─────────────────────────
+// A noise burst routed through a band-pass — the percussive body shared by the drop/impact sounds. Mute/focus-
+// aware via the same guard `tone()` uses. Used for the tactile "thock" of a capsule hitting the pile.
+function noiseHit(centerFreq: number, dur: number, delay = 0, gain = 0.08, q = 1.2) {
+  const st = useMute.getState()
+  if (st.sfxMuted || (!st.focused && !st.sfxWhenUnfocused)) return
+  try {
+    const a = ac()
+    const t0 = a.currentTime + delay
+    const n = Math.floor(a.sampleRate * (dur + 0.02))
+    const buf = a.createBuffer(1, n, a.sampleRate)
+    const ch = buf.getChannelData(0)
+    for (let i = 0; i < n; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / n) // pre-decayed white noise
+    const src = a.createBufferSource()
+    src.buffer = buf
+    const bp = a.createBiquadFilter()
+    bp.type = 'bandpass'
+    bp.frequency.value = centerFreq
+    bp.Q.value = q
+    const g = a.createGain()
+    g.gain.setValueAtTime(0, t0)
+    g.gain.linearRampToValueAtTime(gain * st.sfxVol, t0 + 0.004)
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
+    src.connect(bp).connect(g).connect(audioMaster())
+    src.start(t0)
+    src.stop(t0 + dur + 0.02)
+  } catch {
+    /* audio unavailable — silent fallback */
+  }
+}
+
+/** Drag wind-up: a soft rising tension whoosh that tracks the pull. `t` 0..1 = drag progress → higher/louder.
+ *  Quiet by design (it fires repeatedly as the player drags); the climb is the "sensing the prize" tell. */
+export function sfxPullDrag(t: number) {
+  const p = Math.min(1, Math.max(0, t))
+  tone(160 * Math.pow(2, p * 1.3), 0.13, 0, 'sawtooth', 0.018 + p * 0.03)
+  if (p > 0.6) tone(160 * Math.pow(2, p * 1.3) * 1.5, 0.1, 0.01, 'sine', 0.012 * p) // a fifth shimmers in near the threshold
+}
+
+/** Release the gacha: a satisfying downward "thunk + air" as the drop is let go (the commit beat). */
+export function sfxPullRelease(rank: number) {
+  const r = Math.min(4, Math.max(0, rank))
+  noiseHit(520 + r * 120, 0.16, 0, 0.07, 0.9) // air burst
+  tone(220 - r * 12, 0.22, 0, 'sine', 0.09) // body thump, a touch deeper for rarer hauls
+  tone(330, 0.14, 0.015, 'triangle', 0.05)
+}
+
+/** One capsule landing in the pile, sequenced on the ceremony's rhythm. `step` = which ball (rising pitch as
+ *  the drops accelerate toward the reveal); `rank` brightens the top of the hit. A percussive noise "thock"
+ *  fused with a pitched body — lands musically, building anticipation (the spec's "tempo" word). */
+export function sfxBallDrop(step: number, rank: number) {
+  const r = Math.min(4, Math.max(0, rank))
+  // pentatonic climb so successive landings sound like a rising melody, not a random patter
+  const penta = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21]
+  const semis = penta[step % penta.length] + 12 * Math.floor(step / penta.length)
+  const freq = 196 * Math.pow(2, semis / 12) // from G3 up the pentatonic ladder
+  noiseHit(900 + r * 200, 0.07, 0, 0.05 + r * 0.012, 1.4) // the percussive "thock"
+  tone(freq, 0.16, 0, 'triangle', 0.06 + r * 0.012) // the pitched body
+  if (r >= 3) tone(freq * 2, 0.2, 0.02, 'sine', 0.035) // sparkle on top-tier landings
+}
+
+/** The big finale landing (the gold/top capsule settling) — a deeper, fuller impact that punctuates the drop
+ *  sequence right before the reveal flash. */
+export function sfxBallFinale(rank: number) {
+  const r = Math.min(4, Math.max(0, rank))
+  noiseHit(360, 0.26, 0, 0.1, 0.8) // a fat low thud
+  tone(98, 0.34, 0, 'sine', 0.1) // sub body
+  tone(196, 0.3, 0.01, 'triangle', 0.07)
+  if (r >= 2) tone(392, 0.4, 0.04, 'sine', 0.05) // a bright overtone blooms for rare hauls
 }

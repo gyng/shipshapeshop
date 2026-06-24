@@ -68,3 +68,14 @@ export function WrenchIcon({ size = 16 }: IconProps) {
     </svg>
   )
 }
+
+/** Cosmetics — a faceted gem (table + girdle + crown/pavilion facets). */
+export function CosmeticsIcon({ size = 16 }: IconProps) {
+  return (
+    <svg {...base(size)} aria-hidden="true">
+      <path d="M6 3h12l4 6-10 12L2 9z" />
+      <path d="M2 9h20" />
+      <path d="M6 3l3 6 3 12 3-12 3-6" />
+    </svg>
+  )
+}

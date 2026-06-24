@@ -226,6 +226,23 @@ button:disabled { filter: grayscale(0.6) brightness(0.82); cursor: not-allowed; 
   .gacha-split > .gacha-controls { order: 1; flex: 1; justify-content: center; }
 }
 
+/* Inspector ("gallery details" popup): stacked on mobile; on desktop a two-COLUMN card — a big gem hero on
+   the left, the dossier (skill, flux, topology, bond, lore, kinship) scrolling INDEPENDENTLY on the right,
+   so a long sheet never overflows a short viewport and the gem stays put. The card is a flex column whose
+   close button is a pinned footer; only .inspect-detail scrolls. */
+.inspect-split { display: flex; flex-direction: column; gap: var(--sp-3); min-height: 0; flex: 1; }
+.inspect-hero { display: flex; flex-direction: column; gap: var(--sp-2); }
+.inspect-hero .inspect-stage { flex: 1 1 auto; min-height: 240px; }
+.inspect-detail { display: flex; flex-direction: column; gap: var(--sp-2_5); text-align: left; }
+@media (min-width: 760px) {
+  .inspect-split { flex-direction: row; align-items: stretch; gap: var(--sp-4); }
+  /* explicit width (not flex-basis) + min-width:0 — a clamp() flex-basis is flaky and the gem <canvas>'s
+     intrinsic width would otherwise inflate this column and squeeze the dossier. */
+  .inspect-split > .inspect-hero { flex: 0 0 auto; width: clamp(290px, 34%, 380px); min-width: 0; }
+  .inspect-split > .inspect-detail { flex: 1 1 auto; min-width: 0; min-height: 0; overflow-y: auto; padding-right: 8px; }
+  .inspect-hero .inspect-stage { min-width: 0; min-height: 280px; }
+}
+
 /* ─────────────────────────────────────────────────────────────
    VITRINE — global skeuomorphic material layer (museum display case).
    Pure CSS + one tiny SVG-noise data-URI; no per-frame cost. These rules
@@ -612,3 +629,68 @@ button, nav, header, kbd, canvas, .orrery-wrap, .nav-rail, [role='button'] {
   20% { opacity: 1; transform: translateY(-6px) scale(1.1); }
   100% { opacity: 0; transform: translateY(-26px) scale(1); }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   PULL CEREMONY — S-tier "ball drop" juice (the engineered PEAK).
+   The drag-to-pull affordance + rarity-peek glow + release flash live here; the 3D
+   spheres/impact bursts are r3f + useSparks. All presentation (feel layer).
+   ───────────────────────────────────────────────────────────── */
+
+/* Drag overlay: a transparent full-bleed catcher for the pointer-drag "pull" gesture.
+   grab/grabbing cursor sells the tactility; touch-action:none so a vertical drag pulls
+   instead of scrolling the page on mobile. */
+.pc-drag { position: absolute; inset: 0; z-index: 4; cursor: grab; touch-action: none; }
+.pc-drag.pc-dragging { cursor: grabbing; }
+
+/* The rarity-PEEK aura: a soft radial bloom in the best rarity's colour that the player
+   "pulls open" as they drag — intensity (opacity/scale) is driven inline by drag progress
+   via --peek (0..1). Subtle at rest, building toward the threshold (the "sense the prize"). */
+.pc-peek {
+  position: absolute; left: 50%; top: 52%; width: 70vmin; height: 70vmin;
+  transform: translate(-50%, -50%) scale(calc(0.55 + var(--peek, 0) * 0.6));
+  border-radius: 50%; pointer-events: none; z-index: 2;
+  opacity: calc(var(--peek, 0) * 0.85);
+  background: radial-gradient(circle, var(--peek-col, #ffcf6b) 0%, transparent 62%);
+  mix-blend-mode: screen; filter: blur(2px);
+  transition: opacity 90ms linear, transform 90ms linear;
+}
+
+/* A thin "tension ring" that tightens as you pull — a clear progress tell toward the
+   release threshold; goes taut + brightens right at the threshold (--peek ≈ 1). */
+.pc-ring {
+  position: absolute; left: 50%; top: 52%;
+  width: calc(46vmin - var(--peek, 0) * 16vmin); height: calc(46vmin - var(--peek, 0) * 16vmin);
+  transform: translate(-50%, -50%);
+  border-radius: 50%; pointer-events: none; z-index: 2;
+  border: 2px solid var(--peek-col, #ffcf6b);
+  opacity: calc(0.12 + var(--peek, 0) * 0.6);
+  box-shadow: 0 0 calc(var(--peek, 0) * 22px) var(--peek-col, #ffcf6b);
+  transition: width 90ms linear, height 90ms linear, opacity 90ms linear;
+}
+/* at full tension the ring flickers "ready to release" */
+@keyframes pc-ring-ready { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.6); } }
+.pc-ring.pc-taut { animation: pc-ring-ready 0.4s ease-in-out infinite; }
+
+/* The drag hint chip near the bottom — fades out once the drop is running. */
+.pc-hint { transition: opacity 0.25s ease; }
+.pc-hint.pc-hidden { opacity: 0; }
+
+/* Release shockwave: a single bright expanding ring at the jar mouth the instant the
+   drop commits — punctuates the release before the balls rain. Colour set inline. */
+@keyframes pc-shock { 0% { opacity: 0.85; transform: translate(-50%, -50%) scale(0.2); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(2.6); } }
+.pc-shock {
+  position: absolute; left: 50%; top: 52%; width: 40vmin; height: 40vmin;
+  border-radius: 50%; pointer-events: none; z-index: 3;
+  border: 3px solid currentColor; box-shadow: 0 0 26px currentColor;
+  animation: pc-shock 0.6s cubic-bezier(0.16, 0.8, 0.3, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc-peek, .pc-ring { transition: none; }
+  .pc-ring.pc-taut { animation: none; }
+  .pc-shock { animation-duration: 0.3s; }
+}
+
+/* v5 expedition map: a gentle pulse on a node a team is actively farming */
+@keyframes expNodePulse { 0%, 100% { box-shadow: 0 0 8px rgba(155, 140, 255, 0.35); } 50% { box-shadow: 0 0 18px rgba(155, 140, 255, 0.65); } }
+.exp-node-farm { animation: expNodePulse 2.2s ease-in-out infinite; }

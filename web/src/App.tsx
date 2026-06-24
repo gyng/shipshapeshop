@@ -42,7 +42,7 @@ import { useInspector } from './inspector'
 import { useHistory } from './history'
 import { useHelp } from './help'
 import { OrreryEngine } from './OrreryEngine'
-import { fmt } from './format'
+import { fmt, fmtEta } from './format'
 import { Numeral, Tooltip, COLOR } from './ui'
 import { useT, useLangStore, LANGS } from './i18n'
 import { useHints, useTour } from './onboarding'
@@ -54,7 +54,8 @@ import { MusicStylesSettings } from './MusicStylesSettings'
 import { OrreryBedDriver } from './orreryBedDriver'
 import { installButtonJuice } from './buttonJuice'
 import { useBedStatus } from './bedStatus'
-import { SoundIcon, MusicIcon, LogIcon, SettingsIcon, WrenchIcon } from './ui/Icons'
+import { SoundIcon, MusicIcon, LogIcon, SettingsIcon, WrenchIcon, CosmeticsIcon } from './ui/Icons'
+import { SkipBack, SkipForward, Play, Pause, Headphones, Library, Radio } from 'lucide-react'
 import { DEV_MODE } from './devmode'
 import { Floaters, useFloaters, Sparks, useSparks, purchaseBurst, useMascotCheer } from './juice'
 
@@ -82,9 +83,6 @@ function useFluxDisplay(): number {
 
 type Tab = 'engine' | 'workshop' | 'gacha' | 'room' | 'chatlas' | 'gallery' | 'forge' | 'shop' | 'ledger' | 'expedition'
 const TABS: Tab[] = ['engine', 'expedition', 'workshop', 'gacha', 'room', 'chatlas', 'gallery', 'forge', 'shop', 'ledger']
-// Expeditions (the opt-in idle RPG) is gated behind the "Charter Expeditions" Workshop upgrade — a deliberate
-// opt-in purchase, matching how auto-pull gates automation. The nav button stays hidden until it's bought.
-const CHARTER_KEY = 'charter_expeditions'
 
 // Proper line icons per tab (inherit currentColor, so active/inactive nav colour applies). No emoji.
 function TabIcon({ tab }: { tab: Tab }) {
@@ -160,7 +158,7 @@ export function App() {
       if (sc.style && !prefs.owned[sc.style] && ownedCosmetics.includes(sc.id) && STYLES.find((x) => x.id === sc.style)?.premium) prefs.unlock(sc.style)
     }
   }, [ownedCosmetics])
-  const [tab, setTab] = useState<Tab>('gacha')
+  const [tab, setTab] = useState<Tab>('engine') // fresh load opens on the Orrery (the idle home), not the Pull screen
   // drain one-shot tab requests (e.g. the orrery's Euler meter deep-linking to the Workshop)
   const navPending = useNav((s) => s.pending)
   useEffect(() => {
@@ -181,12 +179,6 @@ export function App() {
   const newCutscenes = availableShips(navShapes, navOwned, shipSeen).length
   // nudge the player to the Orrery when it's idle: they own shapes but have none deployed (so it earns nothing)
   const orreryEmpty = useGame((s) => !!s.view && s.view.loadout.length === 0 && s.view.distinct_owned > 0)
-  // Expeditions stays out of the nav until the "Charter Expeditions" Workshop upgrade is bought (opt-in depth).
-  const expUnlocked = useGame((s) => {
-    if (!s.view) return false
-    const idx = s.upgradeDefs.findIndex((u) => u.key === CHARTER_KEY)
-    return idx >= 0 && (s.view.upgrades[idx] ?? 0) > 0
-  })
   const tr = useT()
 
   // Cursor-sheen + click-ripple on the primary CTA caps (delegated once, app-wide).
@@ -248,8 +240,7 @@ export function App() {
       <Hud />
       <OrreryBedDriver />{/* the generative lofi bed — mounted app-wide so it plays on every screen, not just the orrery */}
       <NavRail>
-        {TABS.map((t, i) =>
-          t === 'expedition' && !expUnlocked ? null : (
+        {TABS.map((t, i) => (
           <button key={t} onClick={() => { if (t !== tab) sfxTab(); setTab(t) }} title={`${tr('nav.shortcutTitle')}${i + 1}`} aria-current={tab === t ? 'page' : undefined} style={{ ...S.navBtn, ...(t === 'engine' ? S.navBtnImportant : {}), ...(tab === t ? S.navBtnActive : {}) }}>
             <TabIcon tab={t} />
             <span>{tr(t === 'gacha' ? 'nav.pull' : `nav.${t}`)}</span>
@@ -545,14 +536,14 @@ function MusicTransport() {
   }
   return (
     <div style={S.musicTransport}>
-      <Tooltip content={tr('transport.prev')}><button type="button" style={S.transportBtn} onClick={() => step(-1)} aria-label={tr('transport.prev')}>⏮</button></Tooltip>
-      <Tooltip content={tr('transport.toggle')}><button type="button" style={S.transportBtn} onClick={toggleMusic} aria-label={tr('transport.toggle')}>{musicMuted ? '▶' : '⏸'}</button></Tooltip>
-      <Tooltip content={tr('transport.next')}><button type="button" style={S.transportBtn} onClick={() => step(1)} aria-label={tr('transport.next')}>⏭</button></Tooltip>
+      <Tooltip content={tr('transport.prev')}><button type="button" style={S.transportBtn} onClick={() => step(-1)} aria-label={tr('transport.prev')}><SkipBack size={15} /></button></Tooltip>
+      <Tooltip content={tr('transport.toggle')}><button type="button" style={S.transportBtn} onClick={toggleMusic} aria-label={tr('transport.toggle')}>{musicMuted ? <Play size={15} /> : <Pause size={15} />}</button></Tooltip>
+      <Tooltip content={tr('transport.next')}><button type="button" style={S.transportBtn} onClick={() => step(1)} aria-label={tr('transport.next')}><SkipForward size={15} /></button></Tooltip>
       <Tooltip content={tr(bgMusic ? 'transport.bgOn' : 'transport.bgOff')}>
-        <button type="button" style={{ ...S.transportBtn, opacity: bgMusic ? 1 : 0.4, color: bgMusic ? 'var(--c-accent-gold)' : undefined }} onClick={toggleBgMusic} aria-label={tr('transport.bg')} aria-pressed={bgMusic}>🎧</button>
+        <button type="button" style={{ ...S.transportBtn, opacity: bgMusic ? 1 : 0.4, color: bgMusic ? 'var(--c-accent-gold)' : undefined }} onClick={toggleBgMusic} aria-label={tr('transport.bg')} aria-pressed={bgMusic}><Headphones size={15} /></button>
       </Tooltip>
       <Tooltip content={tr(musicSource === 'library' ? 'transport.sourceLibraryTip' : 'transport.sourceOrreryTip')}>
-        <button type="button" style={{ ...S.transportBtn, color: musicSource === 'library' ? 'var(--c-accent-teal)' : undefined }} onClick={toggleMusicSource} aria-label={tr('transport.source')} aria-pressed={musicSource === 'library'}>{musicSource === 'library' ? '📚' : '🪐'}</button>
+        <button type="button" style={{ ...S.transportBtn, color: musicSource === 'library' ? 'var(--c-accent-teal)' : undefined }} onClick={toggleMusicSource} aria-label={tr('transport.source')} aria-pressed={musicSource === 'library'}>{musicSource === 'library' ? <Library size={15} /> : <Radio size={15} />}</button>
       </Tooltip>
     </div>
   )
@@ -662,7 +653,7 @@ function Hud() {
         <button onClick={toggleMute} style={{ ...S.langBtn, ...(muted ? { color: 'var(--c-text-faint)' } : {}) }} aria-label={tr('hud.soundAria')} title={tr('hud.soundTip')}><SoundIcon muted={muted} /></button>
         <button onClick={toggleMusic} style={{ ...S.langBtn, ...(musicMuted ? { color: 'var(--c-text-faint)' } : {}) }} aria-label={tr('hud.musicAria')} title={tr('hud.musicTip')}><MusicIcon muted={musicMuted} /></button>
         <button onClick={() => useDialogLog.getState().setOpen(true)} style={S.langBtn} aria-label={tr('hud.dialogLogAria')} title={tr('hud.dialogLogTip')}><LogIcon /></button>
-        <button onClick={() => useCosmeticsQuick.getState().setOpen(true)} style={S.langBtn} aria-label={tr('cosmeticsQuick.aria')} title={tr('cosmeticsQuick.tip')}>💎</button>
+        <button onClick={() => useCosmeticsQuick.getState().setOpen(true)} style={S.langBtn} aria-label={tr('cosmeticsQuick.aria')} title={tr('cosmeticsQuick.tip')}><CosmeticsIcon /></button>
         <button onClick={() => openSettings(true)} style={S.langBtn} aria-label={tr('hud.settingsAria')} title={tr('hud.settingsTip')}><SettingsIcon /></button>
         {DEV_MODE && <button onClick={toggleDev} style={S.langBtn} aria-label="dev tools" title="Dev tools (compiled out at release)"><WrenchIcon /></button>}
         <select value={lang} onChange={(e) => setLang(e.target.value as typeof lang)} style={S.langSelect} aria-label={tr('hud.langAria')}>
@@ -1997,7 +1988,7 @@ function UpgradesPanel() {
         </button>
         {!maxed && !can && (
           <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--c-text-faint)', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
-            {view.flux < flux && <>{tr('workshop.need', { n: fmt(flux - view.flux) })} <span style={S.fluxIcon}>✦</span>{view.rate_per_hr > 0 && <span style={{ opacity: 0.7 }}> · {fmtEta(flux - view.flux, view.rate_per_hr)}</span>}</>}
+            {view.flux < flux && <>{tr('workshop.need', { n: fmt(flux - view.flux) })} <span style={S.fluxIcon}>✦</span>{view.rate_per_hr + view.exp_flux_rate > 0 && <span style={{ opacity: 0.7 }}> · {fmtEta(flux - view.flux, view.rate_per_hr + view.exp_flux_rate, tr)}</span>}</>}
             {view.shards < shards && <>{view.flux < flux ? ' · ' : ''}{tr('workshop.need', { n: String(shards - view.shards) })} <span style={S.shardIcon}>◈</span></>}
           </span>
         )}
@@ -2434,6 +2425,10 @@ function RevealModal() {
   const ceremony = ceremonyById(useGame((s) => s.view?.equipped?.[SLOT_CEREMONY] ?? 0))
   const [phase, setPhase] = useState<'charge' | 'step' | 'summary'>('charge')
   const [step, setStep] = useState(0)
+  // Tapping a haul-grid tile shows THAT shape's card directly (a lastReveal index), independent of the SSR+
+  // cutscene `revealQueue`. (Bug fix: tiles set step=i and the step phase read revealQueue[i] — undefined for
+  // commons/rares → an empty card.)
+  const [detailIdx, setDetailIdx] = useState<number | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const leftCharge = useRef(false) // guard: the ceremony's onDone and a tap-to-skip must not both advance
   // Which pulls earn an INDIVIDUAL reveal (gacha-style): a single pull always shows its one gem; a multi-pull
@@ -2476,6 +2471,7 @@ function RevealModal() {
     if (!lastReveal) return
     leftCharge.current = false
     setStep(0)
+    setDetailIdx(null)
     // A persistent "skip animations" preference jumps straight to the reveal; otherwise the 3D PullCeremony
     // (the 'charge' phase) drives the timing + audio itself and calls advance() when it finishes or is skipped.
     if (skipCeremony()) {
@@ -2503,6 +2499,7 @@ function RevealModal() {
       return
     }
     if (phase === 'step') {
+      if (detailIdx != null) { setDetailIdx(null); setPhase('summary'); return } // browsing a haul detail → back to the grid
       const next = step + 1
       if (next < revealQueue.length) { setStep(next); fireStep(next) }
       else if (len > 1) setPhase('summary')
@@ -2526,7 +2523,8 @@ function RevealModal() {
   }
 
   if (phase === 'step') {
-    const o = lastReveal[revealQueue[step]]
+    const detail = detailIdx != null
+    const o = detail ? lastReveal[detailIdx] : lastReveal[revealQueue[step]]
     const sh = o && shapes[o.shape_id]
     if (!sh) {
       return <div style={S.modal} onClick={advance}><div style={S.revealCard} onClick={(e) => e.stopPropagation()}><button className="btn-primary" style={S.pullBtn} onClick={advance}>{tr('reveal.continue')}</button></div></div>
@@ -2535,7 +2533,7 @@ function RevealModal() {
     const cut = rank >= 3 && !!o.is_new // SSR+ and new ⇒ the reveal "cutscene"
     const lines = chatterFor(sh.family, 0)
     const line = lines.length ? lines[step % lines.length] : ''
-    const last = step + 1 >= revealQueue.length
+    const last = detail || step + 1 >= revealQueue.length // detail view: the button reads "see haul" → back to grid
     // basic stats for the pull card — production (shown per-MINUTE) + how it moves flux + its skill
     const eff = shapeEffect(sh.family, sh.genus, sh.euler_cost)
     const pat = fluxPattern(sh.family, sh.genus)
@@ -2548,7 +2546,7 @@ function RevealModal() {
         <div key={step} className={cut ? 'pop-in reveal-shake case-door' : 'pop-in case-door'} style={{ ...S.revealCard, position: 'relative', overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
           {cut && <div className="flash" style={{ background: `radial-gradient(circle, ${ceremony.flashTint ?? RARITY_COLOR[sh.rarity]}, transparent 60%)` }} />}
           {cut && rank >= 4 && <div className="flash-ring" style={{ color: ceremony.ringTint ?? RARITY_COLOR[sh.rarity] }} />}
-          {revealQueue.length > 1 && <div style={S.revealCount}>{step + 1} / {revealQueue.length}</div>}
+          {!detail && revealQueue.length > 1 && <div style={S.revealCount}>{step + 1} / {revealQueue.length}</div>}
           {/* SSR+ cutscene: a rarity star banner pops in (★ count = tier) above the gem */}
           {cut && (
             <div className="ssr-banner" style={{ position: 'relative', zIndex: 2, marginBottom: 2 }}>
@@ -2559,7 +2557,7 @@ function RevealModal() {
           <div style={{ ...S.revealStage, position: 'relative' }}>
             {/* SSR+ gets a slowly-rotating sunburst behind the gem (the classic gacha "rays") */}
             {cut && <div className="ssr-rays" style={{ color: ceremony.flashTint ?? RARITY_COLOR[sh.rarity] }} />}
-            <HeroView key={sh.family} family={sh.family} rarity={sh.rarity} controls={len === 1} spin={0.8} materialize />
+            <HeroView key={sh.family} family={sh.family} rarity={sh.rarity} controls={len === 1 || detail} spin={0.8} materialize />
             {/* NEW! badge overlaid on the 3D preview — glowing + pulsing (the "this is a fresh shape" peak) */}
             {o.is_new && (
               <div className="reveal-new-badge" style={{ position: 'absolute', top: 12, left: '50%', zIndex: 2, pointerEvents: 'none', fontFamily: 'var(--font-display)', fontWeight: 'var(--fw-heavy)', fontSize: 'var(--fs-h4)', letterSpacing: 0.5, color: ceremony.flashTint ?? RARITY_COLOR[sh.rarity] }}>
@@ -2603,7 +2601,7 @@ function RevealModal() {
                 className={`haul-in haul-tile-btn${hi ? ' haul-shine' : ''}`}
                 style={{ ...S.haulTile, borderColor: col, background: `${col}1c`, boxShadow: glow, animationDelay: `${i * 55}ms` }}
                 title={`${sh.nick} — ${tr('reveal.tapDetails')}`}
-                onClick={() => { setStep(i); fireStep(i); setPhase('step') }}
+                onClick={() => { setDetailIdx(i); setPhase('step') }}
               >
                 <span style={{ fontSize: 'var(--fs-numeral)', filter: hi ? `drop-shadow(0 0 6px ${col})` : 'none' }}>{glyphOf(sh.family)}</span>
                 {hi && <span className="haul-spark" style={{ color: col }}>✦</span>}
@@ -2632,17 +2630,6 @@ function fmtAway(ms: number): string {
 
 // Time to afford a Flux `deficit` at the live Flux/hr `rate` — the "~5m" estimate shown on purchasable cards.
 // Returns '' when already affordable, '—' when the rate is zero (no estimate possible).
-function fmtEta(deficit: number, rate: number): string {
-  if (deficit <= 0) return ''
-  if (rate <= 0) return '—'
-  const sec = (deficit / rate) * 3600
-  if (sec < 90) return `~${Math.max(1, Math.ceil(sec))}s`
-  if (sec < 5400) return `~${Math.round(sec / 60)}m`
-  const hours = sec / 3600
-  if (hours < 48) return `~${Math.round(hours)}h`
-  return `~${Math.round(hours / 24)}d`
-}
-
 // "Welcome back, Curator" — the gentle, positive *start/end* of a session (peak-end rule). Styled to match the
 // welcome screen: the hand-made title art, drifting motes, and the Flux you earned glowing front and centre.
 // Away ≥ this → the full "Welcome back, Curator" curation screen; shorter → a quiet self-dismissing toast
@@ -2824,26 +2811,34 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
   )
   return (
     <div style={S.modal} onClick={onClose}>
-      <div className="pop-in" style={S.revealCard} onClick={(e) => e.stopPropagation()}>
+      <div className="pop-in" role="dialog" aria-modal="true" aria-label={s.nick}
+        style={owned ? { ...S.revealCard, position: 'relative', maxWidth: 'min(900px, 96vw)', width: '100%', textAlign: 'left', display: 'flex', flexDirection: 'column', padding: 'var(--sp-4)' } : { ...S.revealCard, position: 'relative' }}
+        onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} style={S.inspectClose} title={tr('common.close')} aria-label={tr('common.close')}>✕</button>
         {/* keyed by id so the sheet gently re-fades each time you page to another shape */}
-        <div key={id} className="fade-in">
+        <div key={id} className="fade-in" style={owned ? { display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 } : undefined}>
         {owned ? (
-          <>
-            <div style={{ ...S.revealStage, position: 'relative' }}>
-              <HeroView key={s.family} family={s.family} rarity={s.rarity} controls={!patMode} />
-              {patMode && <PatSurface id={id} />}
-              <button style={S.patBtn} onClick={() => setPatMode((p) => !p)} title={tr('inspect.pat.title')}>
-                {patMode ? tr('inspect.pat.orbit') : tr('inspect.pat.pat')}
-              </button>
-              {!patMode && <button style={S.talkBtn} onClick={() => talk(s, bond)} title={tr('inspect.talk.title')}>💬</button>}
-              {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
+          // Desktop: two columns — a big gem hero (left) beside the independently-scrolling dossier (right),
+          // so the long sheet never overflows a short viewport. Stacks back to one column under 760px.
+          <div className="inspect-split">
+            <div className="inspect-hero">
+              <div className="inspect-stage" style={{ ...S.revealStage, position: 'relative', height: 'auto', marginBottom: 0 }}>
+                <HeroView key={s.family} family={s.family} rarity={s.rarity} controls={!patMode} />
+                {patMode && <PatSurface id={id} />}
+                <button style={S.patBtn} onClick={() => setPatMode((p) => !p)} title={tr('inspect.pat.title')}>
+                  {patMode ? tr('inspect.pat.orbit') : tr('inspect.pat.pat')}
+                </button>
+                {!patMode && <button style={S.talkBtn} onClick={() => talk(s, bond)} title={tr('inspect.talk.title')}>💬</button>}
+                {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
+              </div>
+              {navRow(
+                <>
+                  <h2 style={{ color: RARITY_COLOR[s.rarity], margin: '0 0 2px' }}>{s.nick}</h2>
+                  <p style={{ ...S.revealSub, margin: 0 }}>{rarityLabel(s.rarity)} · {s.family.replace(/_/g, ' ')}</p>
+                </>,
+              )}
             </div>
-            {navRow(
-              <>
-                <h2 style={{ color: RARITY_COLOR[s.rarity], margin: '0 0 2px' }}>{s.nick}</h2>
-                <p style={{ ...S.revealSub, margin: 0 }}>{rarityLabel(s.rarity)} · {s.family.replace(/_/g, ' ')}</p>
-              </>,
-            )}
+            <div className="inspect-detail">
             {/* ── Abilities: the skill, how it plays on the flux floor, and the topology facts ── */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', textAlign: 'left', borderRadius: 'var(--r-lg)', padding: '9px 11px', border: `1px solid ${eff.special ? 'rgba(158,240,255,0.28)' : 'var(--c-border)'}`, background: eff.special ? 'rgba(95,224,198,0.07)' : 'var(--c-surface-2)' }}>
@@ -2874,7 +2869,7 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
               })()}
             </div>
             {/* ── Progression: bond + stars ── */}
-            <p style={{ ...S.bondRow, marginTop: 12 }}>
+            <p style={{ ...S.bondRow, marginTop: 4 }}>
               <span style={{ color: '#ff5d8f', letterSpacing: 2 }}>{'♥'.repeat(bond)}</span>
               <span style={{ color: '#3b2b38', letterSpacing: 2 }}>{'♡'.repeat(Math.max(0, 5 - bond))}</span>
               <span style={S.bondHint}>{tr('inspect.bond.hint', { bond })}</span>
@@ -2885,7 +2880,7 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
               <span style={S.bondHint}>{tr('inspect.star.hint', { st })}</span>
             </p>
             {/* ── Lore ── */}
-            {codex && <p style={{ ...S.hint, fontStyle: 'italic', color: '#cdd2e0', fontFamily: fontOf(s.family), marginTop: 10 }}>“{codex.blurb}”</p>}
+            {codex && <p style={{ ...S.hint, fontStyle: 'italic', color: '#cdd2e0', fontFamily: fontOf(s.family), marginTop: 6 }}>“{codex.blurb}”</p>}
             {codex && bond >= 1 && <p style={{ ...S.hint, color: RARITY_COLOR[s.rarity], fontFamily: fontOf(s.family) }}>{codex.bond}</p>}
             {codex && bond < 1 && <p style={{ ...S.hint, opacity: 0.7 }}>{tr('inspect.bond.locked')}</p>}
             <button
@@ -2919,7 +2914,8 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
                 })}
               </div>
             ) : null}
-          </>
+            </div>
+          </div>
         ) : (
           <>
             {/* No 3D preview for undiscovered shapes — pulling is the joy. Just a vague teaser. */}
@@ -2937,7 +2933,6 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
           </>
         )}
         </div>
-        <button className="btn-primary" style={S.pullBtn} onClick={onClose}>{tr('common.close')}</button>
       </div>
     </div>
   )
@@ -3405,7 +3400,7 @@ function ShopView() {
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                     <button className="pull-cap" style={{ ...S.summonBtn, opacity: canBuy ? 1 : 0.4 }} disabled={!canBuy} onClick={buy}>{tr('shop.buy')} · {fmt(it.cost)} ✦</button>
-                    {!canBuy && view.rate_per_hr > 0 && <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--c-text-faint)', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{fmtEta(it.cost - view.flux, view.rate_per_hr)}</span>}
+                    {!canBuy && view.rate_per_hr + view.exp_flux_rate > 0 && <span style={{ fontSize: 'var(--fs-micro)', color: 'var(--c-text-faint)', textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{fmtEta(it.cost - view.flux, view.rate_per_hr + view.exp_flux_rate, tr)}</span>}
                   </div>
                 )}
               </div>
@@ -3778,8 +3773,6 @@ function CosmeticsQuickPopup() {
   const view = useGame((s) => s.view)
   const shapes = useGame((s) => s.shapes)
   const selectScene = useGame((s) => s.selectScene)
-  const buyCosmetic = useGame((s) => s.buyCosmetic)
-  const buyCosmeticSlot = useGame((s) => s.buyCosmeticSlot)
   const equipCosmeticSlot = useGame((s) => s.equipCosmeticSlot)
   const [cat, setCat] = useState(0)
   if (!open || !view) return null
@@ -3792,16 +3785,12 @@ function CosmeticsQuickPopup() {
   const pf = previewSh?.family ?? 'dodecahedron'
   const pr = previewSh?.rarity ?? 'Ssr'
   const pick = (it: { id: number; cost: number }) => {
+    // the quick popup only EQUIPS owned cosmetics — buying happens in the Shop (link at the bottom)
     const owned = it.cost === 0 || view.cosmetics.includes(it.id)
-    if (owned) {
-      if (isScene) selectScene(it.id)
-      else equipCosmeticSlot(it.id, slot)
-      sfxTap()
-    } else if (view.flux >= it.cost) {
-      if (isScene) buyCosmetic(it.id, it.cost)
-      else buyCosmeticSlot(it.id, slot, it.cost)
-      sfxUpgrade(2)
-    }
+    if (!owned) return
+    if (isScene) selectScene(it.id)
+    else equipCosmeticSlot(it.id, slot)
+    sfxTap()
   }
   const quickCard: CSSProperties = { boxSizing: 'border-box', width: 'min(440px, calc(100vw - 28px))', maxHeight: '90vh', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 'var(--sp-2)', background: 'radial-gradient(120% 90% at 50% 0%, #1a1c28 0%, #121320 55%, #0c0d15 100%)', border: '1px solid #34384a', borderRadius: 'var(--r-2xl)', padding: 'var(--sp-3)', boxShadow: '0 24px 60px rgba(0,0,0,0.7)' }
   return (
@@ -3823,22 +3812,25 @@ function CosmeticsQuickPopup() {
           )))}
         </div>
         <p style={{ ...S.boardDesc, margin: 0, fontSize: 'var(--fs-caption)' }}>{tr(`shop.cat.${category.key}`)} · {tr(`shop.cat.${category.key}.sub`)}</p>
-        {/* swatch grid — click to equip (owned) or quick-buy (affordable) */}
+        {/* swatch grid — click to EQUIP an owned cosmetic. Locked ones are bought in the Shop (link below). */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(74px, 1fr))', gap: 6 }}>
           {category.items.map((it) => {
             const owned = it.cost === 0 || view.cosmetics.includes(it.id)
             const equipped = equippedId === it.id
-            const canBuy = !owned && view.flux >= it.cost
             return (
-              <button key={it.id} onClick={() => pick(it)} disabled={!owned && !canBuy} title={owned ? it.name : `${it.name} · ${fmt(it.cost)} ✦`}
-                style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 3, padding: 4, borderRadius: 'var(--r-md)', border: `2px solid ${equipped ? 'var(--c-accent-teal)' : 'transparent'}`, background: '#16171f', cursor: owned || canBuy ? 'pointer' : 'not-allowed', opacity: owned || canBuy ? 1 : 0.4, textAlign: 'left' }}>
+              <button key={it.id} onClick={() => pick(it)} disabled={!owned} title={owned ? it.name : `${it.name} · ${fmt(it.cost)} ✦ · ${tr('cosmeticsQuick.lockedTip')}`}
+                style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 3, padding: 4, borderRadius: 'var(--r-md)', border: `2px solid ${equipped ? 'var(--c-accent-teal)' : 'transparent'}`, background: '#16171f', cursor: owned ? 'pointer' : 'not-allowed', opacity: owned ? 1 : 0.45, textAlign: 'left' }}>
                 <div style={{ height: 38, borderRadius: 'var(--r-sm)', border: '1px solid rgba(255,255,255,0.1)', background: it.swatch }} />
                 <span style={{ fontSize: 9, lineHeight: 1.1, color: '#cdd2e0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{equipped ? '✓ ' : ''}{it.name}</span>
-                {!owned && <span style={{ fontSize: 8, color: canBuy ? 'var(--c-accent-gold)' : 'var(--c-text-faint)' }}>{fmt(it.cost)} ✦</span>}
+                {!owned && <span style={{ fontSize: 8, color: 'var(--c-text-faint)' }}>🔒 {fmt(it.cost)} ✦</span>}
               </button>
             )
           })}
         </div>
+        {/* buying happens in the Shop — this quick popup is equip-only */}
+        <button onClick={() => { useNav.getState().goTo('shop'); setOpen(false); sfxTap() }} style={{ ...S.navBtn, justifyContent: 'center', gap: 6, marginTop: 2 }}>
+          🛍 {tr('cosmeticsQuick.toShop')}
+        </button>
       </div>
     </div>
   )
@@ -4355,6 +4347,7 @@ const S: Record<string, CSSProperties> = {
   inspNav: { position: 'absolute', top: '50%', transform: 'translateY(-50%)', zIndex: 5, width: 36, height: 36, borderRadius: '50%', background: 'rgba(20,28,44,0.85)', border: '1px solid #3a4668', color: 'var(--c-text)', fontSize: 24, lineHeight: 1, paddingBottom: 3, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
   inspNavRow: { flexShrink: 0, width: 38, height: 38, borderRadius: '50%', background: 'var(--c-surface-3)', border: '1px solid var(--c-border)', color: 'var(--c-text-secondary)', fontSize: 24, lineHeight: 1, paddingBottom: 3, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' },
   revealSub: { color: '#aab', margin: '4px 0 14px' },
+  inspectClose: { position: 'absolute', top: 'var(--sp-2)', right: 'var(--sp-2)', zIndex: 7, width: 30, height: 30, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(14,16,24,0.7)', border: '1px solid var(--c-border)', color: 'var(--c-text-dim)', fontSize: 14, lineHeight: 1, cursor: 'pointer', backdropFilter: 'blur(2px)' },
   revealCount: { position: 'absolute', top: 'var(--sp-2)', right: 'var(--sp-3)', fontSize: 'var(--fs-caption)', fontWeight: 'var(--fw-bold)', color: 'var(--c-text-dim)', letterSpacing: 0.5, fontVariantNumeric: 'tabular-nums' },
   revealDialog: { margin: '-6px auto 16px', maxWidth: 340, padding: '10px 14px', borderRadius: 'var(--r-lg)', background: 'var(--c-surface-2)', border: '1px solid var(--c-border)', color: 'var(--c-text-secondary)', fontStyle: 'italic', fontSize: 'var(--fs-body-sm)', lineHeight: 1.4 },
   revealStats: { display: 'flex', justifyContent: 'center', gap: 'var(--sp-1_5)', flexWrap: 'wrap', margin: '0 auto 14px', maxWidth: 380 },

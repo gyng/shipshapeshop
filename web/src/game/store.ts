@@ -29,6 +29,7 @@ export interface ShapeRow {
   euler_cost: number
   orientable: boolean // declared topology invariant (from core); drives the orrery "flip" timbre
   forgeable: boolean // is a connected-sum-able surface — drives the forge bench picker
+  role: string // AUTHORITATIVE expedition role (tank/dps/support/control) from core — never re-derive in TS
   prod: number
 }
 
@@ -111,24 +112,82 @@ export interface View {
   echoes: number
   lifetime_echoes: number
   echo_rate_per_hr: number
-  exp_party: number[]
-  exp_party_max: number
-  exp_party_power: number
-  exp_cleared: boolean[]
-  exp_farms: ExpFarmView[] // active idle farms (the "multiple parties")
-  exp_max_farms: number
   exp_flux_rate: number // total Flux/hr expeditions add to the idle economy (v2)
+  exp_teams: TeamView[] // the player's persistent teams (multiple parties)
+  exp_active_team: number
+  exp_max_teams: number
+  exp_party_max: number // members per team
+  exp_cleared: boolean[]
   exp_perks: number[]
   exp_perk_costs: number[]
-  exp_power: number[] // combat/farm power per shape id (Rust truth)
+  exp_power: number[] // FULL combat/farm power per shape id (Rust truth)
+  shape_levels: number[]
+  shape_xp: number[]
+  xp_to_next: number[]
+  skill_points_free: number[]
+  skill_alloc: number[][]
+  shard_rate_per_hr: number
+  exp_quest_flux_est: number[] // per quest: Flux/hr the active team would farm there
+  // ── v5: journey map state, provisions/relics, auto, history ──
+  exp_node_open: boolean[] // per quest: open to attempt (graph + dimension gate)
+  exp_node_mod: number[] // per quest: chosen risk modifier (0 safe)
+  exp_node_beatable: boolean[] // per node: active team wins at mod 0
+  exp_auto: boolean
+  prov_inv: number[] // owned provision charges
+  prov_costs: number[]
+  exp_relics_owned: boolean[]
+  exp_relic_costs: number[]
+  exp_clears_total: number
+  exp_bosses_freed: number
+  exp_echoes_farmed: number
+  exp_flux_farmed: number
+  exp_runs: ExpRunRec[]
+  run: RunView | null // v6: the in-flight Delve run (clipped — no future loot/death exposed)
+  can_send_run: boolean // v6: a new linear run is available to send
 }
 
-export interface ExpFarmView {
-  quest: number
-  party: number[]
-  rate_per_hr: number // Echoes/hr
-  flux_rate: number // Flux/hr (density-scaled)
+export interface RunView {
+  team: number
+  path: number[] // route node indices (derive room kinds from expContent.quests[q].kind)
+  current_room: number
+  total_rooms: number
+  start_ms: number
+  total_ms: number // estimated return time
+}
+
+export interface GambitRule {
+  cond: number // condition id (see exp.gcond.*)
+  action: number // action id (see exp.gact.*)
+  on: boolean
+}
+export interface Orders {
+  formation: number // 0 balanced, 1 front-heavy, 2 back-heavy
+  doctrine: number // 0 steady, 1 aggressive, 2 defensive
+  focus: number // -1 adaptive, 0 wounded, 1 threat, 2 boss
+  stance: number[] // per-slot 0 aggr 1 balanced 2 def
+  gambits?: GambitRule[][] // per-slot FF12-style program; empty/absent ⇒ legacy ladder
+}
+export interface TeamView {
+  members: number[]
+  station: number // quest idx farmed, or -1 idle
   power: number
+  echo_rate_per_hr: number
+  flux_rate_per_hr: number
+  orders: Orders
+  provisions: number[] // staged provision ids
+  relics: number[] // equipped relic ids
+}
+export interface ExpRunRec {
+  kind: number // 0 first-clear, 1 boss freed
+  quest: number
+  team: number
+  rounds: number
+  survivors: number
+  party_size: number
+  echoes: number
+  flux: number
+  recruit_id: number
+  ng_cycle: number
 }
 
 // ── Expeditions content + battle types (mirrored from the Rust core) ──
@@ -146,15 +205,43 @@ export interface ExpQuest {
   recruit_id: number
   recruit_nick: string | null
   dom_element: ExpElement
+  kind: 'combat' | 'elite' | 'boss'
+  map_xy: [number, number]
+  in_edges: number[]
+  out_edges: number[]
 }
 export interface ExpPerk {
   key: string
   base_cost: number
   max_level: number
 }
+export interface ProvisionRow {
+  key: string
+  cost: number
+  eff: string
+  val: number
+}
+export interface RelicRow {
+  key: string
+  cost: number
+  up: string
+  up_val: number
+  down: string
+  down_val: number
+  slots: number
+}
+export interface NodeModRow {
+  key: string
+  enemy_scale_pct: number
+  first_clear_mult_pct: number
+}
 export interface ExpContent {
   quests: ExpQuest[]
   perks: ExpPerk[]
+  edges: [number, number][]
+  provisions: ProvisionRow[]
+  relics: RelicRow[]
+  node_mods: NodeModRow[]
 }
 export interface LogEvent {
   round: number
@@ -183,13 +270,14 @@ export interface BattleResult {
   units: UnitInfo[]
   log: LogEvent[]
 }
-export interface DelveResult {
+export interface StationResult {
   ok: boolean
   win: boolean
   newly_cleared: boolean
   recruited_id: number
   recruit_is_new: boolean
   echoes_gained: number
+  first_clear_flux: number
   battle: BattleResult | null
 }
 export interface AutoExpeditionStep {
@@ -318,7 +406,7 @@ interface Store {
   view: View | null
   lastReveal: PullOutcome[] | null
   lastForge: ForgeResult | null
-  lastDelve: DelveResult | null
+  combat: { battle: BattleResult; quest: number; result: StationResult | null } | null // active combat/watch overlay
   offline: OfflineReport | null
   boot: () => Promise<void>
   dismissWelcome: () => void
@@ -382,15 +470,36 @@ interface Store {
   dismissForge: () => void
   dismissOffline: () => void
   // ── Expeditions (the opt-in idle RPG) ──
-  setParty: (ids: number[]) => void
-  delve: (q: number) => void
-  station: (q: number) => void
-  unstation: (q: number) => void
+  setTeam: (t: number, ids: number[]) => void
+  setActiveTeam: (t: number) => void
+  addTeam: () => void
+  removeTeam: (t: number) => void
+  sendExpedition: (t: number) => void
+  station: (t: number, q: number) => void
+  unstation: (t: number) => void
+  watch: (q: number) => void
+  spendSkillPoint: (id: number, node: number) => void
+  respec: (id: number) => void
   buyExpPerk: (id: number) => void
+  // ── v5: routing, orders, provisions, relics, auto ──
+  setNodeMod: (q: number, m: number) => void
+  setOrders: (t: number, formation: number, doctrine: number, focus: number) => void
+  setSlotStance: (t: number, slot: number, s: number) => void
+  setGambitRule: (t: number, slot: number, idx: number, cond: number, action: number) => void
+  toggleGambit: (t: number, slot: number, idx: number) => void
+  moveGambit: (t: number, slot: number, idx: number, up: boolean) => void
+  addGambit: (t: number, slot: number) => void
+  removeGambit: (t: number, slot: number, idx: number) => void
+  resetGambits: (t: number, slot: number) => void
+  buyProvision: (id: number) => void
+  loadProvision: (t: number, id: number) => void
+  clearProvisions: (t: number) => void
+  buyRelic: (id: number) => void
+  equipRelic: (t: number, id: number) => void
+  unequipRelic: (t: number, id: number) => void
+  setAuto: (on: boolean) => void
   devAddEchoes: () => void
-  dismissDelve: () => void
-  autoExpedition: boolean
-  toggleAutoExpedition: () => void
+  dismissCombat: () => void
 }
 
 export const useGame = create<Store>((set, get) => ({
@@ -407,7 +516,7 @@ export const useGame = create<Store>((set, get) => ({
   view: null,
   lastReveal: null,
   lastForge: null,
-  lastDelve: null,
+  combat: null,
   offline: null,
   activeTab: '',
   setActiveTab: (t) => set({ activeTab: t }),
@@ -491,9 +600,9 @@ export const useGame = create<Store>((set, get) => ({
             }
           }
         }
-        // auto-expedition: hands-free clear the next beatable quest + keep farms stationed (no combat overlay).
-        // Inert to the core economy (only Echoes + boss recruits), bounded (one clear/tick, capped farms).
-        if (get().autoExpedition) {
+        // auto-expedition: hands-free route the map + keep farms stationed (no combat overlay). Bounded (one
+        // clear/tick). The persisted `exp_auto` (in the save, ON by default) is the single source of truth.
+        if (get().view?.exp_auto) {
           const step = JSON.parse(game.auto_expedition(now())) as AutoExpeditionStep
           if (step.delved || step.recruited_id >= 0) {
             get().refresh()
@@ -871,25 +980,52 @@ export const useGame = create<Store>((set, get) => ({
   },
 
   // ── Expeditions (the opt-in idle RPG) ──
-  setParty: (ids) => {
+  setTeam: (t, ids) => {
     if (!game) return
-    game.set_party(JSON.stringify(ids), now())
+    game.set_team(t, JSON.stringify(ids), now())
     get().refresh()
     persist()
   },
-  delve: (q) => {
+  setActiveTeam: (t) => {
+    game?.set_active_team(t)
+    get().refresh()
+  },
+  addTeam: () => {
     if (!game) return
-    const r = JSON.parse(game.delve(q, now())) as DelveResult
+    game.add_team(now())
+    sfxTap()
+    get().refresh()
+    persist()
+  },
+  removeTeam: (t) => {
+    if (game?.remove_team(t, now())) {
+      get().refresh()
+      persist()
+    }
+  },
+  sendExpedition: (t) => {
+    if (game?.send_expedition(t, now())) {
+      sfxTap()
+      get().refresh()
+      persist()
+    }
+  },
+  station: (t, q) => {
+    if (!game) return
+    const r = JSON.parse(game.station(t, q, now())) as StationResult
     if (!r.ok) return
     get().refresh()
     persist()
-    set({ lastDelve: r }) // the CombatOverlay replays r.battle.log, then shows spoils
+    // a cleared-this-call quest carries the deciding battle → open the combat overlay; else it just stationed
+    if (r.battle) set({ combat: { battle: r.battle, quest: q, result: r } })
+    else sfxDeploy()
     if (r.win) {
       const cx = screenCx()
       if (r.newly_cleared) {
         sfxMilestone()
         const q2 = get().expContent?.quests[q]
         useHistory.getState().recordEvent({ icon: '⚔️', text: `Cleared ${q2?.nick ?? 'a quest'} — +${r.echoes_gained} ✶ Echoes`, color: ECHO_C })
+        if (r.first_clear_flux > 0) useFloaters.getState().spawn(`+${Math.round(r.first_clear_flux)} ✦`, { color: FLUX_C, x: cx, y: 150 })
       }
       if (r.echoes_gained > 0) useFloaters.getState().spawn(`+${r.echoes_gained} ✶`, { color: ECHO_C, x: cx, y: 120 })
       if (r.recruited_id >= 0 && r.recruit_is_new) {
@@ -903,27 +1039,28 @@ export const useGame = create<Store>((set, get) => ({
       }
     }
   },
-  station: (q) => {
-    if (game?.station(q, now())) {
-      sfxDeploy()
+  unstation: (t) => {
+    game?.unstation(t, now())
+    get().refresh()
+    persist()
+  },
+  watch: (q) => {
+    if (!game) return
+    const battle = JSON.parse(game.watch_data(q)) as BattleResult | null
+    if (battle) set({ combat: { battle, quest: q, result: null } }) // spectator — no rewards
+  },
+  spendSkillPoint: (id, node) => {
+    if (game?.spend_skill_point(id, node, now())) {
+      sfxTap()
       get().refresh()
       persist()
     }
   },
-  unstation: (q) => {
-    game?.unstation(q, now())
+  respec: (id) => {
+    game?.respec(id, now())
+    sfxTap()
     get().refresh()
     persist()
-  },
-  autoExpedition: typeof localStorage !== 'undefined' && localStorage.getItem('shipshape-autoexp') === '1',
-  toggleAutoExpedition: () => {
-    const v = !get().autoExpedition
-    try {
-      localStorage.setItem('shipshape-autoexp', v ? '1' : '0')
-    } catch {
-      /* ignore */
-    }
-    set({ autoExpedition: v })
   },
   buyExpPerk: (id) => {
     if (game?.buy_exp_perk(id, now())) {
@@ -932,12 +1069,104 @@ export const useGame = create<Store>((set, get) => ({
       persist()
     }
   },
+  // ── v5: routing, orders, provisions, relics, auto (all thin passthroughs — Rust owns the truth) ──
+  setNodeMod: (q, m) => {
+    game?.set_node_mod(q, m, now())
+    sfxTap()
+    get().refresh()
+    persist()
+  },
+  setOrders: (t, formation, doctrine, focus) => {
+    game?.set_orders(t, formation, doctrine, focus, now())
+    get().refresh()
+    persist()
+  },
+  setSlotStance: (t, slot, s) => {
+    game?.set_slot_stance(t, slot, s, now())
+    get().refresh()
+    persist()
+  },
+  setGambitRule: (t, slot, idx, cond, action) => {
+    game?.set_gambit_rule(t, slot, idx, cond, action, now())
+    get().refresh()
+    persist()
+  },
+  toggleGambit: (t, slot, idx) => {
+    game?.toggle_gambit(t, slot, idx, now())
+    get().refresh()
+    persist()
+  },
+  moveGambit: (t, slot, idx, up) => {
+    game?.move_gambit(t, slot, idx, up, now())
+    get().refresh()
+    persist()
+  },
+  addGambit: (t, slot) => {
+    game?.add_gambit(t, slot, now())
+    sfxTap()
+    get().refresh()
+    persist()
+  },
+  removeGambit: (t, slot, idx) => {
+    game?.remove_gambit(t, slot, idx, now())
+    get().refresh()
+    persist()
+  },
+  resetGambits: (t, slot) => {
+    game?.reset_gambits(t, slot, now())
+    sfxTap()
+    get().refresh()
+    persist()
+  },
+  buyProvision: (id) => {
+    if (game?.buy_provision(id, now())) {
+      sfxTap()
+      get().refresh()
+      persist()
+    }
+  },
+  loadProvision: (t, id) => {
+    if (game?.load_provision(t, id, now())) {
+      sfxDeploy()
+      get().refresh()
+      persist()
+    }
+  },
+  clearProvisions: (t) => {
+    game?.clear_provisions(t, now())
+    get().refresh()
+    persist()
+  },
+  buyRelic: (id) => {
+    if (game?.buy_relic(id, now())) {
+      sfxForge()
+      get().refresh()
+      persist()
+    }
+  },
+  equipRelic: (t, id) => {
+    if (game?.equip_relic(t, id, now())) {
+      sfxDeploy()
+      get().refresh()
+      persist()
+    }
+  },
+  unequipRelic: (t, id) => {
+    game?.unequip_relic(t, id, now())
+    get().refresh()
+    persist()
+  },
+  setAuto: (on) => {
+    game?.set_auto(on, now())
+    get().refresh()
+    persist()
+  },
   devAddEchoes: () => {
     game?.dev_add_echoes(100000)
     get().refresh()
     persist()
   },
-  dismissDelve: () => set({ lastDelve: null }),
+  dismissCombat: () => set({ combat: null }),
 }))
 
 export const RARITY_ORDER: RarityName[] = ['Common', 'Rare', 'Epic', 'Ssr', 'Ur', 'Relic', 'Meta', 'Transcendent']

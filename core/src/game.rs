@@ -12,7 +12,7 @@ use crate::flux;
 use crate::gacha::{banner_unit, relic_unit, roll_rarity, shape_index, PityState, Rarity};
 use crate::orrery::{self};
 
-const SCHEMA_VERSION: u32 = 4;
+const SCHEMA_VERSION: u32 = 6;
 const PULL_COST: f64 = 100.0 * content::FLUX_DENSITY;
 const TEN_PULL_COST: f64 = 1000.0 * content::FLUX_DENSITY; // 11 pulls for the price of 10
 const BASE_IDLE: f64 = 0.0; // an empty orrery earns nothing — production comes only from deployed shapes
@@ -20,6 +20,7 @@ const RATE_CAP: f64 = 10800.0; // Flux/hr cap before prestige (DESIGN §7); scal
 const OFFLINE_CAP_MS: f64 = 24.0 * 3_600_000.0; // generous full-day cap — respects absence (only ever helps idle players, never speeds active play)
 const START_EULER_CAP: u32 = 6;
 const MAX_TEAMS: usize = 6; // concurrent Expedition teams (parties) a player builds + keeps
+const EXP_PROVISION_SLOTS: usize = 3; // how many provisions a team can stage for one clear
 const MAX_NODES: usize = 8; // skill-tree nodes per role tree
 // v2: Expeditions pay FLUX too (no longer inert). A team's Flux/hr = its Echoes/hr × FLUX_DENSITY × this,
 // clamped to EXP_FLUX_CAP_SHARE of the core rate cap so it scales with the player but never runs away.
@@ -176,6 +177,38 @@ pub struct GameState {
     pub skill_alloc: Vec<Vec<u32>>, // points spent per skill node per shape (len COUNT × MAX_NODES)
     #[serde(default)]
     pub shape_xp_carry: Vec<f64>, // per-shape bit-stable carry for farmed XP (len COUNT)
+    // ── v5: journey-map routing, pre-battle orders, provisions/relics, Auto, history ──
+    // THE FENCE (spec D4): none of these ever touch the FARM rate / XP / accrual closed-form — they fold ONLY
+    // into the clear battle + combat power (clear_seed). The farm rate still bands on base power only.
+    #[serde(default)]
+    pub exp_node_mod: Vec<u8>, // chosen risk modifier per node (0 = safe); len == QUEST_COUNT
+    #[serde(default)]
+    pub exp_orders: Vec<Orders>, // pre-battle orders per team (Orders::default() == v4 behavior); team-parallel
+    #[serde(default)]
+    pub prov_inv: Vec<u32>, // owned consumable provision charges; len == PROVISION_COUNT
+    #[serde(default)]
+    pub exp_provisions: Vec<Vec<u8>>, // provisions staged for team t's NEXT clear; team-parallel
+    #[serde(default)]
+    pub relics_owned: Vec<bool>, // unlocked relics; len == RELIC_COUNT
+    #[serde(default)]
+    pub team_relics: Vec<Vec<u8>>, // equipped relics per team (≤ RELIC_SLOTS_PER_TEAM); team-parallel
+    #[serde(default = "default_true")]
+    pub exp_auto: bool, // persisted hands-free Auto-Expedition toggle — ON by default (absent in old saves ⇒ on)
+    #[serde(default)]
+    pub exp_clears_total: u64, // history: lifetime first-clears
+    #[serde(default)]
+    pub exp_bosses_freed: u64, // history: lifetime bosses freed
+    #[serde(default)]
+    pub exp_echoes_farmed: u64, // history: lifetime Echoes from idle farming
+    #[serde(default)]
+    pub exp_flux_farmed: f64, // history: lifetime Flux from idle farming
+    #[serde(default)]
+    pub exp_runs: Vec<ExpRunRec>, // history: bounded ring of recent run summaries (truncate to 24)
+    // ── v6 "The Delve" (additive; None ⇒ v5 station-farm byte-identical) ──
+    #[serde(default)]
+    pub active_run: Option<RunPlan>, // the one in-flight run (one at a time in v1)
+    #[serde(default)]
+    pub run_history: Vec<RunRecord>, // completed runs, newest-first bounded ring
 }
 
 /// One idle Expedition farm: a snapshot party on a cleared quest. MIGRATION-ONLY since v4 (folded into
@@ -184,6 +217,174 @@ pub struct GameState {
 pub struct ExpFarm {
     pub quest: usize,
     pub party: Vec<usize>,
+}
+
+/// v5 pre-battle orders for ONE team. `Orders::default()` MUST reproduce v4 combat byte-for-byte (steady
+/// doctrine, adaptive focus = lowest-hp, balanced stance, balanced formation) so the inert short-circuit holds.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct Orders {
+    #[serde(default)]
+    pub formation: u8, // 0 = balanced (default), 1 = front-heavy, 2 = back-heavy
+    #[serde(default)]
+    pub doctrine: u8, // 0 = steady (default = v4 ladder), 1 = aggressive, 2 = defensive
+    #[serde(default = "focus_default")]
+    pub focus: i8, // -1 = adaptive (default, = lowest_hp), 0 = wounded, 1 = threat, 2 = boss
+    #[serde(default)]
+    pub stance: Vec<u8>, // per-slot 0 = aggressive, 1 = balanced (default), 2 = defensive; empty ⇒ all balanced
+    #[serde(default)]
+    pub gambits: Vec<Vec<expedition::GambitRule>>, // per-slot FF12-style program; empty slot ⇒ legacy ladder
+}
+fn focus_default() -> i8 {
+    -1
+}
+fn default_true() -> bool {
+    true
+}
+impl Default for Orders {
+    fn default() -> Self {
+        Orders { formation: 0, doctrine: 0, focus: -1, stance: Vec::new(), gambits: Vec::new() }
+    }
+}
+/// Fold ONE provision/relic effect into a combatant at build time — all deterministic, zero RNG (Kind B speed/
+/// dmg/def fold into the stats so `compute_damage` is untouched). DoubleClearEchoes is a reward effect, not a
+/// combatant one. Applied to the CLEAR battle only (the farm/watch pass no effects).
+fn apply_team_effect(c: &mut Combatant, e: expedition::EffKind) {
+    use expedition::EffKind::*;
+    match e {
+        StartCharge(n) => c.charge = (c.charge + n as i64).min(99),
+        StartShield(pct) => c.shield += (c.max_hp * pct as i64 / 100).max(0),
+        PartyAtkUp(n) => c.atk_up = c.atk_up.max(n as i64),
+        ElementShift(el) => c.element = el,
+        HpBoost(pct) => {
+            c.max_hp = (c.max_hp * (100 + pct as i64) / 100).max(1);
+            c.hp = c.max_hp;
+        }
+        ReviveOnce => c.revive = true,
+        FlatDmgPct(pct) => c.atk = (c.atk * (100 + pct as i64) / 100).max(1),
+        FlatDefPct(pct) => c.def = (c.def * (100 + pct as i64) / 100).max(0),
+        SpeedPct(pct) => c.speed = (c.speed * (100 + pct as i64) / 100).max(1),
+        DoubleClearEchoes => {} // reward effect — handled in grant_first_clear, not on the combatant
+    }
+}
+/// Stable FNV-1a-ish hash of an Orders for the clear seed (so differently-ordered attempts seed different fights).
+fn orders_hash(o: &Orders) -> u64 {
+    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    for v in [o.formation as u64, o.doctrine as u64, (o.focus as i16 as u16) as u64] {
+        h = (h ^ v).wrapping_mul(0x100_0000_01b3);
+    }
+    for &s in &o.stance {
+        h = (h ^ (s as u64 + 1)).wrapping_mul(0x100_0000_01b3);
+    }
+    // gambit program (per slot). Only fold when a non-empty slot exists, so default/stance-only teams hash
+    // exactly as before (byte-stable seeds). A per-slot delimiter so [[A],[B]] ≠ [[A,B],[]]; +1 offsets so a
+    // 0,0 rule isn't XOR-absorbed; the `on` bit is folded so a disabled rule still alters the program.
+    if o.gambits.iter().any(|slot| !slot.is_empty()) {
+        for slot in &o.gambits {
+            for r in slot {
+                h = (h ^ (r.cond as u64 + 1)).wrapping_mul(0x100_0000_01b3);
+                h = (h ^ (r.action as u64 + 1)).wrapping_mul(0x100_0000_01b3);
+                h = (h ^ (r.on as u64 + 1)).wrapping_mul(0x100_0000_01b3);
+            }
+            h = h.wrapping_mul(0x100_0000_01b3).wrapping_add(0x9e37); // slot delimiter
+        }
+    }
+    h
+}
+
+/// v6 "The Delve": a Run is resolved ONCE at SEND into this frozen, persisted schedule; idle advance at elapsed T
+/// is a binary-search READ of the prefix arrays (O(1) offline; online==offline by construction). `active_run: None`
+/// ⇒ v5 station-farm byte-identical. The schedule is immutable for the run's life; only `claimed_rooms` advances.
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct RunPlan {
+    // ── send-time freeze (immutable) ──
+    pub team: usize,
+    pub party: Vec<usize>,    // member ids snapshot (roster can't change mid-run)
+    pub path: Vec<usize>,     // ordered node indices through QUESTS (linear in v1)
+    pub run_seed: u64,        // = clear_seed(team, path[0]); appended lineage (room 0 uses it raw)
+    pub start_ms: f64,        // departure wall-clock (the only time field)
+    pub orders: Orders,      // snapshot
+    pub provisions: Vec<u8>, // snapshot (consumed on completion; retained on wipe — loss-is-free)
+    // ── resolved schedule (computed ONCE; read-only) ──
+    pub prefix_ms: Vec<f64>,     // cumulative ms to FINISH room k
+    pub prefix_echoes: Vec<u64>, // cumulative delve-loot Echoes banked through room k
+    pub prefix_flux: Vec<u64>,   // cumulative delve-loot Flux through room k
+    pub room_kind: Vec<u8>,      // RoomKind per resolved room
+    pub room_node: Vec<i32>,     // the QUESTS node a fight room clears (for grant_first_clear), else -1
+    pub death_room: Option<usize>, // chained-party-wipe index; run ends early here
+    pub planned_rooms: usize,    // intended room count for the FULL path (incl. cozy rooms) — death-leak-free progress
+    pub total_ms: f64,           // == prefix_ms.last()
+    // ── idle banking cursor (NO carry — integer prefix-diff) ──
+    pub claimed_rooms: u32,
+}
+
+/// A completed-run summary for the home-base history (newest-first, bounded ring).
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct RunRecord {
+    pub team: u32,
+    pub rooms: u32,
+    pub echoes: u64,
+    pub died: bool,
+    pub at_ms: f64,
+}
+
+/// Run pacing: a fight room takes `rounds × this` ms of idle time (≈1 min/round). Render/feel-only timing —
+/// it never affects combat outcome or rewards (those are integer lumps), so it's freely tunable.
+const MS_PER_ROOM_ROUND: f64 = 60_000.0;
+const REST_MS: f64 = 30_000.0; // a Campfire takes ~30s of idle time
+const TREASURE_MS: f64 = 20_000.0; // a Treasure room ~20s
+const CAMPFIRE_HEAL_PCT: i64 = 40; // Campfire restores 40% of max HP to the threaded party
+const TREASURE_HEAL_PCT: i64 = 18; // a Treasure room is a light pick-me-up
+const CAMPFIRE_BOON_PCT: i64 = 10; // + a fixed +10% attack boon for the rest of the run (cozy, deterministic)
+
+/// Append one resolved room to a RunPlan's parallel schedule arrays.
+fn push_room(plan: &mut RunPlan, t_ms: f64, ech: u64, flux: u64, kind: u8, node: i32) {
+    plan.prefix_ms.push(t_ms);
+    plan.prefix_echoes.push(ech);
+    plan.prefix_flux.push(flux);
+    plan.room_kind.push(kind);
+    plan.room_node.push(node);
+}
+
+/// Restore `pct`% of each living combatant's max HP (clamped). Used by Campfire/Treasure rooms — meaningful only
+/// because P0 threads survivor HP room→room. Pure.
+fn heal_party(party: &mut [Combatant], pct: i64) {
+    for c in party.iter_mut() {
+        if c.hp > 0 {
+            c.hp = (c.hp + c.max_hp * pct / 100).min(c.max_hp);
+        }
+    }
+}
+
+/// Build the v1 LINEAR room sequence from a node path: a Treasure after every 2nd combat (a mid-chapter reward),
+/// a Campfire to rest right before each Boss. Returns (RoomKind, node-or-(-1)) per room. Pure → deterministic.
+fn build_room_plan(path: &[usize]) -> Vec<(expedition::RoomKind, i32)> {
+    let mut rooms = Vec::new();
+    for (k, &q) in path.iter().enumerate() {
+        let is_boss = matches!(QUESTS[q].kind, expedition::NodeKind::Boss);
+        if !is_boss && k > 0 && k % 2 == 0 {
+            rooms.push((expedition::RoomKind::Treasure, -1));
+        }
+        if is_boss {
+            rooms.push((expedition::RoomKind::Campfire, -1)); // rest before the climax
+        }
+        rooms.push((if is_boss { expedition::RoomKind::Boss } else { expedition::RoomKind::Combat }, q as i32));
+    }
+    rooms
+}
+
+/// A bounded history record of one completed expedition run (first-clear or boss-freed). Render-only spoils.
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct ExpRunRec {
+    pub kind: u8, // 0 = first-clear, 1 = boss freed
+    pub quest: u32,
+    pub team: u32,
+    pub rounds: u32,
+    pub survivors: u32,
+    pub party_size: u32,
+    pub echoes: u64,
+    pub flux: u64,
+    pub recruit_id: i32,
+    pub ng_cycle: u32,
 }
 
 #[derive(Serialize)]
@@ -352,9 +553,38 @@ pub struct GameStateView {
     pub skill_alloc: Vec<Vec<u32>>,
     pub shard_rate_per_hr: f64, // over-cap shard income (display-only)
     pub exp_quest_flux_est: Vec<f64>, // per quest: Flux/hr the ACTIVE team would farm there (preview, len QUEST_COUNT)
+    // ── v5: journey map state, provisions/relics inventory, auto, history ──
+    pub exp_node_open: Vec<bool>,    // per quest: is it open to attempt now (graph + dimension gate)
+    pub exp_node_mod: Vec<u8>,       // per quest: chosen risk modifier (0 safe)
+    pub exp_node_beatable: Vec<bool>, // per OPEN node: does the active team win the CONFIGURED clear (selected risk mod + staged provisions) — telegraphing
+    pub exp_auto: bool,
+    pub prov_inv: Vec<u32>,          // owned provision charges (len PROVISION_COUNT)
+    pub prov_costs: Vec<u64>,
+    pub exp_relics_owned: Vec<bool>, // unlocked expedition relics (len RELIC_COUNT) — distinct from gacha relics_owned
+    pub exp_relic_costs: Vec<u64>,
+    pub exp_clears_total: u64,
+    pub exp_bosses_freed: u64,
+    pub exp_echoes_farmed: u64,
+    pub exp_flux_farmed: f64,
+    pub exp_runs: Vec<ExpRunRec>,    // recent run history (newest first, bounded)
+    pub run: Option<RunView>,        // v6: the in-flight Delve run, CLIPPED (no future loot / death revealed)
+    pub can_send_run: bool,          // v6: is a new linear run available to send?
 }
 
-/// A team row for the UI: members, the quest it's stationed on (-1 idle), its live power + Echo/Flux rates.
+/// The in-flight run, projected for the UI — CLIPPED per D9 (the route node indices + progress only; the future
+/// loot lumps and any early-return are NEVER exposed). The web derives per-room kinds from `path` + the content.
+#[derive(Serialize)]
+pub struct RunView {
+    pub team: usize,
+    pub path: Vec<usize>,    // the route's node indices (structural — the player's chosen direction)
+    pub current_room: u32,   // banked cursor (the room the party is at)
+    pub total_rooms: usize,
+    pub start_ms: f64,
+    pub total_ms: f64, // estimated return time (an early return is the gentle soft-land, not a spoiler — D18)
+}
+
+/// A team row for the UI: members, the quest it's stationed on (-1 idle), its live power + Echo/Flux rates,
+/// plus its v5 pre-battle orders, staged provisions, and equipped relics.
 #[derive(Serialize)]
 pub struct TeamView {
     pub members: Vec<usize>,
@@ -362,6 +592,9 @@ pub struct TeamView {
     pub power: i64,
     pub echo_rate_per_hr: f64,
     pub flux_rate_per_hr: f64,
+    pub orders: Orders,
+    pub provisions: Vec<u8>, // staged provision ids
+    pub relics: Vec<u8>,     // equipped relic ids
 }
 
 impl GameState {
@@ -418,6 +651,20 @@ impl GameState {
             shape_xp: vec![0; COUNT],
             skill_alloc: vec![vec![0; MAX_NODES]; COUNT],
             shape_xp_carry: vec![0.0; COUNT],
+            exp_node_mod: vec![0; QUEST_COUNT],
+            exp_orders: vec![Orders::default()],
+            prov_inv: vec![0; expedition::PROVISION_COUNT],
+            exp_provisions: vec![Vec::new()],
+            relics_owned: vec![false; expedition::RELIC_COUNT],
+            team_relics: vec![Vec::new()],
+            exp_auto: true, // Auto-Expedition on by default (hands-free clear + farm); the player can toggle off
+            exp_clears_total: 0,
+            exp_bosses_freed: 0,
+            exp_echoes_farmed: 0,
+            exp_flux_farmed: 0.0,
+            exp_runs: Vec::new(),
+            active_run: None,
+            run_history: Vec::new(),
         }
     }
 
@@ -1295,6 +1542,7 @@ impl GameState {
         self.accrue_overcap_shards(dt); // overpressure_valve (#18): bank shards from over-cap spill
         self.accrue_expedition_rewards(dt); // expeditions: closed-form Echoes + Flux from stationed teams
         self.accrue_farm_xp(dt); // expeditions: closed-form farmed XP per stationed member
+        self.accrue_run(now_ms); // v6: advance the in-flight Delve run to the current wall-clock (inert when None)
         self.add_affinity(dt);
         self.refresh_milestones();
         self.last_seen_ms = now_ms;
@@ -1323,6 +1571,7 @@ impl GameState {
         let echoes_before = self.echoes;
         self.accrue_expedition_rewards(capped); // expeditions: same helper as tick ⇒ Echoes+Flux farm rounds identically offline
         self.accrue_farm_xp(capped); // expeditions: farmed XP, same helper as tick
+        self.accrue_run(self.last_seen_ms + capped); // v6: advance the run by the CAPPED span (offline generosity applies)
         self.add_affinity(capped);
         self.last_seen_ms = now_ms;
         OfflineReport {
@@ -1849,10 +2098,22 @@ impl GameState {
         // crystalline_start head-start (flux-denominated → density-scaled)
         self.flux = (500.0 * self.ng_cycle as f64 + 600.0 * self.facet_level(2) as f64) * content::FLUX_DENSITY;
         self.facets += 3 + self.ng_cycle as u64 + self.facet_level(6) as u64; // facet_yield (#6): +1/level per ascent
-        // Expeditions: stop all farms on ascent (the economy re-bases). Teams, cleared quests, XP and skill
-        // trees carry over — re-stationing is one tap. Deeper (viewport-gated) chapters open as the dimension rises.
+        // Expeditions: stop all farms on ascent (the economy re-bases). Teams, cleared quests, XP, skill trees,
+        // relics, Echoes, the orders, and the History ring all CARRY OVER (mode-internal meta, safe because the
+        // D4 fence means none of them touch the farm rate). Only the run-local state resets: node risk choices
+        // (re-route fresh) and any staged provisions.
         for s in self.exp_station.iter_mut() {
             *s = -1;
+        }
+        // v6: abort any in-flight run BEFORE the rebase changes prestige_mult/viewport_dim (which would stale the
+        // frozen schedule). Its loot up to the last tick is already banked (accrue_run runs every tick); the
+        // incomplete tail is forfeit by the choice to ascend. (D13)
+        self.active_run = None;
+        for m in self.exp_node_mod.iter_mut() {
+            *m = 0;
+        }
+        for p in self.exp_provisions.iter_mut() {
+            p.clear();
         }
         self.echo_carry = 0.0;
         self.exp_flux_carry = 0.0;
@@ -2065,18 +2326,7 @@ impl GameState {
     /// Conventional RPG role from declared predicates + a small family spread (so the free commons aren't all
     /// one role). knot→Control, non-orientable/4D→Support; then a family map; else DPS.
     fn exp_role(&self, id: usize) -> expedition::Role {
-        let fam = SHAPES[id].family;
-        if content::is_knot(fam) {
-            return expedition::Role::Control;
-        }
-        if content::is_nonorientable(fam) || content::is_polytope_4d(fam) {
-            return expedition::Role::Support;
-        }
-        match fam {
-            "sphere" | "cube" | "cylinder" | "ellipsoid" | "hyperboloid" | "catenoid" => expedition::Role::Tank,
-            "dodecahedron" | "disk" | "gyroid" | "schwarz_p" | "schwarz_d" | "seifert" | "costa" => expedition::Role::Support,
-            _ => expedition::Role::Dps,
-        }
+        role_for(SHAPES[id].family)
     }
 
     fn exp_combatant(&self, id: usize) -> Combatant {
@@ -2123,16 +2373,108 @@ impl GameState {
             def_down: 0,
             regen: 0,
             stun: 0,
+            bleed: 0,
             shield: 0,
             cd_a: 0,
             cd_b: 0,
+            front: false,
+            revive: false,
         }
     }
 
-    fn build_team_combatants(&self, t: usize) -> Vec<Combatant> {
+    /// Build team `t`'s combatants, applying the pre-battle ORDERS (`stance` → derived combat-stat multipliers,
+    /// `formation` → the `front` flag). `Orders::default()` leaves every combatant byte-identical to v4 — so the
+    /// farm/watch (which pass default) stay inert, and only the CLEAR battle sees orders. Stance NEVER touches
+    /// exp_power/exp_base_power (those band the farm rate — spec D4 fence); it scales the derived hp/atk/def only.
+    fn build_team_combatants(&self, t: usize, orders: &Orders, effects: &[expedition::EffKind]) -> Vec<Combatant> {
+        let front_n = match orders.formation {
+            1 => 2, // front-heavy: first two slots soak
+            2 => 1, // back-heavy: a single front soaker
+            _ => 0, // balanced: no designated front ⇒ v4 enemy targeting
+        };
+        let doctrine_stance = match orders.doctrine {
+            1 => 0u8, // aggressive
+            2 => 2u8, // defensive
+            _ => 1u8, // steady → balanced
+        };
         self.exp_teams.get(t).map_or(Vec::new(), |team| {
-            team.iter().filter(|&&id| id < COUNT && self.owned[id] > 0).map(|&id| self.exp_combatant(id)).collect()
+            team.iter()
+                .filter(|&&id| id < COUNT && self.owned[id] > 0)
+                .enumerate()
+                .map(|(slot, &id)| {
+                    let mut c = self.exp_combatant(id);
+                    c.front = slot < front_n;
+                    // per-slot stance (falls back to the doctrine's default stance)
+                    let stance = orders.stance.get(slot).copied().unwrap_or(doctrine_stance);
+                    let (hp_pct, atk_pct, def_pct) = match stance {
+                        0 => (90, 120, 80),   // aggressive: hit harder, fold faster
+                        2 => (120, 85, 130),  // defensive: tankier, softer hits
+                        _ => (100, 100, 100), // balanced (default) ⇒ no change
+                    };
+                    if (hp_pct, atk_pct, def_pct) != (100, 100, 100) {
+                        c.max_hp = (c.max_hp * hp_pct / 100).max(1);
+                        c.hp = c.max_hp;
+                        c.atk = (c.atk * atk_pct / 100).max(1);
+                        c.def = c.def * def_pct / 100;
+                    }
+                    for &e in effects {
+                        apply_team_effect(&mut c, e);
+                    }
+                    c
+                })
+                .collect()
         })
+    }
+    /// Build team `t`'s gambit programs in the SAME filter+order as `build_team_combatants`, so program index ==
+    /// combatant unit index in `resolve_battle` (`gambits.get(actor)`). Each SURVIVING member keeps its OWN raw-slot
+    /// program; a filtered-out (unowned) member drops its program — never shifting a survivor onto a neighbour's.
+    fn build_team_gambits(&self, t: usize, orders: &Orders) -> Vec<Vec<expedition::GambitRule>> {
+        self.exp_teams.get(t).map_or(Vec::new(), |team| {
+            team.iter()
+                .enumerate()
+                .filter(|&(_, &id)| id < COUNT && self.owned[id] > 0)
+                .map(|(slot, _)| orders.gambits.get(slot).cloned().unwrap_or_default())
+                .collect()
+        })
+    }
+    /// The provision + relic effects that apply to team `t`'s CLEAR battle (relic up+down for each equipped relic,
+    /// plus each staged provision). Aggregated once; the farm/watch never see these.
+    fn team_effects(&self, t: usize) -> Vec<expedition::EffKind> {
+        let mut v = Vec::new();
+        if let Some(rs) = self.team_relics.get(t) {
+            for &r in rs {
+                if let Some(rd) = expedition::RELICS.get(r as usize) {
+                    v.push(rd.up);
+                    v.push(rd.down);
+                }
+            }
+        }
+        if let Some(ps) = self.exp_provisions.get(t) {
+            for &p in ps {
+                if let Some(pd) = expedition::PROVISIONS.get(p as usize) {
+                    v.push(pd.eff);
+                }
+            }
+        }
+        v
+    }
+    /// Relic effects ONLY (no staged provisions) — what AUTO applies, since it honours persistent equipment but
+    /// NEVER spends consumable provisions (the economy ethic: hands-free play can't burn your stockpile).
+    fn team_relic_effects(&self, t: usize) -> Vec<expedition::EffKind> {
+        let mut v = Vec::new();
+        if let Some(rs) = self.team_relics.get(t) {
+            for &r in rs {
+                if let Some(rd) = expedition::RELICS.get(r as usize) {
+                    v.push(rd.up);
+                    v.push(rd.down);
+                }
+            }
+        }
+        v
+    }
+    /// The orders that apply to team `t`'s CLEAR battle (default if none).
+    fn team_orders(&self, t: usize) -> Orders {
+        self.exp_orders.get(t).cloned().unwrap_or_default()
     }
 
     pub fn exp_party_max(&self) -> usize {
@@ -2157,6 +2499,12 @@ impl GameState {
     pub fn set_team(&mut self, t: usize, ids: &[usize]) {
         if t < self.exp_teams.len() {
             self.exp_teams[t] = self.clean_team(ids);
+            // an emptied team can't farm — free its slot so another team can take the node (and no empty Watch).
+            if self.exp_teams[t].is_empty() {
+                if let Some(s) = self.exp_station.get_mut(t) {
+                    *s = -1;
+                }
+            }
         }
     }
     pub fn set_active_team(&mut self, t: usize) {
@@ -2164,10 +2512,100 @@ impl GameState {
             self.exp_active_team = t;
         }
     }
+    /// Set team `t`'s pre-battle orders (formation 0-2, doctrine 0-2, focus -1..=2). Clamped. Affects the next
+    /// CLEAR battle only (the farm/watch stay inert — spec D4 fence).
+    pub fn set_orders(&mut self, t: usize, formation: u8, doctrine: u8, focus: i8) {
+        if let Some(o) = self.exp_orders.get_mut(t) {
+            o.formation = formation.min(2);
+            o.doctrine = doctrine.min(2);
+            o.focus = focus.clamp(-1, 2);
+        }
+    }
+    /// Set the stance of one party slot (0 aggressive, 1 balanced, 2 defensive).
+    pub fn set_slot_stance(&mut self, t: usize, slot: usize, s: u8) {
+        if let Some(o) = self.exp_orders.get_mut(t) {
+            if o.stance.len() <= slot {
+                o.stance.resize(slot + 1, 1); // pad with balanced
+            }
+            o.stance[slot] = s.min(2);
+        }
+    }
+    // ── gambit program editing (per team-slot). All clamp ids + bound the list; TS never computes list semantics. ──
+    fn gambit_slot(&mut self, t: usize, slot: usize) -> Option<&mut Vec<expedition::GambitRule>> {
+        let o = self.exp_orders.get_mut(t)?;
+        if o.gambits.len() <= slot {
+            o.gambits.resize_with(slot + 1, Vec::new);
+        }
+        o.gambits.get_mut(slot)
+    }
+    /// Edit rule `idx`'s condition + action (clamped to the closed vocabularies).
+    pub fn set_gambit_rule(&mut self, t: usize, slot: usize, idx: usize, cond: u8, action: u8) {
+        if let Some(g) = self.gambit_slot(t, slot) {
+            if let Some(r) = g.get_mut(idx) {
+                if cond < expedition::COND_COUNT {
+                    r.cond = cond;
+                }
+                if action < expedition::ACT_COUNT {
+                    r.action = action;
+                }
+            }
+        }
+    }
+    /// Enable/disable rule `idx` without deleting it.
+    pub fn toggle_gambit(&mut self, t: usize, slot: usize, idx: usize) {
+        if let Some(g) = self.gambit_slot(t, slot) {
+            if let Some(r) = g.get_mut(idx) {
+                r.on = !r.on;
+            }
+        }
+    }
+    /// Reorder rule `idx` up (`up=true`) or down — priority is top-to-bottom.
+    pub fn move_gambit(&mut self, t: usize, slot: usize, idx: usize, up: bool) {
+        if let Some(g) = self.gambit_slot(t, slot) {
+            let j = if up { idx.wrapping_sub(1) } else { idx + 1 };
+            if idx < g.len() && j < g.len() {
+                g.swap(idx, j);
+            }
+        }
+    }
+    /// Append a new default rule (always → attack focus) up to the per-slot cap.
+    pub fn add_gambit(&mut self, t: usize, slot: usize) {
+        if let Some(g) = self.gambit_slot(t, slot) {
+            if g.len() < expedition::MAX_GAMBIT_RULES {
+                g.push(expedition::GambitRule { cond: expedition::COND_ALWAYS, action: expedition::ACT_ATTACK_FOCUS, on: true });
+            }
+        }
+    }
+    /// Remove rule `idx`.
+    pub fn remove_gambit(&mut self, t: usize, slot: usize, idx: usize) {
+        if let Some(g) = self.gambit_slot(t, slot) {
+            if idx < g.len() {
+                g.remove(idx);
+            }
+        }
+        self.canon_gambits(t);
+    }
+    /// Clear a slot's program → empty == the legacy ladder (gentle instincts).
+    pub fn reset_gambits(&mut self, t: usize, slot: usize) {
+        if let Some(g) = self.gambit_slot(t, slot) {
+            g.clear();
+        }
+        self.canon_gambits(t);
+    }
+    /// Drop the whole gambit program to canonical-empty (`Vec::new()`) when EVERY slot is empty — so an
+    /// add-then-remove leaves an `Orders` byte-identical to `default()`, keeping `clear_seed`'s inert
+    /// short-circuit firing (it must return EXACTLY farm_seed). Mirrors `orders_hash`'s `any(!empty)` guard.
+    fn canon_gambits(&mut self, t: usize) {
+        if let Some(o) = self.exp_orders.get_mut(t) {
+            if !o.gambits.iter().any(|s| !s.is_empty()) {
+                o.gambits.clear();
+            }
+        }
+    }
     pub fn add_team(&mut self) -> usize {
         if self.exp_teams.len() < MAX_TEAMS {
             self.exp_teams.push(Vec::new());
-            self.exp_station.push(-1);
+            self.sanitize_exp_vecs(); // grow every team-parallel v5 vec in lockstep
         }
         self.exp_teams.len() - 1
     }
@@ -2176,16 +2614,86 @@ impl GameState {
             return false;
         }
         self.exp_teams.remove(t);
-        self.exp_station.remove(t);
+        // remove the same row from every team-parallel vec (guarding pre-resize lengths)
+        if t < self.exp_station.len() {
+            self.exp_station.remove(t);
+        }
+        if t < self.exp_orders.len() {
+            self.exp_orders.remove(t);
+        }
+        if t < self.exp_provisions.len() {
+            self.exp_provisions.remove(t);
+        }
+        if t < self.team_relics.len() {
+            self.team_relics.remove(t);
+        }
         if self.exp_active_team >= self.exp_teams.len() {
             self.exp_active_team = self.exp_teams.len() - 1;
         }
+        self.sanitize_exp_vecs();
         true
     }
+    /// THE single owner of v5 vec lengths (spec D8): bring every team-parallel + content-parallel expedition vec
+    /// to its correct length + clamp out-of-range ids. Called from `from_json` (migration) and `add_team`/
+    /// `remove_team`, so the whole v5 field set always moves in lockstep — no field can drift out of parity.
+    fn sanitize_exp_vecs(&mut self) {
+        let nt = self.exp_teams.len().max(1);
+        self.exp_station.resize(nt, -1);
+        self.exp_orders.resize_with(nt, Orders::default);
+        self.exp_provisions.resize_with(nt, Vec::new);
+        self.team_relics.resize_with(nt, Vec::new);
+        self.exp_cleared.resize(QUEST_COUNT, false);
+        self.exp_node_mod.resize(QUEST_COUNT, 0);
+        self.prov_inv.resize(expedition::PROVISION_COUNT, 0);
+        self.relics_owned.resize(expedition::RELIC_COUNT, false);
+        // clamp out-of-range ids (defensive vs tampered/old saves; nothing here consumes them yet in Phase 0)
+        for m in self.exp_node_mod.iter_mut() {
+            if *m as usize >= expedition::NODE_MOD_COUNT {
+                *m = 0;
+            }
+        }
+        for r in self.team_relics.iter_mut() {
+            r.retain(|&x| (x as usize) < expedition::RELIC_COUNT);
+            r.dedup();
+            r.truncate(expedition::RELIC_SLOTS_PER_TEAM);
+        }
+        for p in self.exp_provisions.iter_mut() {
+            p.retain(|&x| (x as usize) < expedition::PROVISION_COUNT);
+        }
+        // gambit hygiene (vs tampered/old saves): drop rules with out-of-range cond/action ids, cap per slot,
+        // and canonicalize an all-empty program to Vec::new() (so the inert clear_seed short-circuit fires).
+        for o in self.exp_orders.iter_mut() {
+            for slot in o.gambits.iter_mut() {
+                slot.retain(|r| r.cond < expedition::COND_COUNT && r.action < expedition::ACT_COUNT);
+                slot.truncate(expedition::MAX_GAMBIT_RULES);
+            }
+            if !o.gambits.iter().any(|s| !s.is_empty()) {
+                o.gambits.clear();
+            }
+        }
+        // v6: drop a stale/invalid in-flight run (e.g. a save whose run references content a build removed, or
+        // whose schedule arrays are inconsistent) — it degrades to the v5 station-farm rather than panicking.
+        if let Some(run) = self.active_run.as_ref() {
+            let n = run.prefix_ms.len();
+            let valid = run.team < self.exp_teams.len()
+                && !run.path.is_empty()
+                && run.path.iter().all(|&q| q < QUEST_COUNT)
+                && run.prefix_echoes.len() == n
+                && run.prefix_flux.len() == n
+                && run.room_kind.len() == n
+                && run.room_node.len() == n
+                && (run.claimed_rooms as usize) <= n;
+            if !valid {
+                self.active_run = None;
+            }
+        }
+    }
 
-    /// Battle seed folds in team `t`'s members + their power so different teams (and leveling up) face different
-    /// fights; the same team on the same quest is reproducible (watch == golden test).
-    fn team_seed(&self, t: usize, q: usize) -> u64 {
+    /// The FARM seed (v4's `team_seed`, byte-identical): folds team `t`'s members + their power so different teams
+    /// (and leveling up) face different fights; reproducible (watch == farm loop == golden test). The spectator
+    /// Watch + every standing-farm path use THIS, so the watch shows the plain inert loop — orders/provisions are
+    /// a one-shot CLEAR thing, never the standing farm (spec D2).
+    fn farm_seed(&self, t: usize, q: usize) -> u64 {
         let mut h = self.master_seed ^ (q as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
         if let Some(team) = self.exp_teams.get(t) {
             for &id in team {
@@ -2198,15 +2706,53 @@ impl GameState {
         h
     }
 
+    /// The CLEAR seed: `farm_seed` PLUS the team's orders, the node's risk mod, staged provisions, and equipped
+    /// relics — so a differently-ordered/provisioned attempt is a genuinely different fight. **Inert short-circuit
+    /// (spec D2):** when everything is default/empty it returns EXACTLY `farm_seed`, so a vanilla clear stays
+    /// bit-identical to v4 and every existing golden battle test passes unchanged.
+    fn clear_seed(&self, t: usize, q: usize) -> u64 {
+        let o = self.exp_orders.get(t).cloned().unwrap_or_default();
+        let mod_q = self.exp_node_mod.get(q).copied().unwrap_or(0);
+        let empty: &[u8] = &[];
+        let prov = self.exp_provisions.get(t).map(|v| v.as_slice()).unwrap_or(empty);
+        let relics = self.team_relics.get(t).map(|v| v.as_slice()).unwrap_or(empty);
+        if o == Orders::default() && mod_q == 0 && prov.is_empty() && relics.is_empty() {
+            return self.farm_seed(t, q); // inert ⇒ bit-identical to v4
+        }
+        let mut h = self.farm_seed(t, q);
+        h = h.wrapping_mul(0x100_0000_01b3).wrapping_add(orders_hash(&o));
+        h = h.wrapping_mul(0x100_0000_01b3).wrapping_add(mod_q as u64);
+        for &p in prov {
+            h = h.wrapping_mul(0x100_0000_01b3).wrapping_add(p as u64 + 1);
+        }
+        for &r in relics {
+            h = h.wrapping_mul(0x100_0000_01b3).wrapping_add(r as u64 + 0x1000);
+        }
+        h
+    }
+
     /// The ONE first-clear path (D5): mark cleared, grant Echoes + first-clear Flux + the freed shape + team XP.
     /// Returns (recruited_id, recruit_is_new, echoes_gained, first_clear_flux).
     fn grant_first_clear(&mut self, q: usize, t: usize) -> (i32, bool, u64, f64) {
         self.exp_cleared[q] = true;
+        self.exp_clears_total += 1; // history counters (the single first-clear path)
+        if QUESTS[q].boss.is_some() {
+            self.exp_bosses_freed += 1;
+        }
         let base = QUESTS[q].base_echo;
-        let echoes = base * 5;
+        // v5 risk modifier boosts the first-clear ECHOES lump only (spec D5) — never the Flux windfall, never any
+        // standing rate. A perilous/harrowing clear pays out a fat Echoes purse for provisions/relics.
+        let mod_pct = expedition::NODE_MODS
+            .get(self.exp_node_mod.get(q).copied().unwrap_or(0) as usize)
+            .map_or(0, |nm| nm.first_clear_mult_pct)
+            .max(0) as u64;
+        // Risk-mod % + double_rations (+100%) combine ADDITIVELY (not multiplicatively) so harrowing+double can't
+        // print a runaway lump — e.g. harrowing(+150%) + double(+100%) = +250% (×3.5), not ×2.4×2=×4.8.
+        let double_pct: u64 = if self.team_effects(t).iter().any(|e| matches!(e, expedition::EffKind::DoubleClearEchoes)) { 100 } else { 0 };
+        let echoes = base * 5 * (100 + mod_pct + double_pct) / 100;
         self.echoes += echoes;
         self.lifetime_echoes += echoes;
-        let fc_flux = base as f64 * FIRST_CLEAR_FLUX_K * content::FLUX_DENSITY; // a windfall, not inert
+        let fc_flux = base as f64 * FIRST_CLEAR_FLUX_K * content::FLUX_DENSITY; // a windfall, not inert (mod-free)
         self.flux += fc_flux;
         self.lifetime_flux += fc_flux;
         let (mut rid_out, mut is_new) = (-1i32, false);
@@ -2226,6 +2772,335 @@ impl GameState {
         (rid_out, is_new, echoes, fc_flux)
     }
 
+    /// Record one completed first-clear run into the bounded history ring (newest first, ≤ 24). Render-only.
+    fn push_run(&mut self, q: usize, t: usize, stats: (u32, u32, u32), echoes: u64, flux: f64) {
+        let (rounds, survivors, party_size) = stats;
+        let rec = ExpRunRec {
+            kind: if QUESTS[q].boss.is_some() { 1 } else { 0 },
+            quest: q as u32,
+            team: t as u32,
+            rounds,
+            survivors,
+            party_size,
+            echoes,
+            flux: flux.round() as u64,
+            recruit_id: QUESTS[q].recruit_id,
+            ng_cycle: self.ng_cycle,
+        };
+        self.exp_runs.insert(0, rec);
+        self.exp_runs.truncate(24);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+    // v6 "THE DELVE": completable runs through a linear dungeon, resolved ONCE at send into a frozen schedule.
+    // Idle advance is a binary-search READ of the prefix arrays (O(1) offline; online==offline by construction).
+    // `active_run == None` ⇒ everything below is inert and v5 station-farm is byte-identical.
+    // ─────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+    /// Resolve an entire run through `path` for team `t` into its immutable schedule. PURE (no mutation) — the
+    /// future is computed here, once, and only READ thereafter. Survivor HP threads from each room into the next.
+    fn resolve_run(&self, team: usize, path: &[usize], seed: u64) -> RunPlan {
+        let orders = self.team_orders(team);
+        let effects = self.team_effects(team);
+        let gambits = self.build_team_gambits(team, &orders);
+        let mut party = self.build_team_combatants(team, &orders, &effects); // full HP at room 0
+        let mut plan = RunPlan {
+            team,
+            party: self.exp_teams.get(team).cloned().unwrap_or_default(),
+            path: path.to_vec(),
+            run_seed: seed,
+            start_ms: 0.0,
+            orders: orders.clone(),
+            provisions: self.exp_provisions.get(team).cloned().unwrap_or_default(),
+            ..Default::default()
+        };
+        let rooms = build_room_plan(path);
+        plan.planned_rooms = rooms.len(); // the intended length (death-leak-free progress denominator)
+        let (mut t_ms, mut ech, mut flux) = (0.0f64, 0u64, 0u64);
+        for (k, &(kind, node)) in rooms.iter().enumerate() {
+            // room 0 uses run_seed RAW so a 1-room run resolves bit-identically to clearing that node via `station`.
+            let rs = if k == 0 { seed } else { seed ^ expedition::splitmix64(k as u64) };
+            match kind {
+                expedition::RoomKind::Campfire => {
+                    heal_party(&mut party, CAMPFIRE_HEAL_PCT);
+                    for c in party.iter_mut() {
+                        if c.hp > 0 {
+                            c.atk = (c.atk * (100 + CAMPFIRE_BOON_PCT) / 100).max(1); // a steady +10% atk for the rest of the run
+                        }
+                    }
+                    t_ms += REST_MS;
+                    push_room(&mut plan, t_ms, ech, flux, kind.as_u8(), -1);
+                }
+                expedition::RoomKind::Treasure => {
+                    let depth = k as u64;
+                    let base = 30 + 15 * depth;
+                    let lump = base + expedition::splitmix64(rs) % (base / 2 + 1); // deterministic varied loot (RUN lineage)
+                    ech += lump;
+                    flux += lump / 2;
+                    heal_party(&mut party, TREASURE_HEAL_PCT);
+                    t_ms += TREASURE_MS;
+                    push_room(&mut plan, t_ms, ech, flux, kind.as_u8(), -1);
+                }
+                _ => {
+                    let q = node as usize;
+                    let enemies = expedition::quest_enemies_scaled(&QUESTS[q], self.node_mod_scale(q));
+                    let r = expedition::resolve_battle_from_hp(rs, party.clone(), enemies, orders.focus, &gambits);
+                    t_ms += r.rounds as f64 * MS_PER_ROOM_ROUND;
+                    for (i, c) in party.iter_mut().enumerate() {
+                        if let Some(&h) = r.final_hp.get(i) {
+                            c.hp = h; // thread survivor HP into the next room
+                        }
+                    }
+                    if r.win {
+                        ech += QUESTS[q].base_echo; // delve loot (separate from the first-clear bonus granted on banking)
+                        flux += QUESTS[q].base_echo / 2;
+                        push_room(&mut plan, t_ms, ech, flux, kind.as_u8(), node);
+                    } else {
+                        plan.death_room = Some(k); // chained-party wipe — the run ends here, partial loot kept
+                        push_room(&mut plan, t_ms, ech, flux, kind.as_u8(), -1);
+                        break;
+                    }
+                }
+            }
+        }
+        plan.total_ms = plan.prefix_ms.last().copied().unwrap_or(0.0);
+        plan
+    }
+
+    /// Send team `t` on a run through `path`. Resolves the run ONCE and freezes it as `active_run`, persisted by
+    /// the caller's tick before any room outcome is revealed (save-scum-proof, like `station`). Returns false if a
+    /// run is already in flight, the path is empty/invalid, or the party is empty.
+    pub fn send_expedition(&mut self, t: usize, path: &[usize], now_ms: f64) -> bool {
+        self.tick(now_ms); // bank any standing farm first (active_run is None here ⇒ accrue_run is a no-op)
+        if self.active_run.is_some() || path.is_empty() || t >= self.exp_teams.len() {
+            return false;
+        }
+        let orders = self.team_orders(t);
+        if self.build_team_combatants(t, &orders, &[]).is_empty() {
+            return false; // empty / all-unowned party
+        }
+        if path.iter().any(|&q| q >= QUEST_COUNT) {
+            return false;
+        }
+        let seed = self.clear_seed(t, path[0]);
+        let mut plan = self.resolve_run(t, path, seed);
+        plan.start_ms = now_ms;
+        self.active_run = Some(plan);
+        true
+    }
+
+    /// Compose the next LINEAR run path (v1: no branching/choice): from the lowest-index OPEN uncleared mainline
+    /// node, walk forward (index order, skipping Elite branches + cleared nodes) collecting uncleared nodes,
+    /// stopping AFTER the next Boss or at the dimension wall (need NG+ to go deeper). Empty ⇒ nothing to delve
+    /// (auto-dispatch then falls back to the v5 station-farm). Pure.
+    pub fn compose_run_path(&self) -> Vec<usize> {
+        let mut path = Vec::new();
+        let mut started = false;
+        for (q, def) in QUESTS.iter().enumerate() {
+            if matches!(def.kind, expedition::NodeKind::Elite) {
+                continue; // v1 runs follow the mainline; Elite branches are deferred (no path-choice yet)
+            }
+            if def.min_dim > self.viewport_dim {
+                if started {
+                    break; // hit the dimension wall — the run ends here (Recrystallize to go deeper)
+                }
+                continue;
+            }
+            if self.exp_cleared[q] {
+                continue; // already cleared — a run delves NEW ground
+            }
+            if !started {
+                if !self.node_open(q) {
+                    continue; // wait for the frontier to be reachable
+                }
+                started = true;
+            }
+            path.push(q);
+            if matches!(def.kind, expedition::NodeKind::Boss) {
+                break; // a run is one chapter: end at the next boss
+            }
+        }
+        path
+    }
+
+    /// O(1) idle advance of the one in-flight run (mounted in BOTH `tick` and `compute_offline`). Banks newly-
+    /// finished rooms' delve loot by INTEGER prefix-diff (online==offline = the same array element) and routes each
+    /// newly-cleared node through the idempotent `grant_first_clear`. Inert when `active_run` is None.
+    fn accrue_run(&mut self, now_ms: f64) {
+        let (finished, total_len, de, df, nodes, team) = match self.active_run.as_ref() {
+            Some(run) if !run.prefix_ms.is_empty() => {
+                let elapsed = (now_ms - run.start_ms).clamp(0.0, run.total_ms);
+                let finished = run.prefix_ms.partition_point(|&t| t <= elapsed); // O(log rooms), span-independent
+                let claimed = run.claimed_rooms as usize;
+                if finished > claimed {
+                    let base_e = if claimed == 0 { 0 } else { run.prefix_echoes[claimed - 1] };
+                    let base_f = if claimed == 0 { 0 } else { run.prefix_flux[claimed - 1] };
+                    (finished, run.prefix_ms.len(), run.prefix_echoes[finished - 1] - base_e, run.prefix_flux[finished - 1] - base_f, run.room_node[claimed..finished].to_vec(), run.team)
+                } else {
+                    (finished, run.prefix_ms.len(), 0u64, 0u64, Vec::new(), run.team)
+                }
+            }
+            _ => return,
+        };
+        if de > 0 {
+            self.echoes += de;
+            self.lifetime_echoes += de;
+        }
+        if df > 0 {
+            self.flux += df as f64;
+            self.lifetime_flux += df as f64;
+        }
+        for node in nodes {
+            if node >= 0 && !self.exp_cleared[node as usize] {
+                self.grant_first_clear(node as usize, team); // idempotent via the !cleared guard (shares the v5 ledger)
+            }
+        }
+        if let Some(run) = self.active_run.as_mut() {
+            run.claimed_rooms = run.claimed_rooms.max(finished as u32);
+        }
+        if finished >= total_len {
+            self.complete_run(now_ms);
+        }
+    }
+
+    /// Finalize a run: consume staged provisions on a COMPLETED run (a wipe is free — loss-is-free), push a
+    /// history record, and clear `active_run` so the team is free to be re-sent.
+    fn complete_run(&mut self, now_ms: f64) {
+        let Some(run) = self.active_run.take() else { return };
+        let died = run.death_room.is_some();
+        let rec = RunRecord {
+            team: run.team as u32,
+            rooms: run.claimed_rooms,
+            echoes: run.prefix_echoes.last().copied().unwrap_or(0),
+            died,
+            at_ms: now_ms,
+        };
+        if !died {
+            // consume the staged provisions only on a clear completion (mirrors station's consume-on-win, D12).
+            if let Some(staged) = self.exp_provisions.get(run.team).cloned() {
+                for p in staged {
+                    if let Some(charge) = self.prov_inv.get_mut(p as usize) {
+                        *charge = charge.saturating_sub(1);
+                    }
+                }
+                if let Some(s) = self.exp_provisions.get_mut(run.team) {
+                    s.clear();
+                }
+            }
+        }
+        self.run_history.insert(0, rec);
+        self.run_history.truncate(24);
+    }
+
+    /// v5 journey-map gate: is node `q` open to ATTEMPT (its first clear)? Open iff the dimension gate is met AND
+    /// it's a region entry (no in-edges) or ANY in-edge's source is cleared (OR-convergence — clearing either the
+    /// mainline path or an Elite branch independently opens a boss, so the player picks a route). Cleared nodes
+    /// are always farmable regardless. Pure derivation from `exp_cleared` + `viewport_dim` (no topology state).
+    pub fn node_open(&self, q: usize) -> bool {
+        if q >= QUEST_COUNT || self.viewport_dim < QUESTS[q].min_dim {
+            return false;
+        }
+        let mut has_in = false;
+        for e in expedition::EDGES {
+            if e.to == q {
+                has_in = true;
+                if self.exp_cleared.get(e.from).copied().unwrap_or(false) {
+                    return true;
+                }
+            }
+        }
+        !has_in
+    }
+    /// Does team `t` win the CONFIGURED clear of node `q` — its orders + equipped relics + STAGED PROVISIONS
+    /// against the SELECTED-risk-mod enemy roster? Byte-equivalent to the real clear (`station`), so the
+    /// "ready/risky/underpowered" chip predicts the exact fight the player is about to get. Pure (no mutation).
+    fn beatable_safe(&self, t: usize, q: usize) -> bool {
+        if q >= QUEST_COUNT {
+            return false;
+        }
+        let o = self.team_orders(t);
+        let party = self.build_team_combatants(t, &o, &self.team_effects(t));
+        if party.is_empty() {
+            return false;
+        }
+        expedition::resolve_battle(self.clear_seed(t, q), party, expedition::quest_enemies_scaled(&QUESTS[q], self.node_mod_scale(q)), o.focus, &self.build_team_gambits(t, &o)).win
+    }
+    /// The enemy-stat scaling % for node `q`'s chosen risk modifier (0 = safe). Applies to the CLEAR battle only.
+    fn node_mod_scale(&self, q: usize) -> i64 {
+        let m = self.exp_node_mod.get(q).copied().unwrap_or(0) as usize;
+        expedition::NODE_MODS.get(m).map_or(0, |nm| nm.enemy_scale_pct)
+    }
+    /// Choose node `q`'s risk modifier (only before it's cleared — after a clear the node is farmed, mod is moot).
+    pub fn set_node_mod(&mut self, q: usize, m: u8) {
+        if q < self.exp_node_mod.len() && (m as usize) < expedition::NODE_MOD_COUNT && !self.exp_cleared.get(q).copied().unwrap_or(false) {
+            self.exp_node_mod[q] = m;
+        }
+    }
+    pub fn set_auto(&mut self, on: bool) {
+        self.exp_auto = on;
+    }
+
+    // ── provisions (consumable, Echoes-bought, staged per clear, consumed on win) ──
+    pub fn provision_cost(&self, id: usize) -> u64 {
+        expedition::PROVISIONS.get(id).map_or(0, |p| p.cost)
+    }
+    pub fn buy_provision(&mut self, id: usize) -> bool {
+        let cost = self.provision_cost(id);
+        if id >= expedition::PROVISION_COUNT || self.echoes < cost {
+            return false;
+        }
+        self.echoes -= cost;
+        self.prov_inv[id] += 1;
+        true
+    }
+    /// Stage a provision (you must own an unstaged charge) for team `t`'s next clear, up to EXP_PROVISION_SLOTS.
+    pub fn load_provision(&mut self, t: usize, id: usize) -> bool {
+        if t >= self.exp_provisions.len() || id >= expedition::PROVISION_COUNT {
+            return false;
+        }
+        let owned = self.prov_inv.get(id).copied().unwrap_or(0);
+        let already = self.exp_provisions[t].iter().filter(|&&x| x as usize == id).count() as u32;
+        if already >= owned || self.exp_provisions[t].len() >= EXP_PROVISION_SLOTS {
+            return false;
+        }
+        self.exp_provisions[t].push(id as u8);
+        true
+    }
+    pub fn clear_provisions(&mut self, t: usize) {
+        if let Some(s) = self.exp_provisions.get_mut(t) {
+            s.clear();
+        }
+    }
+
+    // ── relics (Echoes-bought once, equipped per team, persistent upside + downside) ──
+    pub fn relic_cost(&self, id: usize) -> u64 {
+        expedition::RELICS.get(id).map_or(0, |r| r.cost)
+    }
+    pub fn buy_relic(&mut self, id: usize) -> bool {
+        let cost = self.relic_cost(id);
+        if id >= expedition::RELIC_COUNT || self.relics_owned.get(id).copied().unwrap_or(true) || self.echoes < cost {
+            return false;
+        }
+        self.echoes -= cost;
+        self.relics_owned[id] = true;
+        true
+    }
+    pub fn equip_relic(&mut self, t: usize, id: usize) -> bool {
+        if t >= self.team_relics.len() || id >= expedition::RELIC_COUNT || !self.relics_owned.get(id).copied().unwrap_or(false) {
+            return false;
+        }
+        if self.team_relics[t].contains(&(id as u8)) || self.team_relics[t].len() >= expedition::RELIC_SLOTS_PER_TEAM {
+            return false;
+        }
+        self.team_relics[t].push(id as u8);
+        true
+    }
+    pub fn unequip_relic(&mut self, t: usize, id: usize) {
+        if let Some(rs) = self.team_relics.get_mut(t) {
+            rs.retain(|&x| x as usize != id);
+        }
+    }
+
     /// Station team `t` on quest `q`. Banks idle first. If `q` isn't cleared, resolve the battle: a win grants
     /// the first-clear rewards + stations; a loss is free (returns the battle, does NOT station). If already
     /// cleared, stations immediately. One team per quest (any other team there is bumped off).
@@ -2243,12 +3118,18 @@ impl GameState {
         if t >= self.exp_teams.len() || q >= QUEST_COUNT {
             return fail;
         }
-        if self.viewport_dim < QUESTS[q].min_dim || self.build_team_combatants(t).is_empty() {
+        if self.build_team_combatants(t, &Orders::default(), &[]).is_empty() {
+            return fail;
+        }
+        // an UNCLEARED node must be OPEN (dim gate + a cleared in-edge / region entry); a CLEARED node can always
+        // be re-stationed to farm (its prereqs were already met).
+        if !self.exp_cleared[q] && !self.node_open(q) {
             return fail;
         }
         let mut res = StationResult { ok: true, win: true, ..fail };
         if !self.exp_cleared[q] {
-            let battle = expedition::resolve_battle(self.team_seed(t, q), self.build_team_combatants(t), expedition::quest_enemies(&QUESTS[q]));
+            let o = self.team_orders(t);
+            let battle = expedition::resolve_battle(self.clear_seed(t, q), self.build_team_combatants(t, &o, &self.team_effects(t)), expedition::quest_enemies_scaled(&QUESTS[q], self.node_mod_scale(q)), o.focus, &self.build_team_gambits(t, &o));
             res.win = battle.win;
             res.battle = Some(battle);
             if !res.win {
@@ -2260,6 +3141,20 @@ impl GameState {
             res.recruit_is_new = isnew;
             res.echoes_gained = ech;
             res.first_clear_flux = fc;
+            // provisions are consumed on WIN only (a loss retains them — spec D6).
+            if let Some(staged) = self.exp_provisions.get(t).cloned() {
+                for p in staged {
+                    if let Some(charge) = self.prov_inv.get_mut(p as usize) {
+                        *charge = charge.saturating_sub(1);
+                    }
+                }
+                if let Some(s) = self.exp_provisions.get_mut(t) {
+                    s.clear();
+                }
+            }
+            // history: record this run (newest-first ring) from the deciding battle
+            let (rounds, surv, psize) = res.battle.as_ref().map_or((0, 0, 0), |b| (b.rounds, b.party_survivors as u32, b.party_size as u32));
+            self.push_run(q, t, (rounds, surv, psize), res.echoes_gained, res.first_clear_flux);
         }
         // station (one team per quest): bump any other team off this quest, then assign.
         for s in self.exp_station.iter_mut() {
@@ -2283,7 +3178,9 @@ impl GameState {
             return None;
         }
         let t = (0..self.exp_teams.len()).find(|&t| self.exp_station.get(t).copied().unwrap_or(-1) == q as i32)?;
-        Some(expedition::resolve_battle(self.team_seed(t, q), self.build_team_combatants(t), expedition::quest_enemies(&QUESTS[q])))
+        // the WATCH replays the inert FARM loop (default orders, farm_seed) — orders/provisions are a one-shot
+        // clear thing, not the standing farm (spec D2).
+        Some(expedition::resolve_battle(self.farm_seed(t, q), self.build_team_combatants(t, &Orders::default(), &[]), expedition::quest_enemies(&QUESTS[q]), -1, &[]))
     }
 
     fn party_power_of(&self, party: &[usize]) -> i64 {
@@ -2376,18 +3273,26 @@ impl GameState {
     pub fn auto_expedition(&mut self, now_ms: f64) -> AutoExpeditionStep {
         self.tick(now_ms);
         let mut step = AutoExpeditionStep { delved: false, quest: -1, recruited_id: -1, farms: 0 };
-        // 1) the strongest non-empty team clears the next beatable, unlocked, uncleared quest (easiest first)
+        // 1) the strongest non-empty team WITHOUT staged provisions clears the next beatable open node (easiest
+        //    first). Teams with staged provisions are reserved for the player's deliberate manual runs — Auto
+        //    never spends consumables, and skipping them keeps Auto's seed (provision-free) consistent with the
+        //    relic-only combatants it builds.
         let clearer = (0..self.exp_teams.len())
-            .filter(|&t| !self.build_team_combatants(t).is_empty())
+            .filter(|&t| !self.build_team_combatants(t, &Orders::default(), &[]).is_empty() && self.exp_provisions.get(t).is_none_or(|p| p.is_empty()))
             .max_by_key(|&t| self.party_power_of(&self.exp_teams[t]));
         if let Some(t) = clearer {
+            // Auto only clears SAFE (mod 0), NON-Elite open nodes — risky mods + Elite branches (with their fat
+            // reserved Echoes lumps) are left for deliberate manual play.
             let mut cands: Vec<usize> = (0..QUEST_COUNT)
-                .filter(|&qi| self.viewport_dim >= QUESTS[qi].min_dim && !self.exp_cleared[qi])
+                .filter(|&qi| !self.exp_cleared[qi] && self.node_open(qi) && self.exp_node_mod.get(qi).copied().unwrap_or(0) == 0 && QUESTS[qi].kind != expedition::NodeKind::Elite)
                 .collect();
             cands.sort_by_key(|&qi| QUESTS[qi].tier);
             for qi in cands {
-                if expedition::resolve_battle(self.team_seed(t, qi), self.build_team_combatants(t), expedition::quest_enemies(&QUESTS[qi])).win {
-                    let (rid, _, _, _) = self.grant_first_clear(qi, t);
+                let o = self.team_orders(t); // Auto honours the team's human-set orders + equipped relics (never provisions)
+                let battle = expedition::resolve_battle(self.clear_seed(t, qi), self.build_team_combatants(t, &o, &self.team_relic_effects(t)), expedition::quest_enemies(&QUESTS[qi]), o.focus, &self.build_team_gambits(t, &o));
+                if battle.win {
+                    let (rid, _, ech, fc) = self.grant_first_clear(qi, t);
+                    self.push_run(qi, t, (battle.rounds, battle.party_survivors as u32, battle.party_size as u32), ech, fc);
                     step.delved = true;
                     step.quest = qi as i32;
                     step.recruited_id = rid;
@@ -2397,7 +3302,7 @@ impl GameState {
         }
         // 2) station every idle team on the best cleared quest not already stationed by another team
         for t in 0..self.exp_teams.len() {
-            if self.exp_station[t] >= 0 || self.build_team_combatants(t).is_empty() {
+            if self.exp_station[t] >= 0 || self.build_team_combatants(t, &Orders::default(), &[]).is_empty() {
                 continue;
             }
             let taken = self.exp_station.clone();
@@ -2422,6 +3327,7 @@ impl GameState {
             let whole = s.floor();
             self.echoes += whole as u64;
             self.lifetime_echoes += whole as u64;
+            self.exp_echoes_farmed += whole as u64; // history counter (banked in the same whole-unit block)
             self.echo_carry = s - whole;
         }
         let frate = self.expedition_flux_per_hr();
@@ -2430,6 +3336,7 @@ impl GameState {
             let whole = s.floor();
             self.flux += whole;
             self.lifetime_flux += whole;
+            self.exp_flux_farmed += whole; // history counter
             self.exp_flux_carry = s - whole;
         }
     }
@@ -2676,6 +3583,16 @@ impl GameState {
         if state.exp_active_team >= state.exp_teams.len() {
             state.exp_active_team = 0;
         }
+        // v4→v5: bring every team-parallel + content-parallel v5 vec into lockstep (one owner). Pre-v5 saves
+        // have none of these (serde-default empty) → they size up to all-default, mode dormant.
+        state.sanitize_exp_vecs();
+        // v4→v5: backfill the History counters from already-cleared nodes (the v4 player cleared them before the
+        // counters existed). Only when total==0 — a real v5 save with clears already has a non-zero count, so
+        // this never double-counts; a fresh game backfills 0.
+        if state.exp_clears_total == 0 {
+            state.exp_clears_total = state.exp_cleared.iter().filter(|&&c| c).count() as u64;
+            state.exp_bosses_freed = (0..QUEST_COUNT).filter(|&q| state.exp_cleared.get(q).copied().unwrap_or(false) && QUESTS[q].boss.is_some()).count() as u64;
+        }
         // 2D board: older saves have no board_cells — seed them row-packed (0,1,2…). Then prune the loadout +
         // its cells together for any invalid/unowned ids so the two arrays stay parallel.
         if state.board_cells.len() != state.loadout.len() {
@@ -2809,6 +3726,9 @@ impl GameState {
                     power: self.party_power_of(&self.exp_teams[t]),
                     echo_rate_per_hr: self.team_echo_rate(t),
                     flux_rate_per_hr: self.team_flux_rate(t),
+                    orders: self.team_orders(t),
+                    provisions: self.exp_provisions.get(t).cloned().unwrap_or_default(),
+                    relics: self.team_relics.get(t).cloned().unwrap_or_default(),
                 })
                 .collect(),
             exp_active_team: self.exp_active_team as u32,
@@ -2828,6 +3748,33 @@ impl GameState {
                 let team = self.exp_teams.get(self.exp_active_team).cloned().unwrap_or_default();
                 (0..QUEST_COUNT).map(|qi| self.echo_rate_est(&team, qi) * content::FLUX_DENSITY * EXP_FLUX_PER_ECHO_RATE).collect()
             },
+            exp_node_open: (0..QUEST_COUNT).map(|q| self.node_open(q)).collect(),
+            exp_node_mod: self.exp_node_mod.clone(),
+            exp_node_beatable: {
+                let t = self.exp_active_team;
+                (0..QUEST_COUNT)
+                    .map(|q| if self.exp_cleared[q] { true } else if self.node_open(q) { self.beatable_safe(t, q) } else { false })
+                    .collect()
+            },
+            exp_auto: self.exp_auto,
+            prov_inv: self.prov_inv.clone(),
+            prov_costs: (0..expedition::PROVISION_COUNT).map(|i| self.provision_cost(i)).collect(),
+            exp_relics_owned: self.relics_owned.clone(),
+            exp_relic_costs: (0..expedition::RELIC_COUNT).map(|i| self.relic_cost(i)).collect(),
+            exp_clears_total: self.exp_clears_total,
+            exp_bosses_freed: self.exp_bosses_freed,
+            exp_echoes_farmed: self.exp_echoes_farmed,
+            exp_flux_farmed: self.exp_flux_farmed,
+            exp_runs: self.exp_runs.clone(),
+            run: self.active_run.as_ref().map(|r| RunView {
+                team: r.team,
+                path: r.path.clone(),
+                current_room: r.claimed_rooms,
+                total_rooms: r.planned_rooms, // intended room count (incl. cozy rooms) — an early stop reads as a soft-land
+                start_ms: r.start_ms,
+                total_ms: r.total_ms,
+            }),
+            can_send_run: self.active_run.is_none() && !self.compose_run_path().is_empty(),
         }
     }
 }
@@ -3035,6 +3982,19 @@ impl Game {
         self.state.tick(now_ms);
         self.state.unstation(t);
     }
+    /// v6: send team `t` on the next auto-composed linear Delve run. Returns false if a run is already in flight,
+    /// there's nothing new to delve, or the party is empty. The schedule is frozen + persisted here.
+    pub fn send_expedition(&mut self, t: usize, now_ms: f64) -> bool {
+        let path = self.state.compose_run_path();
+        if path.is_empty() {
+            return false;
+        }
+        self.state.send_expedition(t, &path, now_ms)
+    }
+    /// v6: is there a linear run available to send (the auto-path picker finds new ground)?
+    pub fn can_send_expedition(&self) -> bool {
+        !self.state.compose_run_path().is_empty()
+    }
     /// The deterministic battle the team stationed on quest `q` is running (for the spectator Watch), or "null".
     pub fn watch_data(&self, q: usize) -> String {
         serde_json::to_string(&self.state.watch_data(q)).unwrap()
@@ -3057,8 +4017,89 @@ impl Game {
         self.state.tick(now_ms);
         self.state.respec(id);
     }
+    // ── v5: routing, orders, provisions, relics, auto ──
+    pub fn set_node_mod(&mut self, q: usize, m: u8, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.set_node_mod(q, m);
+    }
+    pub fn set_orders(&mut self, t: usize, formation: u8, doctrine: u8, focus: i32, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.set_orders(t, formation, doctrine, focus as i8);
+    }
+    pub fn set_slot_stance(&mut self, t: usize, slot: usize, s: u8, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.set_slot_stance(t, slot, s);
+    }
+    pub fn set_gambit_rule(&mut self, t: usize, slot: usize, idx: usize, cond: u8, action: u8, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.set_gambit_rule(t, slot, idx, cond, action);
+    }
+    pub fn toggle_gambit(&mut self, t: usize, slot: usize, idx: usize, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.toggle_gambit(t, slot, idx);
+    }
+    pub fn move_gambit(&mut self, t: usize, slot: usize, idx: usize, up: bool, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.move_gambit(t, slot, idx, up);
+    }
+    pub fn add_gambit(&mut self, t: usize, slot: usize, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.add_gambit(t, slot);
+    }
+    pub fn remove_gambit(&mut self, t: usize, slot: usize, idx: usize, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.remove_gambit(t, slot, idx);
+    }
+    pub fn reset_gambits(&mut self, t: usize, slot: usize, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.reset_gambits(t, slot);
+    }
+    pub fn buy_provision(&mut self, id: usize, now_ms: f64) -> bool {
+        self.state.tick(now_ms);
+        self.state.buy_provision(id)
+    }
+    pub fn load_provision(&mut self, t: usize, id: usize, now_ms: f64) -> bool {
+        self.state.tick(now_ms);
+        self.state.load_provision(t, id)
+    }
+    pub fn clear_provisions(&mut self, t: usize, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.clear_provisions(t);
+    }
+    pub fn buy_relic(&mut self, id: usize, now_ms: f64) -> bool {
+        self.state.tick(now_ms);
+        self.state.buy_relic(id)
+    }
+    pub fn equip_relic(&mut self, t: usize, id: usize, now_ms: f64) -> bool {
+        self.state.tick(now_ms);
+        self.state.equip_relic(t, id)
+    }
+    pub fn unequip_relic(&mut self, t: usize, id: usize, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.unequip_relic(t, id);
+    }
+    pub fn set_auto(&mut self, on: bool, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.set_auto(on);
+    }
     pub fn dev_add_echoes(&mut self, amount: f64) {
         self.state.dev_add_echoes(amount as u64);
+    }
+}
+
+/// The AUTHORITATIVE expedition role of a shape family (pure — depends only on the family). The single source
+/// of truth used by both combat (`exp_role`) and the shape DTO, so the web never re-derives it (prime directive).
+fn role_for(fam: &str) -> expedition::Role {
+    if content::is_knot(fam) {
+        return expedition::Role::Control;
+    }
+    if content::is_nonorientable(fam) || content::is_polytope_4d(fam) {
+        return expedition::Role::Support;
+    }
+    match fam {
+        "sphere" | "cube" | "cylinder" | "ellipsoid" | "hyperboloid" | "catenoid" => expedition::Role::Tank,
+        "dodecahedron" | "disk" | "gyroid" | "schwarz_p" | "schwarz_d" | "seifert" | "costa" => expedition::Role::Support,
+        _ => expedition::Role::Dps,
     }
 }
 
@@ -3075,6 +4116,7 @@ pub fn shapes_json() -> String {
         euler_cost: u32,
         orientable: bool, // declared invariant — drives the orrery's Orientability "flip" timbre (feel layer)
         forgeable: bool,  // is a connected-sum-able surface (sphere/torus/Klein/…) — drives the forge bench picker
+        role: &'static str, // AUTHORITATIVE expedition role (so the web never re-derives it — prime directive)
         prod: f64, // base production/hr when deployed (before prestige/set/bond multipliers)
     }
     let rows: Vec<ShapeRow> = SHAPES
@@ -3089,6 +4131,7 @@ pub fn shapes_json() -> String {
             euler_cost: s.euler_cost,
             orientable: !content::is_nonorientable(s.family),
             forgeable: content::surface_class(s.family).is_some(),
+            role: role_for(s.family).as_str(),
             prod: content::effective_prod(id),
         })
         .collect();
@@ -3236,6 +4279,10 @@ pub fn expeditions_json() -> String {
         recruit_id: i32,
         recruit_nick: Option<&'static str>,
         dom_element: &'static str,
+        kind: &'static str,        // v5: "combat" | "elite" | "boss"
+        map_xy: (i16, i16),        // v5: authored node-graph layout
+        in_edges: Vec<usize>,      // v5: node indices that gate this one
+        out_edges: Vec<usize>,     // v5: nodes this one unlocks
     }
     #[derive(Serialize)]
     struct PerkRow {
@@ -3244,13 +4291,41 @@ pub fn expeditions_json() -> String {
         max_level: u32,
     }
     #[derive(Serialize)]
+    struct ProvisionRow {
+        key: &'static str,
+        cost: u64,
+        eff: &'static str, // EffKind tag for the UI (names/descs come from i18n)
+        val: i64,
+    }
+    #[derive(Serialize)]
+    struct RelicRow {
+        key: &'static str,
+        cost: u64,
+        up: &'static str,
+        up_val: i64,
+        down: &'static str,
+        down_val: i64,
+        slots: u32,
+    }
+    #[derive(Serialize)]
+    struct NodeModRow {
+        key: &'static str,
+        enemy_scale_pct: i64,
+        first_clear_mult_pct: i64,
+    }
+    #[derive(Serialize)]
     struct ExpContent {
         quests: Vec<QuestRow>,
         perks: Vec<PerkRow>,
+        edges: Vec<(usize, usize)>, // v5: the journey-graph edge list (from, to)
+        provisions: Vec<ProvisionRow>,
+        relics: Vec<RelicRow>,
+        node_mods: Vec<NodeModRow>,
     }
     let quests = QUESTS
         .iter()
-        .map(|q| QuestRow {
+        .enumerate()
+        .map(|(qi, q)| QuestRow {
             key: q.key,
             nick: q.nick,
             chapter: q.chapter,
@@ -3263,13 +4338,37 @@ pub fn expeditions_json() -> String {
             recruit_id: q.recruit_id,
             recruit_nick: if q.recruit_id >= 0 { Some(SHAPES[q.recruit_id as usize].nick) } else { None },
             dom_element: expedition::quest_dominant_element(q).as_str(),
+            kind: q.kind.as_str(),
+            map_xy: q.map_xy,
+            in_edges: expedition::EDGES.iter().filter(|e| e.to == qi).map(|e| e.from).collect(),
+            out_edges: expedition::EDGES.iter().filter(|e| e.from == qi).map(|e| e.to).collect(),
         })
         .collect();
     let perks = expedition::EXP_PERKS
         .iter()
         .map(|p| PerkRow { key: p.key, base_cost: p.cost, max_level: p.max_level })
         .collect();
-    serde_json::to_string(&ExpContent { quests, perks }).unwrap()
+    let edges = expedition::EDGES.iter().map(|e| (e.from, e.to)).collect();
+    let provisions = expedition::PROVISIONS
+        .iter()
+        .map(|p| {
+            let (eff, val) = p.eff.tag();
+            ProvisionRow { key: p.key, cost: p.cost, eff, val }
+        })
+        .collect();
+    let relics = expedition::RELICS
+        .iter()
+        .map(|r| {
+            let (up, up_val) = r.up.tag();
+            let (down, down_val) = r.down.tag();
+            RelicRow { key: r.key, cost: r.cost, up, up_val, down, down_val, slots: expedition::RELIC_SLOTS_PER_TEAM as u32 }
+        })
+        .collect();
+    let node_mods = expedition::NODE_MODS
+        .iter()
+        .map(|m| NodeModRow { key: m.key, enemy_scale_pct: m.enemy_scale_pct, first_clear_mult_pct: m.first_clear_mult_pct })
+        .collect();
+    serde_json::to_string(&ExpContent { quests, perks, edges, provisions, relics, node_mods }).unwrap()
 }
 
 #[cfg(test)]
@@ -3714,6 +4813,7 @@ mod tests {
         let donna = 10usize;
         g.owned[donna] = 0; // not owned yet
         g.set_team(0, &[2, 0, 4, 5]);
+        g.exp_cleared[2] = true; // open shallows_boss (mainline prereq) so the boss is attemptable
         let r = g.station(0, 3); // shallows_boss → recruit_id 10
         if r.win && r.newly_cleared {
             assert_eq!(r.recruited_id, donna as i32);
@@ -3726,6 +4826,7 @@ mod tests {
         let mut g = GameState::new(3, 0.0);
         g.owned[0] = 1;
         g.set_team(0, &[0]); // a lone tank can't beat a boss quest
+        g.exp_cleared[6] = true; // open folds_boss (its mainline prereq) so the node is attemptable
         let (flux0, echoes0) = (g.flux, g.echoes);
         let r = g.station(0, 7); // folds_boss
         assert!(r.ok);
@@ -3923,7 +5024,7 @@ mod tests {
     }
 
     #[test]
-    fn v4_save_round_trips_with_team_and_xp_state() {
+    fn v5_save_round_trips_with_team_and_xp_state() {
         let mut g = GameState::new(12345, 1000.0);
         own_early(&mut g);
         g.set_team(0, &[2, 0, 4]);
@@ -3933,13 +5034,550 @@ mod tests {
         g.shape_xp[0] = 1234;
         g.spend_skill_point(0, 0);
         let json = g.to_json();
-        let back = GameState::from_json(&json).expect("v4 loads");
-        assert_eq!(back.schema_version, 4);
+        let back = GameState::from_json(&json).expect("v5 loads");
+        assert_eq!(back.schema_version, 6);
         assert_eq!(back.exp_teams, g.exp_teams);
         assert_eq!(back.exp_station, g.exp_station);
         assert_eq!(back.echoes, g.echoes);
         assert_eq!(back.shape_xp[0], 1234);
         assert_eq!(back.skill_alloc[0][0], 1);
+        // v5 vecs all parallel + correctly sized
+        let nt = back.exp_teams.len();
+        assert_eq!(back.exp_orders.len(), nt);
+        assert_eq!(back.exp_provisions.len(), nt);
+        assert_eq!(back.team_relics.len(), nt);
+        assert_eq!(back.exp_node_mod.len(), QUEST_COUNT);
+        assert_eq!(back.prov_inv.len(), expedition::PROVISION_COUNT);
+        assert_eq!(back.relics_owned.len(), expedition::RELIC_COUNT);
+        assert_eq!(back.exp_orders[0], Orders::default());
+    }
+
+    #[test]
+    fn v4_save_without_v5_fields_loads_to_v5_all_default() {
+        // A v4 save (no v5 fields) must migrate to v5 with every new vec sized + all-default, and produce a
+        // BIT-IDENTICAL offline report (the v5 additions are inert until used). Pins the v4→v5 migration.
+        let mut g = GameState::new(777, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        g.station(0, 0); // clear + farm quest 0 so there's live state to migrate
+        let mut v: serde_json::Value = serde_json::from_str(&g.to_json()).unwrap();
+        let obj = v.as_object_mut().unwrap();
+        obj.insert("schema_version".into(), serde_json::json!(4));
+        for k in ["exp_node_mod", "exp_orders", "prov_inv", "exp_provisions", "relics_owned", "team_relics", "exp_auto", "exp_clears_total", "exp_bosses_freed", "exp_echoes_farmed", "exp_flux_farmed", "exp_runs"] {
+            obj.remove(k);
+        }
+        let mut back = GameState::from_json(&v.to_string()).expect("v4 save migrates to v5");
+        assert_eq!(back.schema_version, 6);
+        let nt = back.exp_teams.len();
+        assert_eq!(back.exp_orders.len(), nt);
+        assert_eq!(back.exp_provisions.len(), nt);
+        assert_eq!(back.team_relics.len(), nt);
+        assert_eq!(back.exp_node_mod.len(), QUEST_COUNT);
+        assert!(back.exp_orders.iter().all(|o| *o == Orders::default()));
+        assert!(back.exp_node_mod.iter().all(|&m| m == 0));
+        assert!(back.exp_auto && back.exp_runs.is_empty(), "Auto is ON by default (absent field ⇒ true)");
+        assert!(back.exp_clears_total >= 1, "History counters backfill from already-cleared nodes on v4→v5");
+        // inert: the migrated v5 state farms identically to the original v5 state
+        let mut orig = g.clone();
+        let a = back.compute_offline(5.0 * HOUR);
+        let b = orig.compute_offline(5.0 * HOUR);
+        assert_eq!(a.gained_echoes, b.gained_echoes);
+        assert_eq!(a.gained_flux.to_bits(), b.gained_flux.to_bits());
+    }
+
+    #[test]
+    fn clear_seed_is_farm_seed_when_inert() {
+        let mut g = GameState::new(42, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        // default orders, mod 0, no provisions, no relics ⇒ clear_seed == farm_seed (bit-identical to v4)
+        for q in 0..QUEST_COUNT {
+            assert_eq!(g.clear_seed(0, q), g.farm_seed(0, q), "inert clear seed must equal farm seed for node {q}");
+        }
+        // any non-default input diverges the CLEAR seed (different fight) but never the FARM seed
+        g.exp_orders[0].doctrine = 1;
+        assert_ne!(g.clear_seed(0, 0), g.farm_seed(0, 0));
+        g.exp_orders[0] = Orders::default();
+        g.exp_node_mod[0] = 1;
+        assert_ne!(g.clear_seed(0, 0), g.farm_seed(0, 0));
+    }
+
+    #[test]
+    fn add_then_remove_gambit_stays_inert() {
+        // Regression: add+remove a gambit rule leaves the program canonical-empty ⇒ clear_seed stays == farm_seed
+        // (the inert short-circuit must keep firing; the orphaned [[]] previously diverged the clear seed).
+        let mut g = GameState::new(42, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        let base = g.clear_seed(0, 0);
+        assert_eq!(base, g.farm_seed(0, 0));
+        g.add_gambit(0, 0);
+        assert_ne!(g.clear_seed(0, 0), g.farm_seed(0, 0), "a real rule diverges the clear seed");
+        g.remove_gambit(0, 0, 0); // → canonical-empty
+        assert!(g.exp_orders[0].gambits.is_empty(), "all-empty gambits canonicalize to Vec::new()");
+        assert_eq!(g.clear_seed(0, 0), g.farm_seed(0, 0), "back to inert ⇒ clear seed == farm seed");
+        // also a high-slot add then remove (leaves [[],[]] pre-canon)
+        g.add_gambit(0, 1);
+        g.remove_gambit(0, 1, 0);
+        assert_eq!(g.clear_seed(0, 0), g.farm_seed(0, 0), "high-slot add+remove also stays inert");
+    }
+
+    #[test]
+    fn gambits_bind_to_surviving_members_under_filter() {
+        // The gambit program must follow each SURVIVING hero, not its post-filter index. With team [2,0,4] and
+        // member 0 unowned, the survivors are 2 (raw slot 0) and 4 (raw slot 2) — so build_team_gambits must
+        // return [program-of-slot-0, program-of-slot-2], dropping slot 1's, never shifting 4 onto slot-1's program.
+        let mut g = GameState::new(1, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        g.add_gambit(0, 0);
+        g.set_gambit_rule(0, 0, 0, expedition::COND_ALWAYS, expedition::ACT_ATTACK_WEAKEST);
+        g.add_gambit(0, 2);
+        g.set_gambit_rule(0, 2, 0, expedition::COND_ALWAYS, expedition::ACT_ATTACK_THREAT);
+        g.owned[0] = 0; // member in slot 1 becomes unowned ⇒ filtered out of the party
+        let o = g.exp_orders[0].clone();
+        let progs = g.build_team_gambits(0, &o);
+        assert_eq!(progs.len(), 2, "two surviving members ⇒ two programs");
+        assert_eq!(progs[0][0].action, expedition::ACT_ATTACK_WEAKEST, "survivor 2 keeps slot-0's program");
+        assert_eq!(progs[1][0].action, expedition::ACT_ATTACK_THREAT, "survivor 4 keeps slot-2's program (not slot-1's)");
+    }
+
+    // ── v6 "The Delve": run schedule determinism + O(1) online==offline + save-scum + coexistence ──
+    fn strong_team(seed: u64) -> GameState {
+        let mut g = GameState::new(seed, 0.0);
+        for id in 0..12 {
+            g.owned[id] = 9999; // a party strong enough to delve the early chapters
+        }
+        g.set_team(0, &[2, 0, 4]);
+        g
+    }
+
+    #[test]
+    fn resolve_run_is_deterministic() {
+        let g = strong_team(42);
+        let path = [0usize, 1, 2, 3];
+        let seed = g.clear_seed(0, path[0]);
+        let a = g.resolve_run(0, &path, seed);
+        let b = g.resolve_run(0, &path, seed);
+        assert_eq!(a.prefix_ms, b.prefix_ms);
+        assert_eq!(a.prefix_echoes, b.prefix_echoes);
+        assert_eq!(a.prefix_flux, b.prefix_flux);
+        assert_eq!(a.room_node, b.room_node);
+        assert_eq!(a.room_kind, b.room_kind);
+        assert_eq!(a.death_room, b.death_room);
+        assert!(a.total_ms > 0.0 && !a.prefix_ms.is_empty());
+    }
+
+    #[test]
+    fn room0_seed_equals_clear_seed() {
+        // A 1-room run to node q resolves the SAME fight as clearing q via station (room 0 uses run_seed raw).
+        let g = strong_team(7);
+        let seed = g.clear_seed(0, 0);
+        let plan = g.resolve_run(0, &[0], seed);
+        let o = g.team_orders(0);
+        let station_battle = expedition::resolve_battle(seed, g.build_team_combatants(0, &o, &g.team_effects(0)), expedition::quest_enemies_scaled(&QUESTS[0], g.node_mod_scale(0)), o.focus, &g.build_team_gambits(0, &o));
+        assert_eq!(plan.prefix_ms[0], station_battle.rounds as f64 * MS_PER_ROOM_ROUND, "room 0 == the station clear fight");
+        assert!(plan.death_room.is_none());
+    }
+
+    #[test]
+    fn run_online_equals_offline() {
+        // Bank via 40 small ticks to T == one compute_offline to T (the same frozen array element ⇒ same loot+clears).
+        let mk = || strong_team(99);
+        let path = [0usize, 1, 2, 3];
+        let mut on = mk();
+        assert!(on.send_expedition(0, &path, 0.0));
+        let t_end = on.active_run.as_ref().unwrap().total_ms + 10_000.0;
+        let step = (t_end / 40.0).max(1.0);
+        let mut t = 0.0;
+        while t < t_end {
+            t = (t + step).min(t_end);
+            on.tick(t);
+        }
+        let mut off = mk();
+        assert!(off.send_expedition(0, &path, 0.0));
+        off.compute_offline(t_end);
+        assert_eq!(on.echoes, off.echoes, "run echoes online==offline");
+        assert_eq!(on.exp_cleared, off.exp_cleared, "cleared nodes online==offline");
+        assert!(on.active_run.is_none() && off.active_run.is_none(), "run completed both ways");
+        assert!(on.echoes > 0, "the run paid out");
+    }
+
+    #[test]
+    fn run_offline_is_o1_and_completes_after_a_long_span() {
+        let mut g = strong_team(5);
+        g.send_expedition(0, &[0, 1, 2], 0.0);
+        g.compute_offline(6.0 * 7.0 * 24.0 * MS_PER_HOUR); // 6 weeks — instant (binary-search read), bounded run completes
+        assert!(g.active_run.is_none(), "the bounded run completed");
+        assert!(g.echoes > 0);
+    }
+
+    #[test]
+    fn run_save_scum_proof() {
+        // The schedule is frozen + persisted at send, BEFORE any reveal — reload yields identical outcomes.
+        let mut g = strong_team(11);
+        g.send_expedition(0, &[0, 1, 2], 0.0);
+        let back = GameState::from_json(&g.to_json()).unwrap();
+        let a = g.active_run.as_ref().unwrap();
+        let b = back.active_run.as_ref().unwrap();
+        assert_eq!(a.run_seed, b.run_seed);
+        assert_eq!(a.prefix_ms, b.prefix_ms);
+        assert_eq!(a.prefix_echoes, b.prefix_echoes);
+        assert_eq!(a.room_node, b.room_node);
+    }
+
+    #[test]
+    fn run_clears_nodes_idempotently() {
+        // A run first-clears each fight node it traverses (idempotent via grant_first_clear's guard); a later
+        // station of an already-cleared node does NOT double-count the first-clear ledger.
+        let mut g = strong_team(3);
+        g.send_expedition(0, &[0, 1, 2, 3], 0.0);
+        let total = g.active_run.as_ref().unwrap().total_ms;
+        g.tick(total + 1000.0);
+        assert!(g.active_run.is_none());
+        assert!(g.exp_cleared[0] && g.exp_cleared[3], "the run cleared the nodes it traversed");
+        let clears = g.exp_clears_total;
+        g.station(0, 0); // already cleared ⇒ first-clear ledger unchanged
+        assert_eq!(g.exp_clears_total, clears, "no double first-clear from re-stationing a run-cleared node");
+    }
+
+    #[test]
+    fn run_interleaves_cozy_rooms_deterministically() {
+        // P2: Treasure rooms interleave (after every 2nd combat) → more rooms than path nodes; the loot + layout
+        // are deterministic; the run still completes (cozy heals keep the party alive deeper).
+        let g = strong_team(13);
+        let path: Vec<usize> = (0..6).collect();
+        let seed = g.clear_seed(0, path[0]);
+        let plan = g.resolve_run(0, &path, seed);
+        assert!(plan.planned_rooms > path.len(), "cozy rooms interleaved ⇒ more rooms than path nodes");
+        assert!(plan.room_kind.contains(&expedition::RoomKind::Treasure.as_u8()), "a Treasure room is present");
+        assert!(plan.death_room.is_none(), "a strong, cozy-healed party completes the chapter");
+        // the Treasure lump bumps cumulative Echoes beyond the bare fight loot
+        assert!(*plan.prefix_echoes.last().unwrap() > 0);
+        // determinism (layout + loot)
+        let plan2 = g.resolve_run(0, &path, seed);
+        assert_eq!(plan.room_kind, plan2.room_kind);
+        assert_eq!(plan.prefix_echoes, plan2.prefix_echoes);
+        assert_eq!(plan.prefix_ms, plan2.prefix_ms);
+    }
+
+    #[test]
+    fn recrystallize_banks_then_aborts_run() {
+        let mut g = strong_team(7);
+        for i in 0..COUNT {
+            g.owned[i] = g.owned[i].max(1); // core complete ⇒ ascent allowed
+        }
+        g.send_expedition(0, &[0, 1, 2, 3], 0.0);
+        let total = g.active_run.as_ref().unwrap().total_ms;
+        g.tick(total * 0.5); // bank ~half the rooms, run still in flight
+        assert!(g.active_run.is_some());
+        let banked = g.echoes;
+        assert!(banked > 0, "mid-run loot was banked");
+        assert!(g.recrystallize(), "ascent allowed");
+        assert!(g.active_run.is_none(), "recrystallize aborts the in-flight run (banked loot kept)");
+        assert_eq!(g.echoes, banked, "banked Echoes carry over the ascent");
+    }
+
+    #[test]
+    fn v5_save_loads_with_no_run_and_farms_byte_identically() {
+        // D2 coexistence: a v5-shaped save (no v6 fields) loads with active_run None and the station-farm intact.
+        let mut g = GameState::new(42, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        g.station(0, 0);
+        let mut v: serde_json::Value = serde_json::from_str(&g.to_json()).unwrap();
+        let obj = v.as_object_mut().unwrap();
+        obj.remove("active_run");
+        obj.remove("run_history");
+        let back = GameState::from_json(&v.to_string()).unwrap();
+        assert!(back.active_run.is_none());
+        assert_eq!(back.schema_version, 6);
+        let mut a = g.clone();
+        let mut b = back;
+        assert_eq!(a.compute_offline(5.0 * MS_PER_HOUR).gained_echoes, b.compute_offline(5.0 * MS_PER_HOUR).gained_echoes, "farm byte-identical");
+    }
+
+    #[test]
+    fn orders_do_not_move_the_farm_rate() {
+        // D4 fence: NO orders permutation may change the standing farm rate (Echoes or Flux). Orders fold into
+        // the CLEAR battle + combat targeting only; the farm bands on base power.
+        let mut g = GameState::new(7, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        g.station(0, 0); // clear + farm node 0 (default orders)
+        let echo0 = g.echo_rate_per_hr();
+        let flux0 = g.expedition_flux_per_hr();
+        assert!(echo0 > 0.0);
+        for formation in 0..3u8 {
+            for doctrine in 0..3u8 {
+                for focus in -1..=2i8 {
+                    g.set_orders(0, formation, doctrine, focus);
+                    g.set_slot_stance(0, 0, 0); // aggressive
+                    g.set_slot_stance(0, 1, 2); // defensive
+                    assert_eq!(g.echo_rate_per_hr().to_bits(), echo0.to_bits(), "orders moved the Echo rate");
+                    assert_eq!(g.expedition_flux_per_hr().to_bits(), flux0.to_bits(), "orders moved the Flux rate");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn gambits_change_the_clear_not_the_farm_or_watch() {
+        // D4 fence: a gambit program changes the CLEAR seed (a different fight) but NEVER the standing farm rate
+        // or the watch (both run the inert default ladder via farm_seed + empty gambits).
+        let mut g = GameState::new(11, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        g.station(0, 0); // clear + farm node 0 with default orders
+        let echo0 = g.echo_rate_per_hr();
+        let flux0 = g.expedition_flux_per_hr();
+        let seed_default = g.clear_seed(0, 0);
+        let wkey = |g: &GameState| g.watch_data(0).map(|r| (r.win, r.rounds, r.log.iter().map(|e| (e.actor, e.action, e.dmg, e.heal, e.fainted)).collect::<Vec<_>>()));
+        let watch0 = wkey(&g);
+        // program slot 0 to always attack the threat
+        g.add_gambit(0, 0);
+        g.set_gambit_rule(0, 0, 0, expedition::COND_ALWAYS, expedition::ACT_ATTACK_THREAT);
+        assert_eq!(g.echo_rate_per_hr().to_bits(), echo0.to_bits(), "gambits must not move the Echo rate");
+        assert_eq!(g.expedition_flux_per_hr().to_bits(), flux0.to_bits(), "gambits must not move the Flux rate");
+        assert_eq!(wkey(&g), watch0, "gambits must not change the standing-farm watch");
+        assert_ne!(g.clear_seed(0, 0), seed_default, "a gambit program must change the clear seed");
+    }
+
+    #[test]
+    fn stance_only_orders_hash_is_byte_stable() {
+        // the gambit fold is guarded on a non-empty slot, so default / stance-only teams hash exactly as before
+        // the gambit field existed (byte-stable seeds — no golden churn).
+        let mut a = Orders::default();
+        let h_default = orders_hash(&a);
+        a.stance = vec![0, 2, 1];
+        let h_stance = orders_hash(&a);
+        let mut b = a.clone();
+        b.gambits = vec![vec![], vec![], vec![]]; // empty slots present
+        assert_eq!(orders_hash(&b), h_stance, "empty gambit slots must not perturb the hash");
+        assert_ne!(h_stance, h_default);
+        let mut c = a.clone();
+        c.gambits = vec![vec![expedition::GambitRule { cond: 0, action: 1, on: true }]];
+        assert_ne!(orders_hash(&c), h_stance, "a real gambit rule changes the seed");
+    }
+
+    #[test]
+    fn orders_roundtrip_preserves_gambits() {
+        let mut g = GameState::new(3, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        g.add_gambit(0, 0);
+        g.set_gambit_rule(0, 0, 0, expedition::COND_ALLY_LOW, expedition::ACT_HEAL);
+        g.toggle_gambit(0, 0, 0); // off
+        let json = g.to_json();
+        let back = GameState::from_json(&json).unwrap();
+        assert_eq!(back.exp_orders[0].gambits, g.exp_orders[0].gambits);
+        assert_eq!(back.exp_orders[0].gambits[0][0].cond, expedition::COND_ALLY_LOW);
+        assert!(!back.exp_orders[0].gambits[0][0].on);
+    }
+
+    #[test]
+    fn risk_mod_boosts_first_clear_echoes_only_and_not_the_farm() {
+        let mut g = GameState::new(7, 0.0);
+        for id in 0..12 {
+            g.owned[id] = 9999; // strong enough to clear a harrowing node 0
+        }
+        g.set_team(0, &[2, 0, 4]);
+        let mut safe = g.clone();
+        let r_safe = safe.station(0, 0); // mod 0
+        assert!(r_safe.win);
+        let mut risky = g.clone();
+        risky.set_node_mod(0, 2); // harrowing
+        let r_risky = risky.station(0, 0);
+        assert!(r_risky.win, "a strong team still clears a harrowing node 0");
+        assert!(r_risky.echoes_gained > r_safe.echoes_gained, "risk pays a bigger Echoes purse");
+        assert_eq!(r_risky.first_clear_flux.to_bits(), r_safe.first_clear_flux.to_bits(), "risk must NOT change the Flux windfall (D5)");
+        // the standing farm rate + flux clamp are identical regardless of the clear-time mod (D4 fence)
+        assert_eq!(risky.echo_rate_per_hr().to_bits(), safe.echo_rate_per_hr().to_bits());
+        assert_eq!(risky.expedition_flux_per_hr().to_bits(), safe.expedition_flux_per_hr().to_bits());
+        // a set mod is rejected once the node is cleared (mod is a one-shot clear choice)
+        risky.set_node_mod(0, 1);
+        assert_eq!(risky.exp_node_mod[0], 2, "can't change a cleared node's mod");
+    }
+
+    #[test]
+    fn provisions_and_relics_do_not_move_the_farm_rate() {
+        // D4 fence again: equipping relics / staging provisions never touches the standing farm rate.
+        let mut g = GameState::new(7, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        g.station(0, 0); // farm node 0
+        let echo0 = g.echo_rate_per_hr();
+        let flux0 = g.expedition_flux_per_hr();
+        g.dev_add_echoes(1_000_000);
+        for id in 0..expedition::PROVISION_COUNT {
+            g.buy_provision(id);
+            g.load_provision(0, id);
+        }
+        for id in 0..expedition::RELIC_COUNT {
+            g.buy_relic(id);
+            g.equip_relic(0, id);
+        }
+        assert!(!g.team_effects(0).is_empty(), "effects are staged/equipped");
+        assert_eq!(g.echo_rate_per_hr().to_bits(), echo0.to_bits(), "provisions/relics moved the Echo rate");
+        assert_eq!(g.expedition_flux_per_hr().to_bits(), flux0.to_bits(), "provisions/relics moved the Flux rate");
+    }
+
+    #[test]
+    fn double_rations_doubles_first_clear_echoes_only_consumed_on_win() {
+        let mut g = GameState::new(7, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        let mut base = g.clone();
+        let rb = base.station(0, 0);
+        assert!(rb.win);
+        let dr = expedition::PROVISIONS.iter().position(|p| p.key == "double_rations").unwrap();
+        let mut dbl = g.clone();
+        dbl.dev_add_echoes(10_000);
+        assert!(dbl.buy_provision(dr) && dbl.load_provision(0, dr));
+        let owned_before = dbl.prov_inv[dr];
+        let rd = dbl.station(0, 0);
+        assert!(rd.win);
+        assert_eq!(rd.echoes_gained, rb.echoes_gained * 2, "double_rations doubles the Echoes lump");
+        assert_eq!(rd.first_clear_flux.to_bits(), rb.first_clear_flux.to_bits(), "Flux windfall unchanged (D5)");
+        assert_eq!(dbl.prov_inv[dr], owned_before - 1, "provision consumed on win");
+        assert!(dbl.exp_provisions[0].is_empty(), "staged provisions cleared after the clear");
+    }
+
+    #[test]
+    fn provision_retained_on_loss() {
+        let mut g = GameState::new(3, 0.0);
+        g.owned[0] = 1;
+        g.set_team(0, &[0]); // too weak for the boss
+        g.exp_cleared[6] = true; // open folds_boss
+        let pt = expedition::PROVISIONS.iter().position(|p| p.key == "phoenix_tear").unwrap();
+        g.dev_add_echoes(10_000);
+        assert!(g.buy_provision(pt) && g.load_provision(0, pt));
+        let owned = g.prov_inv[pt];
+        let r = g.station(0, 7);
+        if !r.win {
+            assert_eq!(g.prov_inv[pt], owned, "a loss retains the provision charge (D6)");
+            assert_eq!(g.exp_provisions[0], vec![pt as u8], "staging is kept on a loss");
+        }
+    }
+
+    #[test]
+    fn stance_folds_into_combat_stats_only() {
+        let mut g = GameState::new(3, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        let base = g.build_team_combatants(0, &Orders::default(), &[]);
+        assert!(base.iter().all(|c| !c.front), "balanced formation designates no front");
+        // aggressive slot 0 hits harder, defends softer (combat stats only — exp_power untouched)
+        let p0 = g.exp_power(2);
+        let o = Orders { stance: vec![0], formation: 1, ..Default::default() }; // aggressive slot 0, front-heavy
+        let agg = g.build_team_combatants(0, &o, &[]);
+        assert!(agg[0].atk > base[0].atk && agg[0].def < base[0].def);
+        assert!(agg[0].front, "front-heavy formation marks slot 0 front");
+        assert_eq!(g.exp_power(2), p0, "stance must NOT touch exp_power (farm-rate band)");
+    }
+
+    #[test]
+    fn history_records_runs_and_counters() {
+        let mut g = GameState::new(7, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        let r = g.station(0, 0);
+        assert!(r.win);
+        assert_eq!(g.exp_clears_total, 1);
+        assert_eq!(g.exp_runs.len(), 1);
+        assert_eq!(g.exp_runs[0].quest, 0);
+        assert!(g.exp_runs[0].rounds > 0 && g.exp_runs[0].echoes == r.echoes_gained);
+        // farming bumps the lifetime farmed counters
+        let (e0, f0) = (g.exp_echoes_farmed, g.exp_flux_farmed);
+        g.compute_offline(5.0 * HOUR);
+        assert!(g.exp_echoes_farmed > e0 && g.exp_flux_farmed > f0);
+        // the ring is bounded at 24 (push many directly)
+        for _ in 0..40 {
+            g.push_run(0, 0, (5, 1, 3), 100, 50.0);
+        }
+        assert!(g.exp_runs.len() <= 24, "history ring is bounded so saves don't bloat");
+    }
+
+    #[test]
+    fn prestige_resets_run_state_keeps_meta() {
+        let mut g = GameState::new(7, 0.0);
+        for id in 0..COUNT {
+            g.owned[id] = 1; // own everything → core_complete → ascent allowed at dim 3
+        }
+        g.set_team(0, &[2, 0, 4]);
+        g.dev_add_echoes(100_000);
+        g.buy_relic(0);
+        g.equip_relic(0, 0);
+        g.set_node_mod(1, 2);
+        g.set_orders(0, 1, 1, 1);
+        g.station(0, 0);
+        let clears = g.exp_clears_total;
+        assert!(g.recrystallize(), "owning everything should meet the dim-3 ascent requirement");
+        assert!(g.exp_node_mod.iter().all(|&m| m == 0), "node mods reset on ascent");
+        assert!(g.exp_provisions.iter().all(|p| p.is_empty()), "staged provisions reset on ascent");
+        // meta persists
+        assert!(g.relics_owned[0] && g.team_relics[0].contains(&0), "relics persist across ascent");
+        assert_eq!(g.exp_orders[0].formation, 1, "orders persist across ascent");
+        assert_eq!(g.exp_clears_total, clears, "history counters persist");
+        assert!(!g.exp_runs.is_empty(), "history ring persists");
+    }
+
+    #[test]
+    fn auto_is_deterministic_and_never_spends_or_risks() {
+        let mut g = GameState::new(7, 0.0);
+        own_early(&mut g);
+        g.set_team(0, &[2, 0, 4]);
+        g.dev_add_echoes(100_000);
+        let pt = expedition::PROVISIONS.iter().position(|p| p.key == "phoenix_tear").unwrap();
+        g.buy_provision(pt); // owned but NOT staged → auto can still use the team
+        let prov_before = g.prov_inv[pt];
+        let mut cleared = 0;
+        for _ in 0..40 {
+            if g.auto_expedition(0.0).delved {
+                cleared += 1;
+            }
+        }
+        assert!(cleared >= 2, "auto clears several open nodes over repeated steps");
+        assert_eq!(g.prov_inv[pt], prov_before, "auto NEVER spends provisions");
+        assert!(g.exp_node_mod.iter().all(|&m| m == 0), "auto NEVER sets a risk mod");
+        assert!(!g.exp_cleared[13] && !g.exp_cleared[14] && !g.exp_cleared[15], "auto NEVER clears Elite branch nodes");
+        assert!(g.exp_cleared[0] && g.exp_cleared[1], "auto progresses through the journey graph in order");
+        // determinism: same start ⇒ same first auto pick
+        let mut a = GameState::new(7, 0.0);
+        own_early(&mut a);
+        a.set_team(0, &[2, 0, 4]);
+        let mut b = a.clone();
+        assert_eq!(a.auto_expedition(0.0).quest, b.auto_expedition(0.0).quest);
+    }
+
+    #[test]
+    fn node_open_follows_the_journey_graph() {
+        let mut g = GameState::new(1, 0.0);
+        // fresh: only region entries (no in-edges) are open at dim 3
+        assert!(g.node_open(0), "shallows_1 is a region entry → open");
+        assert!(!g.node_open(1), "shallows_2 gated until shallows_1 cleared");
+        assert!(!g.node_open(3), "boss gated until a path reaches it");
+        assert!(!g.node_open(11), "vantage gated by dimension (min_dim 4)");
+        // clear node 0 → BOTH the mainline (1) and the Elite branch (13) open — the route choice
+        g.exp_cleared[0] = true;
+        assert!(g.node_open(1) && g.node_open(13));
+        assert!(!g.node_open(3), "boss still needs 2 OR 13 cleared");
+        // OR-convergence: clearing EITHER path opens the boss
+        let mut via_elite = g.clone();
+        via_elite.exp_cleared[13] = true;
+        assert!(via_elite.node_open(3), "Elite branch opens the boss");
+        let mut via_main = g.clone();
+        via_main.exp_cleared[1] = true;
+        via_main.exp_cleared[2] = true;
+        assert!(via_main.node_open(3), "mainline opens the boss");
+        // dimension gate holds even with prereqs cleared
+        let mut deep = g.clone();
+        for q in 0..11 {
+            deep.exp_cleared[q] = true;
+        }
+        assert!(!deep.node_open(11), "vantage needs viewport_dim >= 4");
+        deep.viewport_dim = 4;
+        assert!(deep.node_open(11));
     }
 
     #[test]
@@ -3953,13 +5591,16 @@ mod tests {
             obj.remove(k);
         }
         let back = GameState::from_json(&v.to_string()).expect("pre-v4 save still loads");
-        assert_eq!(back.schema_version, 4);
+        assert_eq!(back.schema_version, 6);
         assert_eq!(back.exp_teams.len(), 1);
         assert!(back.exp_teams[0].is_empty());
         assert_eq!(back.exp_station, vec![-1]);
         assert_eq!(back.echo_rate_per_hr(), 0.0);
         assert_eq!(back.shape_xp.len(), COUNT);
         assert_eq!(back.skill_alloc.len(), COUNT);
+        // v5 vecs present + default after a deep migration
+        assert_eq!(back.exp_orders.len(), 1);
+        assert_eq!(back.exp_node_mod.len(), QUEST_COUNT);
     }
 
     #[test]

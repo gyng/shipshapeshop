@@ -6,6 +6,7 @@ import { glyphOf } from './content/glyphs'
 import { RARITY_COLOR } from './three/Gem'
 import { Orrery3D } from './three/Orrery3D'
 import { OrreryBoard } from './OrreryBoard'
+import { Play, Pause, Sparkles } from 'lucide-react'
 import { useOrreryUi, gemScreens } from './orreryUi'
 import { useInspector } from './inspector'
 import { useNav } from './nav'
@@ -255,8 +256,8 @@ export function OrreryEngine() {
 
       {/* top-right controls: 2D/3D + leave orrery */}
       <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 4, display: 'flex', gap: 'var(--sp-1_5)', flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '70%' }}>
-        <button style={{ ...pillBtn, ...(paused ? { borderColor: 'var(--c-accent-gold)', color: 'var(--c-accent-gold)' } : {}) }} onClick={togglePause}>{paused ? `▶ ${tr('orrery.play')}` : `⏸ ${tr('orrery.pause')}`}</button>
-        <button style={pillBtn} onClick={() => useGame.getState().autoArrange()} title={tr('engine.auto')}>✨ {tr('orrery.auto')}</button>
+        <button style={{ ...pillBtn, display: 'inline-flex', alignItems: 'center', gap: 4, ...(paused ? { borderColor: 'var(--c-accent-gold)', color: 'var(--c-accent-gold)' } : {}) }} onClick={togglePause}>{paused ? <><Play size={13} />{tr('orrery.play')}</> : <><Pause size={13} />{tr('orrery.pause')}</>}</button>
+        <button style={{ ...pillBtn, display: 'inline-flex', alignItems: 'center', gap: 4 }} onClick={() => useGame.getState().autoArrange()} title={tr('engine.auto')}><Sparkles size={13} />{tr('orrery.auto')}</button>
         {/* draw every emitter's flux path at once (3D only — the 2D board always shows all paths) */}
         {is3d && (
           <button style={{ ...pillBtn, ...(showAllLines ? { borderColor: 'var(--c-accent-teal)', color: 'var(--c-accent-teal)' } : {}) }} onClick={toggleAllLines} aria-pressed={showAllLines}>{tr('orrery.allLines')}</button>
