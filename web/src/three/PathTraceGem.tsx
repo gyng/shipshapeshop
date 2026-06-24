@@ -90,8 +90,16 @@ ${sdfGLSL}
   float map(vec3 p){
     return sdfActive(R * p);
   }
-  vec3 nrm(vec3 p){ vec2 e=vec2(0.0016,0.0); return normalize(vec3(
-    map(p+e.xyy)-map(p-e.xyy), map(p+e.yxy)-map(p-e.yxy), map(p+e.yyx)-map(p-e.yyx))); }
+  // tetrahedral 4-tap gradient (IQ) — 4 map() calls vs the 6-tap central diff; SAME epsilon so silhouettes/Fresnel stay bit-comparable
+  vec3 nrm(vec3 p){
+    const vec2 k = vec2(1.0, -1.0);
+    const float e = 0.0016;
+    return normalize(
+      k.xyy * map(p + k.xyy*e) +
+      k.yyx * map(p + k.yyx*e) +
+      k.yxy * map(p + k.yxy*e) +
+      k.xxx * map(p + k.xxx*e));
+  }
 
   // march to the next surface from ro along rd. sgn is +1 outside (find entry), -1 inside (find exit).
   // returns distance (or -1 on miss).
@@ -184,6 +192,9 @@ ${sdfGLSL}
     vec3 sum = vec3(0.0);
     float tAccum = 0.0;                                   // sum of per-sample primary gem depths → averaged for the haze tEnd
     float farMiss = length(cam) + 3.0;                    // haze depth on a gem MISS — scales with the orbit distance (3..9)
+    // ONE primary march of the UNJITTERED center ray, hoisted out of the sample loop — reused below for gl_FragDepth
+    // (the depth-composite with the Atmosphere). Same ray/cam as before, so depth is byte-for-byte identical.
+    float tDepth = march(cam, rdC, 1.0);
     for(int s=0;s<${SPP};s++){                           // samples this frame
       vec2 j = (vec2(rnd(), rnd())-0.5) / uRes * 2.0;    // sub-pixel jitter in NDC (intra-frame MSAA)
       vec4 fj = uInvViewProj * vec4(ndc + j, 1.0, 1.0); fj /= fj.w;
@@ -232,11 +243,10 @@ ${sdfGLSL}
     fragColor = vec4(col, 1.0);                          // LINEAR HDR → composer tonemaps + blooms
     // Write REAL depth from a center-ray primary hit so 3D atmosphere depth-composites WITH the gem: a gem hit
     // writes its near depth (atmosphere behind is occluded), a miss writes far=1.0 (background atmosphere shows).
-    float tP = march(cam, rdC, 1.0);
-    if(tP < 0.0){
+    if(tDepth < 0.0){
       gl_FragDepth = 1.0;
     } else {
-      vec4 clip = uViewProj * vec4(cam + rdC * tP, 1.0);
+      vec4 clip = uViewProj * vec4(cam + rdC * tDepth, 1.0);
       gl_FragDepth = clamp((clip.z / clip.w) * 0.5 + 0.5, 0.0, 1.0);
     }
   }

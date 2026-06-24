@@ -31,9 +31,11 @@ export const PT_PRESETS: Record<PathTraceQuality, PathTraceParams> = {
   low: { bounces: 4, steps: 56, scale: 0.6, spp: 6 }, //       1,344
   medium: { bounces: 5, steps: 72, scale: 0.8, spp: 10 }, //   3,600
   high: { bounces: 7, steps: 96, scale: 0.9, spp: 20 }, //    13,440
-  extreme: { bounces: 8, steps: 128, scale: 1.0, spp: 30 }, // 30,720
-  ultra: { bounces: 10, steps: 176, scale: 1.0, spp: 44 }, //  77,440
-  max: { bounces: 12, steps: 192, scale: 1.0, spp: 52 }, //   119,808
+  // scale 0.85 on the heaviest tiers: ~28% fewer fragments (quadratic, the biggest single lever) — the softness
+  // is hidden by the 7-level mipmapBlur + ACES + the glass refraction (all low-pass). Free of the eval budget.
+  extreme: { bounces: 8, steps: 128, scale: 0.85, spp: 30 }, // 30,720
+  ultra: { bounces: 10, steps: 176, scale: 0.85, spp: 44 }, //  77,440
+  max: { bounces: 12, steps: 192, scale: 0.85, spp: 52 }, //   119,808
 }
 
 export interface GfxPreset {
