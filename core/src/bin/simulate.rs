@@ -93,6 +93,9 @@ fn spender(seed: u64) -> (f64, f64) {
             g.forge(r.a, r.b);
         }
         g.auto_arrange();
+        if minutes.is_multiple_of(10) {
+            farm_expeditions(&mut g, now); // a spender uses the WHOLE game — incl. the capped expedition Flux stream
+        }
         minutes += 1;
     }
     (minutes as f64 / 60.0, g.rate_per_hr())
@@ -124,9 +127,23 @@ fn play_until(g: &mut GameState, now: &mut f64, cap_min: u64, done: impl Fn(&Gam
             g.forge(r.a, r.b);
         }
         g.auto_arrange();
+        if m.is_multiple_of(10) {
+            farm_expeditions(g, *now); // the prestige journey runs expeditions too — the capped Flux accelerates each NG+ re-climb
+        }
         m += 1;
     }
     m as f64 / 60.0
+}
+
+/// Model a player who ALSO farms Expeditions (#0: make the simulator honest — it was blind to the whole mode).
+/// Assign the strongest owned shapes to a team and let Auto-Expedition dispatch + station it; the capped
+/// (≤35% of cap_rate) Flux stream then accrues through the normal tick()/offline path — so the bands finally
+/// reflect a player who uses the WHOLE game, not just the orrery. Cheap to call every ~10 sim-minutes: stationing
+/// is sticky between calls and tick() accrues the Flux continuously; this just re-dispatches as chapters unlock.
+fn farm_expeditions(g: &mut GameState, now: f64) {
+    let cand: Vec<usize> = (0..content::SHAPES.len()).rev().collect(); // rarer ids first ⇒ clean_team keeps the strongest owned ≤ party_max
+    g.set_team(0, &cand);
+    g.auto_expedition(now);
 }
 
 /// The full prestige journey: time to (base core), then ascend + collect the NG+1 Meta cohort, then ascend +
@@ -242,7 +259,9 @@ mod tests {
     fn ng_journey_tiers_stay_in_band() {
         for seed in [1u64, 42] {
             let (base, ng1, ng2) = ng_journey(seed);
-            assert!((0.8..2.5).contains(&base), "seed {seed}: base {base:.1}h outside 0.8–2.5h");
+            // #0: now that expeditions are modeled (the capped Flux accelerates the early game), the base dips to
+            // ~0.7–0.9h — widen the floor. NG+1/NG+2 are ~unchanged (expedition impact diminishes at high prestige).
+            assert!((0.5..2.5).contains(&base), "seed {seed}: base {base:.1}h outside 0.5–2.5h");
             assert!((4.0..14.0).contains(&ng1), "seed {seed}: NG+1 {ng1:.1}h outside the ~6–8h-target band (4–14h)");
             assert!((14.0..48.0).contains(&ng2), "seed {seed}: NG+2 {ng2:.1}h outside the ~24–36h-target band (14–48h)");
         }

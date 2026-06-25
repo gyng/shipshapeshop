@@ -209,6 +209,8 @@ pub struct GameState {
     pub active_run: Option<RunPlan>, // the one in-flight run (one at a time in v1)
     #[serde(default)]
     pub run_history: Vec<RunRecord>, // completed runs, newest-first bounded ring
+    #[serde(default)]
+    pub exp_rest_until: f64, // wall-clock ms: the party rests at base camp until here before the next delve (0 = ready)
 }
 
 /// One idle Expedition farm: a snapshot party on a cleared quest. MIGRATION-ONLY since v4 (folded into
@@ -264,6 +266,7 @@ fn apply_team_effect(c: &mut Combatant, e: expedition::EffKind) {
         FlatDefPct(pct) => c.def = (c.def * (100 + pct as i64) / 100).max(0),
         SpeedPct(pct) => c.speed = (c.speed * (100 + pct as i64) / 100).max(1),
         DoubleClearEchoes => {} // reward effect — handled in grant_first_clear, not on the combatant
+        Reflect => c.reflect = true, // grant the bounce quirk to the whole party (the Retribution Prism relic)
     }
 }
 /// Stable FNV-1a-ish hash of an Orders for the clear seed (so differently-ordered attempts seed different fights).
@@ -304,6 +307,8 @@ pub struct RunPlan {
     pub start_ms: f64,        // departure wall-clock (the only time field)
     pub orders: Orders,      // snapshot
     pub provisions: Vec<u8>, // snapshot (consumed on completion; retained on wipe — loss-is-free)
+    #[serde(default)]
+    pub auto_tactics: bool, // snapshot of the auto-tactics unlock at SEND — so replay/offline match the banked outcome, never a mid-run purchase
     // ── resolved schedule (computed ONCE; read-only) ──
     pub prefix_ms: Vec<f64>,     // cumulative ms to FINISH room k
     pub prefix_echoes: Vec<u64>, // cumulative delve-loot Echoes banked through room k
@@ -315,6 +320,34 @@ pub struct RunPlan {
     pub total_ms: f64,           // == prefix_ms.last()
     // ── idle banking cursor (NO carry — integer prefix-diff) ──
     pub claimed_rooms: u32,
+    // ── AUTO + timeout-windowed decisions (all serde(default) ⇒ no save migration; empty ⇒ today's behavior) ──
+    #[serde(default)]
+    pub decisions: Vec<Decision>, // one per Decision room, resolved (option table) AT SEND — immutable
+    #[serde(default)]
+    pub decision_choices: Vec<i8>, // chosen option per Decision room: -1 = auto-default (frozen), 0/1 = player override
+    #[serde(default)]
+    pub decision_locked_at_room: u32, // = claimed_rooms after each bank; choose_decision rejects rooms < this (anti-scum)
+}
+
+/// A no-fight Decision room's 2-option table, resolved at send. The auto-default (option 0) is what the frozen
+/// schedule + every offline player uses; a live player may override within the window (Slice 2). "Flavor, not a
+/// power-gate" — effects are bounded.
+#[derive(Clone, Default, Serialize, Deserialize)]
+pub struct Decision {
+    pub room_idx: usize,    // index into the resolved room arrays
+    pub auto_option: u8,    // deterministic safe default (always 0 — the heal/rest option)
+    pub window_ms: f64,     // live-choice deadline, relative to the room's arrival time
+    pub options: Vec<DecisionEffect>, // 2–3 options; option 0 is the safe auto-default. (Vec ⇒ JSON-backward-compatible: old 2-element saves load fine.)
+    #[serde(default)]
+    pub template: u8, // which themed crossroads (drives the TS flavor + scene); 0 = the classic fork
+}
+#[derive(Clone, Copy, Default, Serialize, Deserialize)]
+pub struct DecisionEffect {
+    pub heal_pct: i32,   // ± % of max HP healed when this option resolves
+    pub atk_pct: i32,    // ± lasting atk % for the rest of the run
+    pub echo_bonus: u64, // bonus delve Echoes (loot) this option grants
+    #[serde(default)]
+    pub speed_pct: i32,  // ± lasting speed % for the rest of the run (a "swiftness" option)
 }
 
 /// A completed-run summary for the home-base history (newest-first, bounded ring).
@@ -334,7 +367,19 @@ const REST_MS: f64 = 30_000.0; // a Campfire takes ~30s of idle time
 const TREASURE_MS: f64 = 20_000.0; // a Treasure room ~20s
 const CAMPFIRE_HEAL_PCT: i64 = 40; // Campfire restores 40% of max HP to the threaded party
 const TREASURE_HEAL_PCT: i64 = 18; // a Treasure room is a light pick-me-up
+const SHRINE_MS: f64 = 18_000.0; // a Shrine takes ~18s of idle time
+const SHRINE_HEAL_PCT: i64 = 22; // a Shrine restores a little HP
+const SHRINE_SPEED_BOON: i64 = 8; // + a lasting +8% speed for the rest of the run (the Shrine's distinct blessing)
+const DECISION_MS: f64 = 15_000.0; // a Crossroads takes ~15s of idle time (the party deliberates at the fork)
+const DECISION_WINDOW_MS: f64 = 13_000.0; // the live player has 13s to override before it auto-resolves (closes before the room banks)
+const NGPLUS_ENEMY_SCALE_PCT: i64 = 35; // NG+ "Deeper Manifold": +35% enemy stats per ascent cycle — combat-only, farm-fenced
+const NGPLUS_REWARD_BONUS_PCT: u64 = 50; // NG+: +50% first-clear ECHOES per cycle (the lucrative re-climb; mode-internal, not the rate)
 const CAMPFIRE_BOON_PCT: i64 = 10; // + a fixed +10% attack boon for the rest of the run (cozy, deterministic)
+const REST_BETWEEN_RUNS_MS: f64 = 120_000.0; // the party rests at base camp ~2 min between delves (a cozy break; the timer ticks)
+// Workshop upgrade indices that gate the gambit progression (append-only, behind charter_expeditions #20).
+const UPG_AUTO_TACTICS: usize = 21; // empty slots fight with the SMART ladder instead of the simple instinct default
+const UPG_GAMBIT_T2: usize = 22; // unlocks skill_ready/ally_low conds + weakest/threat targeting
+const UPG_GAMBIT_T3: usize = 23; // unlocks ult_ready cond + buff_team/sweep actions (deep tactics)
 
 /// Append one resolved room to a RunPlan's parallel schedule arrays.
 fn push_room(plan: &mut RunPlan, t_ms: f64, ech: u64, flux: u64, kind: u8, node: i32) {
@@ -359,10 +404,20 @@ fn heal_party(party: &mut [Combatant], pct: i64) {
 /// a Campfire to rest right before each Boss. Returns (RoomKind, node-or-(-1)) per room. Pure → deterministic.
 fn build_room_plan(path: &[usize]) -> Vec<(expedition::RoomKind, i32)> {
     let mut rooms = Vec::new();
+    let mut non_boss_combats = 0u32; // drives the Shrine cadence by COMBAT count (always reachable, unlike a path-index rule)
     for (k, &q) in path.iter().enumerate() {
         let is_boss = matches!(QUESTS[q].kind, expedition::NodeKind::Boss);
         if !is_boss && k > 0 && k % 2 == 0 {
             rooms.push((expedition::RoomKind::Treasure, -1));
+        }
+        if !is_boss {
+            non_boss_combats += 1;
+            if non_boss_combats.is_multiple_of(3) {
+                rooms.push((expedition::RoomKind::Shrine, -1)); // a Shrine blessing before every 3rd combat
+            }
+            if non_boss_combats.is_multiple_of(2) {
+                rooms.push((expedition::RoomKind::Decision, -1)); // a Crossroads before every 2nd combat (the agency hook)
+            }
         }
         if is_boss {
             rooms.push((expedition::RoomKind::Campfire, -1)); // rest before the climax
@@ -370,6 +425,63 @@ fn build_room_plan(path: &[usize]) -> Vec<(expedition::RoomKind, i32)> {
         rooms.push((if is_boss { expedition::RoomKind::Boss } else { expedition::RoomKind::Combat }, q as i32));
     }
     rooms
+}
+
+/// Build a Decision room's deterministic 2-option table from its room seed. Option 0 (the auto-default) is the SAFE
+/// rest (a solid heal, no risk); option 1 is the GAMBLE (bonus loot + a small lasting atk boon, but no heal). Bounded
+/// — "flavor, not a power-gate". Pure ⇒ same seed ⇒ same table (determinism + online==offline).
+fn build_decision(seed: u64, room_idx: usize) -> Decision {
+    let h = expedition::splitmix64(seed);
+    // Pick one of 3 themed crossroads. EVERY template's option 0 is the safe heal (the auto-default for idle/offline);
+    // the others trade the heal for a lasting boon or loot. Bounded — "flavor, not a power-gate".
+    let template = (h % 3) as u8;
+    let de = |heal_pct: i32, atk_pct: i32, echo_bonus: u64, speed_pct: i32| DecisionEffect { heal_pct, atk_pct, echo_bonus, speed_pct };
+    let options: Vec<DecisionEffect> = match template {
+        // 1 — The Old Altar (3): mend / strength / swiftness
+        1 => {
+            let a = 12 + ((h >> 8) % 5) as i32; // 12–16
+            let s = 12 + ((h >> 16) % 5) as i32; // 12–16
+            vec![de(30, 0, 0, 0), de(0, a, 0, 0), de(0, 0, 0, s)]
+        }
+        // 2 — A Glittering Vein (3): pocket a few / dig it out / pry the geode
+        2 => {
+            let e1 = 20 + (h >> 8) % 15; // 20–34
+            let e2 = 55 + (h >> 16) % 30; // 55–84
+            let e3 = 34 + (h >> 24) % 17; // 34–50
+            let a = 6 + ((h >> 32) % 4) as i32; // 6–9
+            vec![de(16, 0, e1, 0), de(0, 0, e2, 0), de(0, a, e3, 0)]
+        }
+        // 0 — The Crossroads (2): rest / press on (the classic safe-vs-gamble fork)
+        _ => {
+            let echo = 30 + h % 30; // 30–59
+            let atk = 6 + ((h >> 8) % 6) as i32; // 6–11
+            vec![de(28, 0, 0, 0), de(0, atk, echo, 0)]
+        }
+    };
+    Decision { room_idx, auto_option: 0, window_ms: DECISION_WINDOW_MS, options, template }
+}
+
+/// Apply a Decision option's PARTY effect (heal + lasting atk) — the HP-threading half, shared verbatim by
+/// resolve_run, replay, and (Slice 2) tail re-resolution so they can never drift apart. The loot half (`echo_bonus`)
+/// is added by the caller ONLY where the prefix is built — never in replay (the prefix already holds it).
+fn apply_decision_to_party(party: &mut [expedition::Combatant], eff: DecisionEffect) {
+    if eff.heal_pct != 0 {
+        heal_party(party, eff.heal_pct as i64);
+    }
+    if eff.atk_pct != 0 {
+        for c in party.iter_mut() {
+            if c.hp > 0 {
+                c.atk = (c.atk * (100 + eff.atk_pct as i64) / 100).max(1);
+            }
+        }
+    }
+    if eff.speed_pct != 0 {
+        for c in party.iter_mut() {
+            if c.hp > 0 {
+                c.speed = (c.speed * (100 + eff.speed_pct as i64) / 100).max(1);
+            }
+        }
+    }
 }
 
 /// A bounded history record of one completed expedition run (first-clear or boss-freed). Render-only spoils.
@@ -412,6 +524,8 @@ pub struct OfflineReport {
     pub gained_flux: f64,
     #[serde(default)]
     pub gained_echoes: u64, // Echoes the stationed expedition party gathered while away (the peak-end beat)
+    #[serde(default)]
+    pub delve_returned: Option<RunRecord>, // a delve that COMPLETED during the offline span — its return is celebrated on load
 }
 
 /// The result of stationing a team on a quest. If the quest was uncleared, `battle` carries the fight that
@@ -546,6 +660,7 @@ pub struct GameStateView {
     pub exp_perks: Vec<u32>,
     pub exp_perk_costs: Vec<u64>,
     pub exp_power: Vec<i64>, // combat/farm power per shape id (len COUNT) — UI shows it, never recomputes
+    pub exp_stats: Vec<ExpStatView>, // per-shape base combat stats (hp/atk/def/speed/ult) for the team card (len COUNT)
     pub shape_levels: Vec<u64>, // endless level per shape id
     pub shape_xp: Vec<u64>,
     pub xp_to_next: Vec<u64>, // XP remaining to the next level per shape
@@ -569,6 +684,11 @@ pub struct GameStateView {
     pub exp_runs: Vec<ExpRunRec>,    // recent run history (newest first, bounded)
     pub run: Option<RunView>,        // v6: the in-flight Delve run, CLIPPED (no future loot / death revealed)
     pub can_send_run: bool,          // v6: is a new linear run available to send?
+    pub run_rest_until: f64,         // v6: wall-clock ms the party rests at base camp until (TS counts down; 0 = ready)
+    pub run_history: Vec<RunRecord>, // v6: completed-run summaries (newest first) — drives the Delve Report
+    pub gambit_auto: bool,           // v6 progression: is auto-tactics (the smart empty-slot ladder) unlocked?
+    pub gambit_conds: Vec<u8>,       // v6 progression: the currently-unlocked gambit condition ids (editor mirrors this)
+    pub gambit_acts: Vec<u8>,        // v6 progression: the currently-unlocked gambit action ids
 }
 
 /// The in-flight run, projected for the UI — CLIPPED per D9 (the route node indices + progress only; the future
@@ -576,11 +696,37 @@ pub struct GameStateView {
 #[derive(Serialize)]
 pub struct RunView {
     pub team: usize,
-    pub path: Vec<usize>,    // the route's node indices (structural — the player's chosen direction)
-    pub current_room: u32,   // banked cursor (the room the party is at)
+    pub path: Vec<usize>,      // the route's node indices (structural — the player's chosen direction)
+    pub room_kind: Vec<u8>,    // REVEALED room kinds only (0..=current_room) — the delve track; future tail hidden (D9)
+    pub current_room: u32,     // banked cursor (the room the party is at)
     pub total_rooms: usize,
     pub start_ms: f64,
     pub total_ms: f64, // estimated return time (an early return is the gentle soft-land, not a spoiler — D18)
+    // ── render-only reward readouts (Slice 5): pure reads of the frozen prefix arrays; NEVER affect banking ──
+    pub room_echoes: Vec<u64>, // per-BANKED-room Echo lump (earned only; len == current_room) — drives the post-victory toast
+    pub room_flux: Vec<u64>,   // per-BANKED-room Flux lump (earned only; len == current_room)
+    pub delve_echoes_per_hr: f64, // whole-run average Echo/hr while delving (the delving team's station farm-rate reads 0)
+    pub delve_flux_per_hr: f64,   // whole-run average Flux/hr while delving — fixes the "shows 0/hr" confusion
+    pub pending_decision: Option<PendingDecisionView>, // an unbanked, un-chosen Crossroads the live player can override now
+}
+
+/// The live Crossroads the party is at, for the timeout UI: which room, the two options to choose between, and the
+/// absolute wall-clock deadline. The UI tweens a countdown toward `deadline_ms` (never derives truth) and calls
+/// `choose_decision`; if the deadline passes the auto-default stands. Present only while the choice is still legal.
+#[derive(Serialize)]
+pub struct PendingDecisionView {
+    pub room_idx: usize,
+    pub deadline_ms: f64, // start_ms + arrival + window_ms — absolute, so the UI clock can count down to it
+    pub options: Vec<DecisionOptionView>, // 2–3 options; option `auto_option` is the safe default that stands if the window lapses
+    pub auto_option: u8,  // which option idle/offline takes (always 0 — the heal)
+    pub template: u8,     // the themed crossroads (drives the TS flavor + scene)
+}
+#[derive(Serialize, Clone, Copy)]
+pub struct DecisionOptionView {
+    pub heal_pct: i32,
+    pub atk_pct: i32,
+    pub echo_bonus: u64,
+    pub speed_pct: i32,
 }
 
 /// A team row for the UI: members, the quest it's stationed on (-1 idle), its live power + Echo/Flux rates,
@@ -595,6 +741,25 @@ pub struct TeamView {
     pub orders: Orders,
     pub provisions: Vec<u8>, // staged provision ids
     pub relics: Vec<u8>,     // equipped relic ids
+    // ── QW-4 team-selection aggregates (render-only mirror of exp_combatant/role/element — UI compares, never recomputes) ──
+    pub total_hp: i64,
+    pub total_atk: i64,
+    pub total_def: i64,
+    pub total_speed: i64,
+    pub role_counts: Vec<u32>,    // [tank, dps, support, control] by Role as usize
+    pub element_counts: Vec<u32>, // [solid, twisted, woven] by Element as usize
+    pub kin_pairs: u32,           // active deployed synergy duos
+}
+
+/// Per-shape base combat stats for the team card (len COUNT, indexed by shape id). A pure mirror of what
+/// `exp_combatant` derives BEFORE pre-battle orders — the UI shows these, it NEVER recomputes them.
+#[derive(Serialize, Clone, Debug, Default)]
+pub struct ExpStatView {
+    pub max_hp: i64,
+    pub atk: i64,
+    pub def: i64,
+    pub speed: i64,
+    pub ult: i64,
 }
 
 impl GameState {
@@ -665,6 +830,7 @@ impl GameState {
             exp_runs: Vec::new(),
             active_run: None,
             run_history: Vec::new(),
+            exp_rest_until: 0.0,
         }
     }
 
@@ -1571,7 +1737,10 @@ impl GameState {
         let echoes_before = self.echoes;
         self.accrue_expedition_rewards(capped); // expeditions: same helper as tick ⇒ Echoes+Flux farm rounds identically offline
         self.accrue_farm_xp(capped); // expeditions: farmed XP, same helper as tick
+        let had_run = self.active_run.is_some();
         self.accrue_run(self.last_seen_ms + capped); // v6: advance the run by the CAPPED span (offline generosity applies)
+        // a delve that completed DURING this span (active → none) is celebrated on load (offline peak-end, parity with online)
+        let delve_returned = (had_run && self.active_run.is_none()).then(|| self.run_history.first().cloned()).flatten();
         self.add_affinity(capped);
         self.last_seen_ms = now_ms;
         OfflineReport {
@@ -1579,6 +1748,7 @@ impl GameState {
             capped_ms: capped,
             gained_flux: gained,
             gained_echoes: self.echoes - echoes_before,
+            delve_returned,
         }
     }
 
@@ -2098,12 +2268,16 @@ impl GameState {
         // crystalline_start head-start (flux-denominated → density-scaled)
         self.flux = (500.0 * self.ng_cycle as f64 + 600.0 * self.facet_level(2) as f64) * content::FLUX_DENSITY;
         self.facets += 3 + self.ng_cycle as u64 + self.facet_level(6) as u64; // facet_yield (#6): +1/level per ascent
-        // Expeditions: stop all farms on ascent (the economy re-bases). Teams, cleared quests, XP, skill trees,
-        // relics, Echoes, the orders, and the History ring all CARRY OVER (mode-internal meta, safe because the
-        // D4 fence means none of them touch the farm rate). Only the run-local state resets: node risk choices
-        // (re-route fresh) and any staged provisions.
+        // Expeditions: stop all farms on ascent (the economy re-bases). Teams, XP, skill trees, relics, Echoes, the
+        // orders, and the History ring all CARRY OVER (mode-internal meta, safe because the D4 fence means none of them
+        // touch the farm rate). The run-local state resets (node risk choices, staged provisions), AND — R3 "Deeper
+        // Manifold" — the cleared quests RE-OPEN for a fresh, harder (ng_cycle-scaled) descent; carried-over shape
+        // power makes it a victory-lap-into-challenge re-climb, and the farm resumes once nodes are re-cleared.
         for s in self.exp_station.iter_mut() {
             *s = -1;
+        }
+        for c in self.exp_cleared.iter_mut() {
+            *c = false; // re-open every quest for the new cycle (exp_clears_total + the History ring stay as lifetime meta)
         }
         // v6: abort any in-flight run BEFORE the rebase changes prestige_mult/viewport_dim (which would stale the
         // frozen schedule). Its loot up to the last tick is already banked (accrue_run runs every tick); the
@@ -2353,15 +2527,23 @@ impl GameState {
             ult += (bonus * 200.0) as i64; // signature shapes hit harder with their Ult
         }
         let vigor = self.exp_perk_level(2) as i64; // battle_vigor: start with charge
+        // Per-shape combat identity (Slice 2) — applied to atk/def/speed ONLY, never to `p`/exp_base_power (farm fence).
+        let (atk_bias, def_bias, spd_bias) = combat_bias(s.family, s.genus);
+        // stalwart perk: a defensive TRADEOFF (not pure upside) — +8%/lvl team max HP but −3%/lvl atk, COMBAT only
+        // (folds here in exp_combatant, never exp_base_power → farm rate untouched). Level 0 ⇒ identity.
+        let stalwart = self.exp_perk_level(expedition::PERK_STALWART) as i64;
+        let hp_perk = 100 + stalwart * 8; // +8%/lvl max HP
+        let atk_perk = 100 - stalwart * 3; // −3%/lvl atk — the cost that makes it a choice, not a free buff
+        let base_hp = (p * hpf / 100 * hp_perk / 100).max(1);
         Combatant {
             shape_id: id as i32,
             nick: s.nick.to_string(),
             family: s.family.to_string(),
-            max_hp: (p * hpf / 100).max(1),
-            hp: (p * hpf / 100).max(1),
-            atk: (p * atkf / 100).max(1),
-            def: 10 + p * 30 / 100,
-            speed,
+            max_hp: base_hp,
+            hp: base_hp,
+            atk: (p * atkf / 100 * atk_bias / 100 * atk_perk / 100).max(1),
+            def: ((10 + p * 30 / 100) * def_bias / 100).max(1),
+            speed: speed + spd_bias,
             element: el,
             role,
             is_enemy: false,
@@ -2369,16 +2551,24 @@ impl GameState {
             reflect: content::is_nonorientable(s.family),
             ult_power: ult,
             charge: (20 * vigor).min(99),
-            atk_up: 0,
+            atb: 0,
+            // knot → a "coil" trait: a coiled spring releases early, so a knotted shape OPENS the fight with 2 turns of
+            // attack-up (its hardest hits come first). Combat-only; complements its existing +atk bias. Reuses the
+            // engine's atk_up buff mechanic — no new field, no balance surprise beyond a short opening burst.
+            atk_up: if content::is_knot(s.family) { 2 } else { 0 },
             def_down: 0,
             regen: 0,
             stun: 0,
             bleed: 0,
-            shield: 0,
+            // genus → a "handles" trait: each hole is structural bulk, so a handled shape STARTS the fight with a
+            // small shield buffer (5% max HP per handle, ≤20%). Combat-only (built here, never in exp_base_power → the
+            // closed-form farm rate is untouched). Makes handled shapes PLAY distinctly (they soak the opening blows).
+            shield: base_hp * (s.genus.min(4) as i64) * 5 / 100,
             cd_a: 0,
             cd_b: 0,
             front: false,
             revive: false,
+            volatile: 0, // party members never detonate (only the enemy lure does)
         }
     }
 
@@ -2428,14 +2618,76 @@ impl GameState {
     /// Build team `t`'s gambit programs in the SAME filter+order as `build_team_combatants`, so program index ==
     /// combatant unit index in `resolve_battle` (`gambits.get(actor)`). Each SURVIVING member keeps its OWN raw-slot
     /// program; a filtered-out (unowned) member drops its program — never shifting a survivor onto a neighbour's.
-    fn build_team_gambits(&self, t: usize, orders: &Orders) -> Vec<Vec<expedition::GambitRule>> {
+    fn build_team_gambits(&self, t: usize, orders: &Orders, auto: bool) -> Vec<Vec<expedition::GambitRule>> {
         self.exp_teams.get(t).map_or(Vec::new(), |team| {
             team.iter()
                 .enumerate()
                 .filter(|&(_, &id)| id < COUNT && self.owned[id] > 0)
-                .map(|(slot, _)| orders.gambits.get(slot).cloned().unwrap_or_default())
+                .map(|(slot, &id)| {
+                    let prog = orders.gambits.get(slot).cloned().unwrap_or_default();
+                    if !prog.is_empty() {
+                        self.sanitize_program(prog) // a player-authored program (its locked-option rules go inert — see sanitize_program)
+                    } else if auto {
+                        Vec::new() // empty slot + auto-tactics UNLOCKED → hero_turn runs the smart legacy_ladder
+                    } else {
+                        expedition::simple_program(self.exp_role(id)) // empty slot + LOCKED → the simple instinct default
+                    }
+                })
                 .collect()
         })
+    }
+    /// Auto-tactics (Workshop upgrade #21): when unlocked, an empty gambit slot fights with the smart ladder; until
+    /// then it uses the simple instinct default. A discrete unlock the run snapshots at send (online==offline).
+    fn auto_tactics_unlocked(&self) -> bool {
+        self.upgrade_level(UPG_AUTO_TACTICS) > 0
+    }
+    /// Clamp a player-authored program to the currently-UNLOCKED gambit options: a rule whose cond/action is not yet
+    /// unlocked (Workshop) is turned OFF for this battle (run_gambits skips `!on`), so a save can never illegally
+    /// fire a locked option — and re-buying the unlock restores it (the authored Orders is never mutated). Phase 2
+    /// fills the unlock tiers; until then everything is unlocked, so this is the identity.
+    fn sanitize_program(&self, mut prog: Vec<expedition::GambitRule>) -> Vec<expedition::GambitRule> {
+        let acts = self.unlocked_gambit_acts();
+        let conds = self.unlocked_gambit_conds();
+        for r in prog.iter_mut() {
+            if !acts.contains(&r.action) || !conds.contains(&r.cond) {
+                r.on = false;
+            }
+        }
+        prog
+    }
+    /// The gambit CONDITIONS currently unlocked (Workshop). Tier-0 baseline is always available once Expeditions
+    /// exist; deeper conds unlock progressively. Single source of truth — the editor mirrors this (never re-derives).
+    pub fn unlocked_gambit_conds(&self) -> Vec<u8> {
+        let mut c = vec![expedition::COND_ALWAYS, expedition::COND_ALLY_HURT, expedition::COND_SELF_HURT];
+        if self.upgrade_level(UPG_GAMBIT_T2) > 0 {
+            c.push(expedition::COND_SKILL_READY);
+            c.push(expedition::COND_ALLY_LOW);
+        }
+        if self.upgrade_level(UPG_GAMBIT_T3) > 0 {
+            c.push(expedition::COND_ULT_READY);
+        }
+        c
+    }
+    /// The gambit ACTIONS currently unlocked (Workshop). Baseline is enough to hand-write the simple/auto behaviour
+    /// (attack-focus + each role's primary skill + ult); targeting + second skills unlock progressively.
+    pub fn unlocked_gambit_acts(&self) -> Vec<u8> {
+        let mut a = vec![
+            expedition::ACT_ATTACK_FOCUS,
+            expedition::ACT_HEAL,
+            expedition::ACT_GUARD,
+            expedition::ACT_HEX,
+            expedition::ACT_FLURRY,
+            expedition::ACT_ULT,
+        ];
+        if self.upgrade_level(UPG_GAMBIT_T2) > 0 {
+            a.push(expedition::ACT_ATTACK_WEAKEST);
+            a.push(expedition::ACT_ATTACK_THREAT);
+        }
+        if self.upgrade_level(UPG_GAMBIT_T3) > 0 {
+            a.push(expedition::ACT_BUFF_TEAM);
+            a.push(expedition::ACT_SWEEP);
+        }
+        a
     }
     /// The provision + relic effects that apply to team `t`'s CLEAR battle (relic up+down for each equipped relic,
     /// plus each staged provision). Aggregated once; the farm/watch never see these.
@@ -2453,20 +2705,6 @@ impl GameState {
             for &p in ps {
                 if let Some(pd) = expedition::PROVISIONS.get(p as usize) {
                     v.push(pd.eff);
-                }
-            }
-        }
-        v
-    }
-    /// Relic effects ONLY (no staged provisions) — what AUTO applies, since it honours persistent equipment but
-    /// NEVER spends consumable provisions (the economy ethic: hands-free play can't burn your stockpile).
-    fn team_relic_effects(&self, t: usize) -> Vec<expedition::EffKind> {
-        let mut v = Vec::new();
-        if let Some(rs) = self.team_relics.get(t) {
-            for &r in rs {
-                if let Some(rd) = expedition::RELICS.get(r as usize) {
-                    v.push(rd.up);
-                    v.push(rd.down);
                 }
             }
         }
@@ -2568,6 +2806,15 @@ impl GameState {
             }
         }
     }
+    /// Drag/drop reorder: move rule `from` to position `to` (a pure permutation, same slot semantics as move_gambit).
+    pub fn reorder_gambit(&mut self, t: usize, slot: usize, from: usize, to: usize) {
+        if let Some(g) = self.gambit_slot(t, slot) {
+            if from < g.len() && to < g.len() && from != to {
+                let r = g.remove(from);
+                g.insert(to, r);
+            }
+        }
+    }
     /// Append a new default rule (always → attack focus) up to the per-slot cap.
     pub fn add_gambit(&mut self, t: usize, slot: usize) {
         if let Some(g) = self.gambit_slot(t, slot) {
@@ -2589,6 +2836,21 @@ impl GameState {
     pub fn reset_gambits(&mut self, t: usize, slot: usize) {
         if let Some(g) = self.gambit_slot(t, slot) {
             g.clear();
+        }
+        self.canon_gambits(t);
+    }
+    /// Auto-fill a slot with the SMART role-default gambit program (the "Auto" button) — built from the player's
+    /// CURRENTLY-UNLOCKED gambit options, so it gets smarter as they buy the gambit-logic upgrades (ult-timing, skill
+    /// gating, emergency heals, kill-securing targeting) and never contains a locked rule. The role comes from the
+    /// shape stationed in this slot (truth — TS never decides the role or builds the program). Empty slot ⇒ no-op.
+    pub fn auto_gambits(&mut self, t: usize, slot: usize) {
+        let role = match self.exp_teams.get(t).and_then(|tm| tm.get(slot).copied()) {
+            Some(id) => self.exp_role(id),
+            None => return,
+        };
+        let program = expedition::smart_gambit_program(role, &self.unlocked_gambit_conds(), &self.unlocked_gambit_acts());
+        if let Some(g) = self.gambit_slot(t, slot) {
+            *g = program;
         }
         self.canon_gambits(t);
     }
@@ -2646,6 +2908,12 @@ impl GameState {
         self.exp_node_mod.resize(QUEST_COUNT, 0);
         self.prov_inv.resize(expedition::PROVISION_COUNT, 0);
         self.relics_owned.resize(expedition::RELIC_COUNT, false);
+        // defensive: keep the active run's decision arrays in lockstep with `decisions` (insurance vs a tampered/future
+        // save; the engine always pushes the two together in resolve_run_with_choices, so this is a no-op on any save
+        // it actually wrote). Guarantees choose_decision's decision_choices[di] index is always in range.
+        if let Some(run) = self.active_run.as_mut() {
+            run.decision_choices.resize(run.decisions.len(), -1);
+        }
         // clamp out-of-range ids (defensive vs tampered/old saves; nothing here consumes them yet in Phase 0)
         for m in self.exp_node_mod.iter_mut() {
             if *m as usize >= expedition::NODE_MOD_COUNT {
@@ -2749,7 +3017,10 @@ impl GameState {
         // Risk-mod % + double_rations (+100%) combine ADDITIVELY (not multiplicatively) so harrowing+double can't
         // print a runaway lump — e.g. harrowing(+150%) + double(+100%) = +250% (×3.5), not ×2.4×2=×4.8.
         let double_pct: u64 = if self.team_effects(t).iter().any(|e| matches!(e, expedition::EffKind::DoubleClearEchoes)) { 100 } else { 0 };
-        let echoes = base * 5 * (100 + mod_pct + double_pct) / 100;
+        // NG+ "Deeper Manifold" (R3): each ascent cycle pays more Echoes on a clear (multiplicative on the lump, after the
+        // risk/double bonuses). Mode-internal (Echoes never touch globals_mult), so it inflates only the Echoes economy.
+        let ng_bonus = 100 + self.ng_cycle as u64 * NGPLUS_REWARD_BONUS_PCT;
+        let echoes = base * 5 * (100 + mod_pct + double_pct) / 100 * ng_bonus / 100;
         self.echoes += echoes;
         self.lifetime_echoes += echoes;
         let fc_flux = base as f64 * FIRST_CLEAR_FLUX_K * content::FLUX_DENSITY; // a windfall, not inert (mod-free)
@@ -2799,10 +3070,19 @@ impl GameState {
 
     /// Resolve an entire run through `path` for team `t` into its immutable schedule. PURE (no mutation) — the
     /// future is computed here, once, and only READ thereafter. Survivor HP threads from each room into the next.
+    /// Today's entry: every Decision room takes its auto-default (empty committed-choice list).
     fn resolve_run(&self, team: usize, path: &[usize], seed: u64) -> RunPlan {
+        self.resolve_run_with_choices(team, path, seed, &[])
+    }
+
+    /// As `resolve_run`, but applying any COMMITTED decision choices: `choices[i]` is the i-th Decision room's chosen
+    /// option (0/1), or -1 for the auto-default. Empty ⇒ all auto ⇒ byte-identical to send. Used by `resolve_tail_from`
+    /// to re-resolve after a live override. Determinism: same (team, path, seed, choices) ⇒ bit-identical plan.
+    fn resolve_run_with_choices(&self, team: usize, path: &[usize], seed: u64, choices: &[i8]) -> RunPlan {
         let orders = self.team_orders(team);
         let effects = self.team_effects(team);
-        let gambits = self.build_team_gambits(team, &orders);
+        let auto = self.auto_tactics_unlocked(); // frozen at send — a mid-run purchase can't change this run
+        let gambits = self.build_team_gambits(team, &orders, auto);
         let mut party = self.build_team_combatants(team, &orders, &effects); // full HP at room 0
         let mut plan = RunPlan {
             team,
@@ -2812,6 +3092,7 @@ impl GameState {
             start_ms: 0.0,
             orders: orders.clone(),
             provisions: self.exp_provisions.get(team).cloned().unwrap_or_default(),
+            auto_tactics: auto,
             ..Default::default()
         };
         let rooms = build_room_plan(path);
@@ -2836,9 +3117,37 @@ impl GameState {
                     let base = 30 + 15 * depth;
                     let lump = base + expedition::splitmix64(rs) % (base / 2 + 1); // deterministic varied loot (RUN lineage)
                     ech += lump;
-                    flux += lump / 2;
+                    flux += (lump / 2) * content::FLUX_DENSITY as u64; // Flux is density-denominated (see FLUX_DENSITY) — match the economy
                     heal_party(&mut party, TREASURE_HEAL_PCT);
                     t_ms += TREASURE_MS;
+                    push_room(&mut plan, t_ms, ech, flux, kind.as_u8(), -1);
+                }
+                expedition::RoomKind::Shrine => {
+                    heal_party(&mut party, SHRINE_HEAL_PCT);
+                    for c in party.iter_mut() {
+                        if c.hp > 0 {
+                            c.speed = (c.speed * (100 + SHRINE_SPEED_BOON) / 100).max(1); // a lasting +speed blessing for the rest of the run
+                        }
+                    }
+                    t_ms += SHRINE_MS;
+                    push_room(&mut plan, t_ms, ech, flux, kind.as_u8(), -1);
+                }
+                expedition::RoomKind::Decision => {
+                    // a Crossroads: resolve the COMMITTED choice (choices[di]) or the auto-default into the frozen
+                    // schedule. A live override (choose_decision) sets choices[di], then re-resolves the unbanked tail.
+                    let d = build_decision(rs, k);
+                    let di = plan.decisions.len();
+                    let chosen = choices.get(di).copied().unwrap_or(-1);
+                    let opt = if chosen < 0 { d.auto_option as usize } else { (chosen as usize).min(d.options.len().saturating_sub(1)) };
+                    let eff = d.options[opt];
+                    apply_decision_to_party(&mut party, eff);
+                    if eff.echo_bonus > 0 {
+                        ech += eff.echo_bonus;
+                        flux += (eff.echo_bonus / 2) * content::FLUX_DENSITY as u64;
+                    }
+                    t_ms += DECISION_MS;
+                    plan.decisions.push(d);
+                    plan.decision_choices.push(chosen); // -1 = auto-default; else the committed override
                     push_room(&mut plan, t_ms, ech, flux, kind.as_u8(), -1);
                 }
                 _ => {
@@ -2853,7 +3162,7 @@ impl GameState {
                     }
                     if r.win {
                         ech += QUESTS[q].base_echo; // delve loot (separate from the first-clear bonus granted on banking)
-                        flux += QUESTS[q].base_echo / 2;
+                        flux += (QUESTS[q].base_echo / 2) * content::FLUX_DENSITY as u64; // density-denominated to match the Flux economy
                         push_room(&mut plan, t_ms, ech, flux, kind.as_u8(), node);
                     } else {
                         plan.death_room = Some(k); // chained-party wipe — the run ends here, partial loot kept
@@ -2875,6 +3184,9 @@ impl GameState {
         if self.active_run.is_some() || path.is_empty() || t >= self.exp_teams.len() {
             return false;
         }
+        if now_ms < self.exp_rest_until {
+            return false; // the party is still resting at base camp between delves
+        }
         let orders = self.team_orders(t);
         if self.build_team_combatants(t, &orders, &[]).is_empty() {
             return false; // empty / all-unowned party
@@ -2886,6 +3198,7 @@ impl GameState {
         let mut plan = self.resolve_run(t, path, seed);
         plan.start_ms = now_ms;
         self.active_run = Some(plan);
+        self.exp_station[t] = -1; // FENCE: a delving team does NOT also farm the closed-form rate (auto re-stations when idle)
         true
     }
 
@@ -2893,7 +3206,7 @@ impl GameState {
     /// node, walk forward (index order, skipping Elite branches + cleared nodes) collecting uncleared nodes,
     /// stopping AFTER the next Boss or at the dimension wall (need NG+ to go deeper). Empty ⇒ nothing to delve
     /// (auto-dispatch then falls back to the v5 station-farm). Pure.
-    pub fn compose_run_path(&self) -> Vec<usize> {
+    pub fn compose_run_path(&self, safe_only: bool) -> Vec<usize> {
         let mut path = Vec::new();
         let mut started = false;
         for (q, def) in QUESTS.iter().enumerate() {
@@ -2908,6 +3221,13 @@ impl GameState {
             }
             if self.exp_cleared[q] {
                 continue; // already cleared — a run delves NEW ground
+            }
+            if safe_only && self.exp_node_mod.get(q).copied().unwrap_or(0) != 0 {
+                // AUTO leaves player-set risk mods for deliberate manual runs (it never auto-risks) — stop here.
+                if started {
+                    break;
+                }
+                continue;
             }
             if !started {
                 if !self.node_open(q) {
@@ -2957,16 +3277,112 @@ impl GameState {
         }
         if let Some(run) = self.active_run.as_mut() {
             run.claimed_rooms = run.claimed_rooms.max(finished as u32);
+            run.decision_locked_at_room = run.claimed_rooms; // banked rooms are locked — choose_decision rejects them (anti-scum)
         }
         if finished >= total_len {
             self.complete_run(now_ms);
         }
     }
 
+    /// Live override of a Decision room's auto-pick, within its timeout window. Banks up to `now_ms` first (so the
+    /// window + lock checks are current), validates the room is an UNBANKED Decision still inside its window and not
+    /// already chosen, commits the choice, and RE-RESOLVES the unbanked tail. Offline players never call this, so the
+    /// auto-pick path stays online==offline. Save-scum-proof: the choice + re-resolution are persisted by the next
+    /// tick before any tail outcome is revealed, and banked rooms are locked. Returns false if the choice is illegal.
+    pub fn choose_decision(&mut self, room_idx: usize, option: u8, now_ms: f64) -> bool {
+        self.tick(now_ms); // bank standing time first ⇒ claimed_rooms, the lock, and the window are all current
+        let di = {
+            let run = match self.active_run.as_ref() {
+                Some(r) => r,
+                None => return false,
+            };
+            if room_idx >= run.room_kind.len() {
+                return false;
+            }
+            if run.room_kind[room_idx] != expedition::RoomKind::Decision.as_u8() {
+                return false; // not a Crossroads
+            }
+            if (room_idx as u32) < run.claimed_rooms || (room_idx as u32) < run.decision_locked_at_room {
+                return false; // already banked / locked — the window has closed (anti-scum)
+            }
+            let di = match run.decisions.iter().position(|d| d.room_idx == room_idx) {
+                Some(i) => i,
+                None => return false,
+            };
+            if (option as usize) >= run.decisions[di].options.len() {
+                return false; // option out of range for this crossroads (2 or 3 options)
+            }
+            let arrival = run.start_ms + if room_idx > 0 { run.prefix_ms[room_idx - 1] } else { 0.0 };
+            if now_ms > arrival + run.decisions[di].window_ms {
+                return false; // the live window lapsed — the auto-pick stands (online==offline preserved)
+            }
+            if run.decision_choices.get(di).copied().unwrap_or(-1) != -1 {
+                return false; // already chosen — no peek-then-reroll
+            }
+            di
+        };
+        if let Some(run) = self.active_run.as_mut() {
+            run.decision_choices[di] = option as i8;
+        }
+        self.resolve_tail_from();
+        true
+    }
+
+    /// Re-resolve the active run with its currently-committed `decision_choices`, preserving the banked head
+    /// `[0..claimed_rooms]` byte-identical (the player was already paid those) and rebasing the fresh tail onto it so
+    /// the cumulative prefix arrays stay monotonic even if team power drifted since send. Only the UNBANKED future
+    /// changes. Deterministic + idempotent given the same committed choices.
+    fn resolve_tail_from(&mut self) {
+        let old = match self.active_run.as_ref() {
+            Some(r) => r.clone(),
+            None => return,
+        };
+        let claimed = old.claimed_rooms as usize;
+        let mut fresh = self.resolve_run_with_choices(old.team, &old.path, old.run_seed, &old.decision_choices);
+        // restore the live cursor + frozen send-time snapshots (resolve_run_with_choices re-reads current self for these)
+        fresh.start_ms = old.start_ms;
+        fresh.claimed_rooms = old.claimed_rooms;
+        fresh.decision_locked_at_room = old.decision_locked_at_room;
+        fresh.provisions = old.provisions.clone();
+        fresh.orders = old.orders.clone();
+        fresh.auto_tactics = old.auto_tactics;
+        // Degenerate guard: the re-resolution must still cover the banked head (it does — the head's committed choices
+        // are unchanged, so it re-resolves identically). If a power drop somehow shortened it, keep the old plan.
+        if claimed > fresh.prefix_ms.len() {
+            return;
+        }
+        if claimed > 0 && claimed <= old.prefix_ms.len() {
+            // Rebase the tail's cumulative arrays to continue from the OLD banked head (head loot is power-independent
+            // ⇒ echo/flux offsets are ~0; the time offset absorbs combat-speed drift), then splice the banked head back
+            // byte-identical so banking is provably undisturbed.
+            let c = claimed;
+            let dt = old.prefix_ms[c - 1] - fresh.prefix_ms[c - 1];
+            let base_e = old.prefix_echoes[c - 1] as i64;
+            let base_f = old.prefix_flux[c - 1] as i64;
+            let fe = fresh.prefix_echoes[c - 1] as i64;
+            let ff = fresh.prefix_flux[c - 1] as i64;
+            for k in c..fresh.prefix_ms.len() {
+                fresh.prefix_ms[k] += dt;
+                fresh.prefix_echoes[k] = (fresh.prefix_echoes[k] as i64 - fe + base_e).max(base_e) as u64;
+                fresh.prefix_flux[k] = (fresh.prefix_flux[k] as i64 - ff + base_f).max(base_f) as u64;
+            }
+            fresh.prefix_ms[..c].copy_from_slice(&old.prefix_ms[..c]);
+            fresh.prefix_echoes[..c].copy_from_slice(&old.prefix_echoes[..c]);
+            fresh.prefix_flux[..c].copy_from_slice(&old.prefix_flux[..c]);
+            fresh.room_kind[..c].copy_from_slice(&old.room_kind[..c]);
+            fresh.room_node[..c].copy_from_slice(&old.room_node[..c]);
+        }
+        fresh.total_ms = fresh.prefix_ms.last().copied().unwrap_or(old.total_ms);
+        self.active_run = Some(fresh);
+    }
+
     /// Finalize a run: consume staged provisions on a COMPLETED run (a wipe is free — loss-is-free), push a
     /// history record, and clear `active_run` so the team is free to be re-sent.
     fn complete_run(&mut self, now_ms: f64) {
         let Some(run) = self.active_run.take() else { return };
+        // the party heads home to rest before the next delve — a cozy break starting at the run's DETERMINISTIC
+        // completion (start_ms + total_ms), not now_ms, so a long absence lets the rest fully elapse (online==offline)
+        self.exp_rest_until = run.start_ms + run.total_ms + REST_BETWEEN_RUNS_MS;
         let died = run.death_room.is_some();
         let rec = RunRecord {
             team: run.team as u32,
@@ -2990,6 +3406,79 @@ impl GameState {
         }
         self.run_history.insert(0, rec);
         self.run_history.truncate(24);
+    }
+
+    /// Re-enact the active run up to room `room_idx` (threading HP through fights + cozy heals) and return that
+    /// room's BattleResult — for the spectator Watch of a delve room. None if no run / out of range / a cozy room.
+    /// Uses the run's FROZEN seed + orders snapshot, so a revealed (already-won) room re-resolves to the same win
+    /// (damage numbers may drift a touch if the team leveled mid-run — purely cosmetic for the replay).
+    fn replay_room_battle(&self, room_idx: usize) -> Option<expedition::BattleResult> {
+        let run = self.active_run.as_ref()?;
+        let rooms = build_room_plan(&run.path);
+        if room_idx >= rooms.len() {
+            return None;
+        }
+        let orders = run.orders.clone();
+        let effects = self.team_effects(run.team);
+        let gambits = self.build_team_gambits(run.team, &orders, run.auto_tactics); // frozen at send (online==offline; no mid-run desync)
+        let mut party = self.build_team_combatants(run.team, &orders, &effects);
+        let mut decision_seen = 0usize; // tracks which Decision room we're on, to read its committed choice
+        for (k, &(kind, node)) in rooms.iter().enumerate() {
+            let rs = if k == 0 { run.run_seed } else { run.run_seed ^ expedition::splitmix64(k as u64) };
+            if kind.is_fight() {
+                let q = node as usize;
+                let enemies = expedition::quest_enemies_scaled(&QUESTS[q], self.node_mod_scale(q));
+                let r = expedition::resolve_battle_from_hp(rs, party.clone(), enemies, orders.focus, &gambits);
+                if k == room_idx {
+                    return Some(r);
+                }
+                for (i, c) in party.iter_mut().enumerate() {
+                    if let Some(&h) = r.final_hp.get(i) {
+                        c.hp = h;
+                    }
+                }
+                if !r.win {
+                    return None; // shouldn't happen for a revealed room (those were won)
+                }
+            } else if matches!(kind, expedition::RoomKind::Decision) {
+                // a Crossroads: apply the COMMITTED choice (or the auto-default) — same party effect as resolve_run,
+                // so the threaded HP for the spectator Watch matches the frozen schedule.
+                let d = build_decision(rs, k);
+                let opt = run.decision_choices.get(decision_seen).copied().unwrap_or(-1);
+                let opt = if opt < 0 { d.auto_option as usize } else { (opt as usize).min(d.options.len().saturating_sub(1)) };
+                decision_seen += 1;
+                apply_decision_to_party(&mut party, d.options[opt]);
+                if k == room_idx {
+                    return None; // a cozy room — nothing to fight-watch
+                }
+            } else {
+                // cozy room: apply its heal/boon so a later fight uses the threaded HP (matching the schedule)
+                let heal = match kind {
+                    expedition::RoomKind::Campfire => CAMPFIRE_HEAL_PCT,
+                    expedition::RoomKind::Shrine => SHRINE_HEAL_PCT,
+                    _ => TREASURE_HEAL_PCT,
+                };
+                heal_party(&mut party, heal);
+                if matches!(kind, expedition::RoomKind::Campfire) {
+                    for c in party.iter_mut() {
+                        if c.hp > 0 {
+                            c.atk = (c.atk * (100 + CAMPFIRE_BOON_PCT) / 100).max(1);
+                        }
+                    }
+                }
+                if matches!(kind, expedition::RoomKind::Shrine) {
+                    for c in party.iter_mut() {
+                        if c.hp > 0 {
+                            c.speed = (c.speed * (100 + SHRINE_SPEED_BOON) / 100).max(1);
+                        }
+                    }
+                }
+                if k == room_idx {
+                    return None; // a cozy room — nothing to fight-watch
+                }
+            }
+        }
+        None
     }
 
     /// v5 journey-map gate: is node `q` open to ATTEMPT (its first clear)? Open iff the dimension gate is met AND
@@ -3023,12 +3512,13 @@ impl GameState {
         if party.is_empty() {
             return false;
         }
-        expedition::resolve_battle(self.clear_seed(t, q), party, expedition::quest_enemies_scaled(&QUESTS[q], self.node_mod_scale(q)), o.focus, &self.build_team_gambits(t, &o)).win
+        expedition::resolve_battle(self.clear_seed(t, q), party, expedition::quest_enemies_scaled(&QUESTS[q], self.node_mod_scale(q)), o.focus, &self.build_team_gambits(t, &o, self.auto_tactics_unlocked())).win
     }
     /// The enemy-stat scaling % for node `q`'s chosen risk modifier (0 = safe). Applies to the CLEAR battle only.
     fn node_mod_scale(&self, q: usize) -> i64 {
         let m = self.exp_node_mod.get(q).copied().unwrap_or(0) as usize;
-        expedition::NODE_MODS.get(m).map_or(0, |nm| nm.enemy_scale_pct)
+        let mod_pct = expedition::NODE_MODS.get(m).map_or(0, |nm| nm.enemy_scale_pct);
+        mod_pct + self.ng_cycle as i64 * NGPLUS_ENEMY_SCALE_PCT // NG+ deepens the manifold (combat-only ⇒ farm rate untouched)
     }
     /// Choose node `q`'s risk modifier (only before it's cleared — after a clear the node is farmed, mod is moot).
     pub fn set_node_mod(&mut self, q: usize, m: u8) {
@@ -3129,7 +3619,7 @@ impl GameState {
         let mut res = StationResult { ok: true, win: true, ..fail };
         if !self.exp_cleared[q] {
             let o = self.team_orders(t);
-            let battle = expedition::resolve_battle(self.clear_seed(t, q), self.build_team_combatants(t, &o, &self.team_effects(t)), expedition::quest_enemies_scaled(&QUESTS[q], self.node_mod_scale(q)), o.focus, &self.build_team_gambits(t, &o));
+            let battle = expedition::resolve_battle(self.clear_seed(t, q), self.build_team_combatants(t, &o, &self.team_effects(t)), expedition::quest_enemies_scaled(&QUESTS[q], self.node_mod_scale(q)), o.focus, &self.build_team_gambits(t, &o, self.auto_tactics_unlocked()));
             res.win = battle.win;
             res.battle = Some(battle);
             if !res.win {
@@ -3173,18 +3663,39 @@ impl GameState {
     }
     /// The deterministic battle the team stationed on quest `q` is running (for the spectator Watch). None if no
     /// team is stationed there. Pure — no tick/mutation; fetch once, replay in TS.
-    pub fn watch_data(&self, q: usize) -> Option<expedition::BattleResult> {
+    pub fn watch_data(&self, q: usize, variant: u32) -> Option<expedition::BattleResult> {
         if q >= QUEST_COUNT {
             return None;
         }
         let t = (0..self.exp_teams.len()).find(|&t| self.exp_station.get(t).copied().unwrap_or(-1) == q as i32)?;
         // the WATCH replays the inert FARM loop (default orders, farm_seed) — orders/provisions are a one-shot
-        // clear thing, not the standing farm (spec D2).
-        Some(expedition::resolve_battle(self.farm_seed(t, q), self.build_team_combatants(t, &Orders::default(), &[]), expedition::quest_enemies(&QUESTS[q]), -1, &[]))
+        // clear thing, not the standing farm (spec D2). `variant` re-seeds the COSMETIC replay so the live farm view
+        // isn't one bit-identical fight forever (#6 "vary"): different rolls, crit timing, the odd close call — while
+        // the farm RATE stays the power-banded closed form (this seed never touches loot). variant 0 == byte-identical.
+        let seed = self.farm_seed(t, q) ^ (variant as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        Some(expedition::resolve_battle(seed, self.build_team_combatants(t, &Orders::default(), &[]), expedition::quest_enemies(&QUESTS[q]), -1, &[]))
     }
 
     fn party_power_of(&self, party: &[usize]) -> i64 {
         party.iter().map(|&id| self.exp_power(id)).sum()
+    }
+    /// Per-team aggregate combat stats for the team-selection summary (QW-4): summed hp/atk/def/speed + role and
+    /// element coverage counts. Pure read of exp_combatant/role/element — the UI shows it to compare teams, never
+    /// recomputes it. Returns (total_hp, total_atk, total_def, total_speed, role_counts[4], element_counts[3]).
+    fn team_summary(&self, party: &[usize]) -> (i64, i64, i64, i64, Vec<u32>, Vec<u32>) {
+        let (mut hp, mut atk, mut def, mut spd) = (0i64, 0i64, 0i64, 0i64);
+        let mut roles = vec![0u32; 4];
+        let mut elems = vec![0u32; 3];
+        for &id in party {
+            let c = self.exp_combatant(id);
+            hp += c.max_hp;
+            atk += c.atk;
+            def += c.def;
+            spd += c.speed;
+            roles[self.exp_role(id) as usize] += 1;
+            elems[c.element as usize] += 1;
+        }
+        (hp, atk, def, spd, roles, elems)
     }
     /// Base power of a party (no level/skill) — the farm-rate band reference (keeps the farm closed-form).
     fn party_base_power(&self, party: &[usize]) -> i64 {
@@ -3271,38 +3782,33 @@ impl GameState {
     /// One step of Auto-Expedition: the strongest team clears the next beatable quest (one per call), then every
     /// idle team is stationed on the highest-yield cleared quest not already taken. Hands-free, deterministic.
     pub fn auto_expedition(&mut self, now_ms: f64) -> AutoExpeditionStep {
-        self.tick(now_ms);
+        self.tick(now_ms); // advances + (when due) COMPLETES the in-flight run via accrue_run before we re-dispatch
         let mut step = AutoExpeditionStep { delved: false, quest: -1, recruited_id: -1, farms: 0 };
-        // 1) the strongest non-empty team WITHOUT staged provisions clears the next beatable open node (easiest
-        //    first). Teams with staged provisions are reserved for the player's deliberate manual runs — Auto
-        //    never spends consumables, and skipping them keeps Auto's seed (provision-free) consistent with the
-        //    relic-only combatants it builds.
-        let clearer = (0..self.exp_teams.len())
-            .filter(|&t| !self.build_team_combatants(t, &Orders::default(), &[]).is_empty() && self.exp_provisions.get(t).is_none_or(|p| p.is_empty()))
-            .max_by_key(|&t| self.party_power_of(&self.exp_teams[t]));
-        if let Some(t) = clearer {
-            // Auto only clears SAFE (mod 0), NON-Elite open nodes — risky mods + Elite branches (with their fat
-            // reserved Echoes lumps) are left for deliberate manual play.
-            let mut cands: Vec<usize> = (0..QUEST_COUNT)
-                .filter(|&qi| !self.exp_cleared[qi] && self.node_open(qi) && self.exp_node_mod.get(qi).copied().unwrap_or(0) == 0 && QUESTS[qi].kind != expedition::NodeKind::Elite)
-                .collect();
-            cands.sort_by_key(|&qi| QUESTS[qi].tier);
-            for qi in cands {
-                let o = self.team_orders(t); // Auto honours the team's human-set orders + equipped relics (never provisions)
-                let battle = expedition::resolve_battle(self.clear_seed(t, qi), self.build_team_combatants(t, &o, &self.team_relic_effects(t)), expedition::quest_enemies(&QUESTS[qi]), o.focus, &self.build_team_gambits(t, &o));
-                if battle.win {
-                    let (rid, _, ech, fc) = self.grant_first_clear(qi, t);
-                    self.push_run(qi, t, (battle.rounds, battle.party_survivors as u32, battle.party_size as u32), ech, fc);
-                    step.delved = true;
-                    step.quest = qi as i32;
-                    step.recruited_id = rid;
-                    break; // one clear per call — gentle + bounded
+        // 1) AUTO-DISPATCH (v6, D23): when no run is in flight + there's new SAFE ground, send the strongest
+        //    PROVISION-FREE team on a Delve run (one per call). The run clears the chapter over idle time (via
+        //    accrue_run) — Auto never spends consumables (provision-free team) and never risks (safe_only path).
+        //    When chapters are exhausted (no safe path), it falls through to the v5 station-farm floor below.
+        if self.active_run.is_none() {
+            let path = self.compose_run_path(true);
+            if !path.is_empty() {
+                let sender = (0..self.exp_teams.len())
+                    .filter(|&t| !self.build_team_combatants(t, &Orders::default(), &[]).is_empty() && self.exp_provisions.get(t).is_none_or(|p| p.is_empty()))
+                    .max_by_key(|&t| self.party_power_of(&self.exp_teams[t]));
+                // gate on beatability of the frontier node so Auto never spins on a wall it can't break (the
+                // player levels up / pulls to advance) — it falls through to the station-farm floor instead.
+                if let Some(t) = sender {
+                    if self.beatable_safe(t, path[0]) && self.send_expedition(t, &path, now_ms) {
+                        step.delved = true;
+                        step.quest = *path.last().unwrap() as i32; // the run's destination (recruits free mid-delve)
+                    }
                 }
             }
         }
-        // 2) station every idle team on the best cleared quest not already stationed by another team
+        // 2) station every idle team on the best cleared quest not already stationed by another team. The team
+        //    currently ON the run delves instead of farming, so skip it.
+        let run_team = self.active_run.as_ref().map(|r| r.team);
         for t in 0..self.exp_teams.len() {
-            if self.exp_station[t] >= 0 || self.build_team_combatants(t, &Orders::default(), &[]).is_empty() {
+            if Some(t) == run_team || self.exp_station[t] >= 0 || self.build_team_combatants(t, &Orders::default(), &[]).is_empty() {
                 continue;
             }
             let taken = self.exp_station.clone();
@@ -3434,6 +3940,32 @@ impl GameState {
                 *v = 0;
             }
         }
+    }
+
+    /// Auto-allocate ALL of shape `id`'s free skill points into a sensible default build — the "otherwise auto
+    /// unlocked" path for players who don't want to micro-manage the tree. Greedily spends the readiest node: COMBAT
+    /// (stat_pct) nodes before farm, lowest index first, always respecting prereqs + max ranks (it routes through
+    /// `spend_skill_point`, so it can never produce an invalid build). Deterministic. Returns the points spent.
+    pub fn auto_skill(&mut self, id: usize) -> u32 {
+        if id >= COUNT {
+            return 0;
+        }
+        let mut spent = 0u32;
+        while self.skill_points_free(id) > 0 {
+            let tree = expedition::SKILL_TREES[self.role_idx(id)];
+            let pick = (0..tree.len().min(MAX_NODES))
+                .filter(|&node| {
+                    let nd = &tree[node];
+                    self.skill_alloc[id][node] < nd.max
+                        && nd.requires.is_none_or(|(req, lvl)| self.skill_alloc[id].get(req).copied().unwrap_or(0) >= lvl)
+                })
+                .max_by_key(|&node| (tree[node].stat_pct > 0, std::cmp::Reverse(node)));
+            match pick {
+                Some(node) if self.spend_skill_point(id, node) => spent += 1,
+                _ => break, // nothing left to allocate (all maxed or prereq-locked)
+            }
+        }
+        spent
     }
 
     pub fn exp_perk_cost(&self, id: usize) -> u64 {
@@ -3720,15 +4252,26 @@ impl GameState {
             echo_rate_per_hr: self.echo_rate_per_hr(),
             exp_flux_rate: self.expedition_flux_per_hr(),
             exp_teams: (0..self.exp_teams.len())
-                .map(|t| TeamView {
-                    members: self.exp_teams[t].clone(),
-                    station: self.exp_station.get(t).copied().unwrap_or(-1),
-                    power: self.party_power_of(&self.exp_teams[t]),
-                    echo_rate_per_hr: self.team_echo_rate(t),
-                    flux_rate_per_hr: self.team_flux_rate(t),
-                    orders: self.team_orders(t),
-                    provisions: self.exp_provisions.get(t).cloned().unwrap_or_default(),
-                    relics: self.team_relics.get(t).cloned().unwrap_or_default(),
+                .map(|t| {
+                    let m = self.exp_teams[t].clone();
+                    let (total_hp, total_atk, total_def, total_speed, role_counts, element_counts) = self.team_summary(&m);
+                    TeamView {
+                        station: self.exp_station.get(t).copied().unwrap_or(-1),
+                        power: self.party_power_of(&m),
+                        echo_rate_per_hr: self.team_echo_rate(t),
+                        flux_rate_per_hr: self.team_flux_rate(t),
+                        orders: self.team_orders(t),
+                        provisions: self.exp_provisions.get(t).cloned().unwrap_or_default(),
+                        relics: self.team_relics.get(t).cloned().unwrap_or_default(),
+                        total_hp,
+                        total_atk,
+                        total_def,
+                        total_speed,
+                        role_counts,
+                        element_counts,
+                        kin_pairs: self.kin_pairs_of(&m),
+                        members: m,
+                    }
                 })
                 .collect(),
             exp_active_team: self.exp_active_team as u32,
@@ -3738,6 +4281,12 @@ impl GameState {
             exp_perks: self.exp_perks.clone(),
             exp_perk_costs: (0..expedition::EXP_PERK_COUNT).map(|i| self.exp_perk_cost(i)).collect(),
             exp_power: (0..COUNT).map(|i| self.exp_power(i)).collect(),
+            exp_stats: (0..COUNT)
+                .map(|i| {
+                    let c = self.exp_combatant(i);
+                    ExpStatView { max_hp: c.max_hp, atk: c.atk, def: c.def, speed: c.speed, ult: c.ult_power }
+                })
+                .collect(),
             shape_levels: (0..COUNT).map(|i| self.shape_level(i)).collect(),
             shape_xp: self.shape_xp.clone(),
             xp_to_next: (0..COUNT).map(|i| Self::xp_to_reach(self.shape_level(i) + 1).saturating_sub(self.shape_xp.get(i).copied().unwrap_or(0))).collect(),
@@ -3766,15 +4315,59 @@ impl GameState {
             exp_echoes_farmed: self.exp_echoes_farmed,
             exp_flux_farmed: self.exp_flux_farmed,
             exp_runs: self.exp_runs.clone(),
-            run: self.active_run.as_ref().map(|r| RunView {
-                team: r.team,
-                path: r.path.clone(),
-                current_room: r.claimed_rooms,
-                total_rooms: r.planned_rooms, // intended room count (incl. cozy rooms) — an early stop reads as a soft-land
-                start_ms: r.start_ms,
-                total_ms: r.total_ms,
+            run: self.active_run.as_ref().map(|r| {
+                let reveal = ((r.claimed_rooms as usize) + 1).min(r.room_kind.len()); // visited + the current room
+                // Per-room reward lumps, BANKED rooms only (earned ⇒ no spoiler of the in-progress/future room).
+                let claimed = (r.claimed_rooms as usize).min(r.prefix_echoes.len());
+                let lump = |pre: &[u64]| -> Vec<u64> {
+                    (0..claimed).map(|k| pre[k] - if k == 0 { 0 } else { pre[k - 1] }).collect()
+                };
+                // Whole-run average rate (smoother + less spoilery than a per-segment rate) — Rust-emitted, never TS-derived.
+                let rate = |pre: &[u64]| -> f64 {
+                    if r.total_ms > 0.0 { *pre.last().unwrap_or(&0) as f64 / r.total_ms * 3_600_000.0 } else { 0.0 }
+                };
+                RunView {
+                    team: r.team,
+                    path: r.path.clone(),
+                    room_kind: r.room_kind[0..reveal].to_vec(),
+                    current_room: r.claimed_rooms,
+                    total_rooms: r.planned_rooms, // intended room count (incl. cozy rooms) — an early stop reads as a soft-land
+                    start_ms: r.start_ms,
+                    total_ms: r.total_ms,
+                    room_echoes: lump(&r.prefix_echoes),
+                    room_flux: lump(&r.prefix_flux),
+                    delve_echoes_per_hr: rate(&r.prefix_echoes),
+                    delve_flux_per_hr: rate(&r.prefix_flux),
+                    pending_decision: {
+                        // the IN-PROGRESS room (index claimed_rooms): if it's an un-chosen Crossroads, surface it so the
+                        // UI can offer the live override. The UI gates visibility on its own clock vs deadline_ms.
+                        let cur = r.claimed_rooms as usize;
+                        let is_decision = cur < r.room_kind.len() && r.room_kind[cur] == expedition::RoomKind::Decision.as_u8();
+                        is_decision
+                            .then(|| r.decisions.iter().position(|d| d.room_idx == cur))
+                            .flatten()
+                            .filter(|&di| r.decision_choices.get(di).copied().unwrap_or(0) == -1)
+                            .map(|di| {
+                                let d = &r.decisions[di];
+                                let arrival = if cur > 0 { r.prefix_ms[cur - 1] } else { 0.0 };
+                                let ov = |e: &DecisionEffect| DecisionOptionView { heal_pct: e.heal_pct, atk_pct: e.atk_pct, echo_bonus: e.echo_bonus, speed_pct: e.speed_pct };
+                                PendingDecisionView {
+                                    room_idx: cur,
+                                    deadline_ms: r.start_ms + arrival + d.window_ms,
+                                    options: d.options.iter().map(ov).collect(),
+                                    auto_option: d.auto_option,
+                                    template: d.template,
+                                }
+                            })
+                    },
+                }
             }),
-            can_send_run: self.active_run.is_none() && !self.compose_run_path().is_empty(),
+            can_send_run: self.active_run.is_none() && !self.compose_run_path(false).is_empty(),
+            run_rest_until: self.exp_rest_until,
+            gambit_auto: self.auto_tactics_unlocked(),
+            gambit_conds: self.unlocked_gambit_conds(),
+            gambit_acts: self.unlocked_gambit_acts(),
+            run_history: self.run_history.clone(),
         }
     }
 }
@@ -3985,7 +4578,7 @@ impl Game {
     /// v6: send team `t` on the next auto-composed linear Delve run. Returns false if a run is already in flight,
     /// there's nothing new to delve, or the party is empty. The schedule is frozen + persisted here.
     pub fn send_expedition(&mut self, t: usize, now_ms: f64) -> bool {
-        let path = self.state.compose_run_path();
+        let path = self.state.compose_run_path(false); // manual send may delve through player-set risk mods
         if path.is_empty() {
             return false;
         }
@@ -3993,11 +4586,20 @@ impl Game {
     }
     /// v6: is there a linear run available to send (the auto-path picker finds new ground)?
     pub fn can_send_expedition(&self) -> bool {
-        !self.state.compose_run_path().is_empty()
+        !self.state.compose_run_path(false).is_empty()
     }
     /// The deterministic battle the team stationed on quest `q` is running (for the spectator Watch), or "null".
-    pub fn watch_data(&self, q: usize) -> String {
-        serde_json::to_string(&self.state.watch_data(q)).unwrap()
+    pub fn watch_data(&self, q: usize, variant: u32) -> String {
+        serde_json::to_string(&self.state.watch_data(q, variant)).unwrap()
+    }
+    /// v6: the BattleResult for the active run's room `room_idx` (a fight room the party has reached), or "null".
+    pub fn run_room_battle(&self, room_idx: usize) -> String {
+        serde_json::to_string(&self.state.replay_room_battle(room_idx)).unwrap()
+    }
+    /// v6: live override of a Crossroads (Decision room) auto-pick within its timeout window. Banks first internally;
+    /// re-resolves only the unbanked tail. Returns false if the choice is illegal (banked / out of window / re-roll).
+    pub fn choose_decision(&mut self, room_idx: usize, option: u8, now_ms: f64) -> bool {
+        self.state.choose_decision(room_idx, option, now_ms)
     }
     /// One Auto-Expedition step (strongest team clears next quest + idle teams auto-station). JSON AutoExpeditionStep.
     pub fn auto_expedition(&mut self, now_ms: f64) -> String {
@@ -4016,6 +4618,11 @@ impl Game {
     pub fn respec(&mut self, id: usize, now_ms: f64) {
         self.state.tick(now_ms);
         self.state.respec(id);
+    }
+    /// Auto-allocate all free skill points for shape `id` into the default build (the "otherwise auto unlocked" path).
+    pub fn auto_skill(&mut self, id: usize, now_ms: f64) -> u32 {
+        self.state.tick(now_ms);
+        self.state.auto_skill(id)
     }
     // ── v5: routing, orders, provisions, relics, auto ──
     pub fn set_node_mod(&mut self, q: usize, m: u8, now_ms: f64) {
@@ -4042,6 +4649,10 @@ impl Game {
         self.state.tick(now_ms);
         self.state.move_gambit(t, slot, idx, up);
     }
+    pub fn reorder_gambit(&mut self, t: usize, slot: usize, from: usize, to: usize, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.reorder_gambit(t, slot, from, to);
+    }
     pub fn add_gambit(&mut self, t: usize, slot: usize, now_ms: f64) {
         self.state.tick(now_ms);
         self.state.add_gambit(t, slot);
@@ -4053,6 +4664,11 @@ impl Game {
     pub fn reset_gambits(&mut self, t: usize, slot: usize, now_ms: f64) {
         self.state.tick(now_ms);
         self.state.reset_gambits(t, slot);
+    }
+    /// Auto-fill slot `slot` with the smart role-default gambit program (role derived from the stationed shape).
+    pub fn auto_gambits(&mut self, t: usize, slot: usize, now_ms: f64) {
+        self.state.tick(now_ms);
+        self.state.auto_gambits(t, slot);
     }
     pub fn buy_provision(&mut self, id: usize, now_ms: f64) -> bool {
         self.state.tick(now_ms);
@@ -4101,6 +4717,33 @@ fn role_for(fam: &str) -> expedition::Role {
         "dodecahedron" | "disk" | "gyroid" | "schwarz_p" | "schwarz_d" | "seifert" | "costa" => expedition::Role::Support,
         _ => expedition::Role::Dps,
     }
+}
+
+/// Per-shape combat IDENTITY (Slice 2): small atk%/def% multipliers + a flat speed delta, derived from a shape's
+/// topology so it needs no content migration (D2). Neutral = `(100, 100, 0)`. **COMBAT-ONLY**: folded inside
+/// `exp_combatant`, NEVER inside `exp_base_power` — so the closed-form farm rate (which bands on `exp_base_power`)
+/// is untouched by construction (the spine of the deepen-combat plan). Deltas stay small so a beloved ★5 common can
+/// still out-power a fresh UR — the "bring who you love" guarantee holds.
+fn combat_bias(fam: &str, genus: u32) -> (i64, i64, i64) {
+    let (mut atk, mut def, mut spd) = (100i64, 100i64, 0i64);
+    if content::is_knot(fam) {
+        // a knot is a coiled spring: it strikes hard and quick, but it's wiry — light on defense
+        atk += 14;
+        def -= 8;
+        spd += 3;
+    }
+    if content::is_nonorientable(fam) {
+        // one-sided surfaces fight slippery — fast and tricky, a touch glassy
+        spd += 6;
+        atk += 6;
+        def -= 4;
+    }
+    // genus = handles = structural bulk: each hole trades a little punch + pace for real toughness
+    let g = genus.min(4) as i64;
+    def += g * 6;
+    atk -= g * 2;
+    spd -= g;
+    (atk.max(60), def.max(60), spd)
 }
 
 /// The static shape table for the web layer (nicknames, families, rarities, costs).
@@ -4314,6 +4957,14 @@ pub fn expeditions_json() -> String {
         first_clear_mult_pct: i64,
     }
     #[derive(Serialize)]
+    struct SkillNodeRow {
+        key: &'static str,
+        max: u32,
+        req: Option<(usize, u32)>, // (prereq node index, min rank), or null
+        stat: i64,
+        farm: i64,
+    }
+    #[derive(Serialize)]
     struct ExpContent {
         quests: Vec<QuestRow>,
         perks: Vec<PerkRow>,
@@ -4321,6 +4972,7 @@ pub fn expeditions_json() -> String {
         provisions: Vec<ProvisionRow>,
         relics: Vec<RelicRow>,
         node_mods: Vec<NodeModRow>,
+        skill_trees: Vec<Vec<SkillNodeRow>>, // R6: codegen the skill tree so the TS mirror can't drift
     }
     let quests = QUESTS
         .iter()
@@ -4368,7 +5020,11 @@ pub fn expeditions_json() -> String {
         .iter()
         .map(|m| NodeModRow { key: m.key, enemy_scale_pct: m.enemy_scale_pct, first_clear_mult_pct: m.first_clear_mult_pct })
         .collect();
-    serde_json::to_string(&ExpContent { quests, perks, edges, provisions, relics, node_mods }).unwrap()
+    let skill_trees = expedition::SKILL_TREES
+        .iter()
+        .map(|tree| tree.iter().map(|n| SkillNodeRow { key: n.key, max: n.max, req: n.requires, stat: n.stat_pct, farm: n.farm_pct }).collect())
+        .collect();
+    serde_json::to_string(&ExpContent { quests, perks, edges, provisions, relics, node_mods, skill_trees }).unwrap()
 }
 
 #[cfg(test)]
@@ -4872,24 +5528,23 @@ mod tests {
 
     #[test]
     fn multiparty_sum_and_auto_expedition() {
-        let mut g = GameState::new(7, 0.0);
-        own_early(&mut g);
-        g.set_team(0, &[2, 0, 4]);
-        let mut cleared = 0;
-        for _ in 0..40 {
-            if g.auto_expedition(0.0).delved {
-                cleared += 1;
-            }
+        // v6: auto dispatches runs over time; once the reachable chapters are exhausted (a strong team clears them
+        // all), the idle team auto-stations on the station-farm floor (D23). Then a second team raises the total.
+        let mut g = strong_team(7);
+        let mut t = 0.0;
+        for _ in 0..400 {
+            t += 30_000.0;
+            g.auto_expedition(t);
         }
-        assert!(cleared >= 2, "auto clears several quests");
-        assert!(g.exp_station.iter().any(|&s| s >= 0), "auto stations the team");
+        assert!(g.exp_cleared.iter().filter(|&&c| c).count() >= 2, "auto-runs cleared several nodes");
+        assert!(g.active_run.is_none(), "all reachable chapters delved ⇒ no run left to dispatch");
+        assert!(g.exp_station.iter().any(|&s| s >= 0), "the idle team falls back to the station-farm floor");
         assert!(g.echo_rate_per_hr() > 0.0);
         // a SECOND stationed team raises the total (multiple parties)
         let before = g.echo_rate_per_hr();
         let t2 = g.add_team();
         g.set_team(t2, &[1, 3]); // Boxy, Spike
-        let s0 = g.exp_station[0];
-        if let Some(other) = (0..QUEST_COUNT).find(|&q| g.exp_cleared[q] && q as i32 != s0) {
+        if let Some(other) = (0..QUEST_COUNT).find(|&q| g.exp_cleared[q] && !g.exp_station.contains(&(q as i32))) {
             g.station(t2, other);
             assert!(g.echo_rate_per_hr() > before, "a second stationed team raises total Echoes/hr");
         }
@@ -4917,11 +5572,11 @@ mod tests {
         own_early(&mut g);
         g.set_team(0, &[2, 0, 4]);
         assert!(g.station(0, 0).win);
-        let w = g.watch_data(0).expect("a stationed quest has watch data");
-        let again = g.watch_data(0).unwrap();
+        let w = g.watch_data(0, 0).expect("a stationed quest has watch data");
+        let again = g.watch_data(0, 0).unwrap();
         assert_eq!(w.win, again.win); // deterministic
         assert_eq!(w.log.len(), again.log.len());
-        assert!(g.watch_data(1).is_none(), "no team stationed on quest 1 → no watch");
+        assert!(g.watch_data(1, 0).is_none(), "no team stationed on quest 1 → no watch");
     }
 
     #[test]
@@ -4993,6 +5648,169 @@ mod tests {
         g.respec(0);
         assert_eq!(g.skill_points_free(0), 10, "respec refunds all points");
     }
+
+    #[test]
+    fn exp_stats_view_mirrors_combatant() {
+        // Slice 1: the team-card stat array is a faithful MIRROR of exp_combatant — TS reads it, never re-derives.
+        let g = GameState::new(42, 0.0);
+        let v = g.view();
+        assert_eq!(v.exp_stats.len(), v.exp_power.len(), "exp_stats is len COUNT, parallel to exp_power");
+        for id in [0usize, 1, 2, 5, 10] {
+            let c = g.exp_combatant(id);
+            let s = &v.exp_stats[id];
+            assert_eq!(
+                (s.max_hp, s.atk, s.def, s.speed, s.ult),
+                (c.max_hp, c.atk, c.def, c.speed, c.ult_power),
+                "exp_stats[{id}] must mirror exp_combatant verbatim"
+            );
+        }
+    }
+
+    #[test]
+    fn combat_bias_is_combat_only_and_farm_fenced() {
+        // (1) Per-family combat identity — the point of Slice 2.
+        assert_eq!(combat_bias("sphere", 0), (100, 100, 0), "a plain sphere is the neutral baseline");
+        let (ka, kd, ks) = combat_bias("trefoil", 0);
+        assert!(ka > 100 && kd < 100 && ks > 0, "a knot hits harder + faster, guards less");
+        assert!(combat_bias("torus", 1).1 > 100, "a handle (genus) adds bulk (def)");
+        // (2) The bias actually reaches combat stats: a knot's atk is raised above its plain role split.
+        let g = GameState::new(7, 0.0);
+        let knot_id = (0..COUNT).find(|&i| content::is_knot(SHAPES[i].family)).expect("a knot shape exists");
+        let c = g.exp_combatant(knot_id);
+        let p = g.exp_power(knot_id);
+        let atkf = match g.exp_role(knot_id) {
+            expedition::Role::Tank => 55,
+            expedition::Role::Dps => 135,
+            expedition::Role::Support => 80,
+            expedition::Role::Control => 105,
+        };
+        assert!(c.atk >= (p * atkf / 100).max(1), "exp_combatant applies the knot's atk bias");
+        // (3) FENCE: the farm-rate band reads exp_base_power, which combat_bias never touches.
+        assert_eq!(g.party_base_power(&[knot_id]), g.exp_base_power(knot_id), "farm band = exp_base_power, no combat_bias leak");
+    }
+
+    #[test]
+    fn auto_skill_spends_all_points_respecting_prereqs() {
+        // Slice 4: the "otherwise auto unlocked" path — auto_skill spends every free point into a VALID, deterministic build.
+        let mut g = GameState::new(1, 0.0);
+        g.owned[0] = 1;
+        g.shape_xp[0] = GameState::xp_to_reach(12); // a pile of skill points (1 per level)
+        let free = g.skill_points_free(0);
+        assert!(free >= 10, "earned a pile of skill points");
+        let spent = g.auto_skill(0);
+        assert_eq!(spent, free, "auto-build spends every free point");
+        assert_eq!(g.skill_points_free(0), 0);
+        // every allocated node is within max rank AND has its prereq satisfied (a valid build, never an illegal one)
+        let tree = expedition::SKILL_TREES[g.role_idx(0)];
+        for (node, &rank) in g.skill_alloc[0].iter().enumerate() {
+            if node < tree.len() {
+                assert!(rank <= tree[node].max, "node {node} within max rank");
+                if rank > 0 {
+                    if let Some((req, lvl)) = tree[node].requires {
+                        assert!(g.skill_alloc[0][req] >= lvl, "node {node} prereq satisfied");
+                    }
+                }
+            }
+        }
+        // deterministic: respec + auto again ⇒ identical allocation
+        let alloc1 = g.skill_alloc[0].clone();
+        g.respec(0);
+        g.auto_skill(0);
+        assert_eq!(g.skill_alloc[0], alloc1, "auto-build is deterministic");
+    }
+
+    #[test]
+    fn auto_gambits_writes_the_smart_unlocked_program() {
+        // QW-1 + smarter-auto: the "Auto" button fills a slot with the SMART program built from the player's UNLOCKED
+        // gambit options (role from the stationed shape), overwriting whatever was there.
+        let mut g = strong_team(7);
+        g.upgrades[UPG_GAMBIT_T2] = 1; // unlock the deeper tiers so Auto writes the full smart program
+        g.upgrades[UPG_GAMBIT_T3] = 1;
+        let id = g.exp_teams[0][0];
+        let role = g.exp_role(id);
+        g.add_gambit(0, 0);
+        g.set_gambit_rule(0, 0, 0, expedition::COND_ALLY_HURT, expedition::ACT_HEAL); // junk first, then Auto overwrites
+        g.auto_gambits(0, 0);
+        let want = expedition::smart_gambit_program(role, &g.unlocked_gambit_conds(), &g.unlocked_gambit_acts());
+        assert_eq!(g.team_orders(0).gambits[0], want, "Auto writes the smart program for the unlocked tier");
+        // an empty/out-of-range slot is a safe no-op (no panic)
+        g.auto_gambits(0, 99);
+    }
+
+    #[test]
+    fn auto_gambit_smartness_scales_with_upgrades() {
+        // "smarter auto gambit as upgrade": the SAME slot+role yields a RICHER program after buying gambit upgrades.
+        let mut g = strong_team(7);
+        g.add_gambit(0, 0);
+        g.auto_gambits(0, 0);
+        let base_len = g.team_orders(0).gambits[0].len();
+        g.upgrades[UPG_GAMBIT_T2] = 1;
+        g.upgrades[UPG_GAMBIT_T3] = 1;
+        g.auto_gambits(0, 0);
+        let upgraded_len = g.team_orders(0).gambits[0].len();
+        assert!(upgraded_len > base_len, "unlocking gambit logic makes Auto smarter ({base_len} → {upgraded_len} rules)");
+    }
+
+    #[test]
+    fn team_summary_aggregates_are_correct() {
+        // QW-4: the team-selection aggregates are a faithful read of exp_combatant/role/element (TS compares, never recomputes).
+        let g = strong_team(7);
+        let v = g.view();
+        let tv = &v.exp_teams[0];
+        let m = &tv.members;
+        assert!(!m.is_empty(), "team 0 is populated");
+        assert_eq!(tv.role_counts.len(), 4);
+        assert_eq!(tv.element_counts.len(), 3);
+        assert_eq!(tv.role_counts.iter().sum::<u32>(), m.len() as u32, "every member counted in exactly one role");
+        assert_eq!(tv.element_counts.iter().sum::<u32>(), m.len() as u32, "every member counted in exactly one element");
+        let (mut hp, mut spd) = (0i64, 0i64);
+        for &id in m {
+            let c = g.exp_combatant(id);
+            hp += c.max_hp;
+            spd += c.speed;
+        }
+        assert_eq!(tv.total_hp, hp, "total_hp == sum of member max_hp");
+        assert_eq!(tv.total_speed, spd, "total_speed == sum of member speed");
+        assert!(tv.total_atk > 0 && tv.total_def > 0, "aggregates are populated");
+    }
+
+    #[test]
+    fn stalwart_perk_is_a_farm_fenced_hp_for_atk_tradeoff() {
+        // R2: stalwart is a defensive TRADEOFF (+HP / −atk in combat), NEVER a pure buff, and never touches the farm
+        // band (exp_base_power) — so the closed-form farm rate is untouched (combat-only, like combat_bias).
+        let mut g = GameState::new(7, 0.0);
+        let c0 = g.exp_combatant(0);
+        let base0 = g.exp_base_power(0); // the farm-rate band reference
+        g.exp_perks[expedition::PERK_STALWART] = 3; // max it
+        let c1 = g.exp_combatant(0);
+        assert!(c1.max_hp > c0.max_hp, "stalwart raises combat max HP ({} -> {})", c0.max_hp, c1.max_hp);
+        assert!(c1.atk < c0.atk, "...at the cost of atk — a real tradeoff, not a free buff ({} -> {})", c0.atk, c1.atk);
+        assert_eq!(g.exp_base_power(0), base0, "COMBAT-only — never touches exp_base_power (the farm band)");
+    }
+
+    #[test]
+    fn retribution_prism_grants_the_reflect_quirk() {
+        // R7: the mechanic relic's upside IS the Reflect bounce (not a stat), applied to the party via apply_team_effect.
+        let r = expedition::RELICS.iter().find(|r| r.key == "retribution_prism").expect("the mechanic relic exists");
+        assert!(matches!(r.up, expedition::EffKind::Reflect), "upside is the Reflect mechanic, not a stat-swap");
+        assert!(matches!(r.down, expedition::EffKind::FlatDefPct(n) if n < 0), "with a real defense downside");
+        let g = GameState::new(7, 0.0);
+        let mut c = g.exp_combatant(0);
+        apply_team_effect(&mut c, expedition::EffKind::Reflect);
+        assert!(c.reflect, "the Reflect effect grants the bounce quirk to a party member");
+    }
+
+    #[test]
+    fn teamwork_sigil_is_a_cheaper_entry_relic() {
+        // BF-2: a sub-600 on-ramp relic with a bulk-up / softer-punch tradeoff (effects handled by apply_team_effect).
+        let r = expedition::RELICS.iter().find(|r| r.key == "teamwork_sigil").expect("the entry relic exists");
+        assert!(r.cost < 600, "cheaper than the 600-Echo relics ({})", r.cost);
+        assert!(
+            matches!(r.up, expedition::EffKind::HpBoost(_)) && matches!(r.down, expedition::EffKind::FlatDmgPct(n) if n < 0),
+            "bulk-up upside with a real damage downside"
+        );
+    }
+
 
     #[test]
     fn farm_xp_online_equals_offline() {
@@ -5136,10 +5954,69 @@ mod tests {
         g.set_gambit_rule(0, 2, 0, expedition::COND_ALWAYS, expedition::ACT_ATTACK_THREAT);
         g.owned[0] = 0; // member in slot 1 becomes unowned ⇒ filtered out of the party
         let o = g.exp_orders[0].clone();
-        let progs = g.build_team_gambits(0, &o);
+        let progs = g.build_team_gambits(0, &o, g.auto_tactics_unlocked());
         assert_eq!(progs.len(), 2, "two surviving members ⇒ two programs");
         assert_eq!(progs[0][0].action, expedition::ACT_ATTACK_WEAKEST, "survivor 2 keeps slot-0's program");
         assert_eq!(progs[1][0].action, expedition::ACT_ATTACK_THREAT, "survivor 4 keeps slot-2's program (not slot-1's)");
+    }
+
+    #[test]
+    fn auto_tactics_flips_empty_slot_behaviour() {
+        // Empty slots: auto LOCKED → the simple instinct program is materialised; auto UNLOCKED → the slot stays
+        // empty so hero_turn runs the smart legacy_ladder. The flag tracks Workshop upgrade #21.
+        let mut g = strong_team(7);
+        let o = g.team_orders(0);
+        assert!(!g.build_team_gambits(0, &o, false)[0].is_empty(), "auto locked ⇒ the empty slot gets the simple program");
+        assert!(g.build_team_gambits(0, &o, true)[0].is_empty(), "auto unlocked ⇒ the empty slot stays empty (legacy_ladder)");
+        assert!(!g.auto_tactics_unlocked());
+        g.upgrades[UPG_AUTO_TACTICS] = 1;
+        assert!(g.auto_tactics_unlocked());
+    }
+
+    #[test]
+    fn auto_tactics_never_changes_the_farm_rate() {
+        // THE D4 FENCE tripwire: the whole gambit progression changes CLEAR behaviour but NEVER the closed-form
+        // FARM rate (it bands on base power, gambit-blind) — so online==offline holds with any unlock state.
+        let mut g = strong_team(7);
+        g.station(0, 0);
+        let before = g.echo_rate_per_hr();
+        g.upgrades[UPG_AUTO_TACTICS] = 1;
+        g.upgrades[UPG_GAMBIT_T2] = 1;
+        g.upgrades[UPG_GAMBIT_T3] = 1;
+        assert_eq!(before, g.echo_rate_per_hr(), "the gambit progression never touches the farm rate");
+    }
+
+    #[test]
+    fn locked_gambit_option_goes_inert_not_fired() {
+        // A player-authored rule using a LOCKED action (ATTACK_THREAT needs tier-2) is turned OFF for the battle
+        // (never fires, never panics); buying the tier restores it; the authored Orders is never mutated.
+        let mut g = strong_team(7);
+        g.add_gambit(0, 0);
+        g.set_gambit_rule(0, 0, 0, expedition::COND_ALWAYS, expedition::ACT_ATTACK_THREAT);
+        let o = g.team_orders(0);
+        assert!(!g.build_team_gambits(0, &o, false)[0][0].on, "ATTACK_THREAT locked (no tier-2) ⇒ the rule is inert");
+        g.upgrades[UPG_GAMBIT_T2] = 1;
+        let o2 = g.team_orders(0);
+        assert!(g.build_team_gambits(0, &o2, false)[0][0].on, "buying tier-2 restores the rule");
+        assert!(g.team_orders(0).gambits[0][0].on, "the authored rule stays ON (only the battle copy went inert)");
+    }
+
+    #[test]
+    fn reorder_gambit_is_a_permutation() {
+        // Drag/drop reorder moves a rule to a new index — same rules, new order (a different priority = a different fight).
+        let mut g = strong_team(7);
+        g.add_gambit(0, 0);
+        g.set_gambit_rule(0, 0, 0, expedition::COND_ALWAYS, expedition::ACT_ATTACK_FOCUS);
+        g.add_gambit(0, 0);
+        g.set_gambit_rule(0, 0, 1, expedition::COND_ALLY_HURT, expedition::ACT_HEAL);
+        g.add_gambit(0, 0);
+        g.set_gambit_rule(0, 0, 2, expedition::COND_SELF_HURT, expedition::ACT_GUARD);
+        g.reorder_gambit(0, 0, 2, 0); // drag the 3rd rule to the front
+        let rules = g.team_orders(0).gambits[0].clone();
+        assert_eq!(rules.len(), 3);
+        assert_eq!(rules[0].action, expedition::ACT_GUARD, "the moved rule is now first");
+        assert_eq!(rules[1].action, expedition::ACT_ATTACK_FOCUS);
+        assert_eq!(rules[2].action, expedition::ACT_HEAL);
     }
 
     // ── v6 "The Delve": run schedule determinism + O(1) online==offline + save-scum + coexistence ──
@@ -5150,6 +6027,262 @@ mod tests {
         }
         g.set_team(0, &[2, 0, 4]);
         g
+    }
+
+    fn weak_team(seed: u64) -> GameState {
+        let mut g = GameState::new(seed, 0.0);
+        g.owned[0] = 1; // a single feeble shape — wipes on a boss
+        g.set_team(0, &[0]);
+        g
+    }
+
+    // ── R1: v6 multi-room delve INTEGRATION coverage (golden scenarios, not just determinism) ──
+
+    #[test]
+    fn multi_room_run_completes_consistently() {
+        // A strong team's full multi-room run: completes (no wipe), banks positive loot, and the frozen prefix arrays
+        // are length-consistent + monotonic (the load-bearing invariant for O(1) offline banking).
+        let g = strong_team(11);
+        let path: Vec<usize> = (0..6).collect();
+        let seed = g.clear_seed(0, path[0]);
+        let p = g.resolve_run(0, &path, seed);
+        assert!(p.death_room.is_none(), "a strong team completes the run");
+        let n = p.prefix_ms.len();
+        assert!(n >= path.len(), "≥ one room per node");
+        assert!(p.prefix_echoes.len() == n && p.prefix_flux.len() == n && p.room_kind.len() == n && p.room_node.len() == n, "all schedule arrays are length-consistent");
+        assert!(*p.prefix_echoes.last().unwrap() > 0 && *p.prefix_flux.last().unwrap() > 0, "banks loot");
+        assert!(p.prefix_echoes.windows(2).all(|w| w[1] >= w[0]), "echoes cumulative non-decreasing");
+        assert!(p.prefix_flux.windows(2).all(|w| w[1] >= w[0]), "flux cumulative non-decreasing");
+        assert!(p.prefix_ms.windows(2).all(|w| w[1] >= w[0]), "time cumulative non-decreasing");
+        assert!((p.total_ms - *p.prefix_ms.last().unwrap()).abs() < 1e-6, "total_ms == last prefix_ms");
+    }
+
+    #[test]
+    fn multi_room_run_wipe_truncates_schedule_and_keeps_partial_loot() {
+        // A feeble party that wipes: death_room is set, the schedule TRUNCATES at it (no future rooms leak), and any
+        // loot banked before the wipe is retained (loss is free, partial loot kept).
+        let g = weak_team(7);
+        let path: Vec<usize> = vec![7]; // folds_boss — unbeatable for a lone level-0 shape
+        let seed = g.clear_seed(0, path[0]);
+        let p = g.resolve_run(0, &path, seed);
+        assert!(p.death_room.is_some(), "a feeble party wipes");
+        let d = p.death_room.unwrap();
+        assert_eq!(p.prefix_ms.len(), d + 1, "the schedule ends exactly at the death room — no future-room leak");
+        assert_eq!(p.room_kind.len(), p.prefix_ms.len(), "arrays stay consistent through the wipe");
+    }
+
+    #[test]
+    fn shrine_event_room_interleaves_and_keeps_the_run_consistent() {
+        // R5: the new Shrine event room (a no-combat heal + lasting speed boon) interleaves into longer runs, adding
+        // room variety without breaking the frozen-schedule invariants.
+        let g = strong_team(13);
+        let path: Vec<usize> = (0..6).collect(); // long enough to hit the k=3 shrine cadence (on a non-boss node)
+        let seed = g.clear_seed(0, path[0]);
+        let p = g.resolve_run(0, &path, seed);
+        assert!(p.room_kind.contains(&expedition::RoomKind::Shrine.as_u8()), "a Shrine room interleaves into the run");
+        assert!(p.death_room.is_none(), "the strong team still completes");
+        assert_eq!(p.prefix_ms.len(), p.room_kind.len(), "the new room kind keeps the schedule arrays consistent");
+        assert!(p.prefix_ms.windows(2).all(|w| w[1] >= w[0]), "time stays monotonic");
+    }
+
+    #[test]
+    fn decision_room_interleaves_and_resolves_to_auto_default() {
+        // Delve decisions Slice 1: Crossroads rooms interleave, resolved to their AUTO-default (option 0) AT SEND —
+        // the schedule stays consistent + monotonic, decisions/decision_choices are 1:1, and every choice is -1
+        // (the frozen auto-pick). This is invariant-safe: with all -1, banking is byte-identical to a no-decision run.
+        let g = strong_team(21);
+        let path: Vec<usize> = (0..6).collect();
+        let seed = g.clear_seed(0, path[0]);
+        let p = g.resolve_run(0, &path, seed);
+        assert!(p.room_kind.contains(&expedition::RoomKind::Decision.as_u8()), "a Crossroads interleaves into the run");
+        assert!(!p.decisions.is_empty(), "the decision table is populated at send");
+        assert_eq!(p.decisions.len(), p.decision_choices.len(), "one choice slot per decision");
+        assert!(p.decision_choices.iter().all(|&c| c == -1), "Slice 1: every decision is the frozen auto-default");
+        assert!(p.decisions.iter().all(|d| (2..=3).contains(&d.options.len()) && d.auto_option == 0), "2–3 options, safe default (option 0)");
+        assert!(p.decisions.iter().all(|d| d.options[d.auto_option as usize].heal_pct > 0), "the auto-default is always the safe heal");
+        assert_eq!(p.prefix_ms.len(), p.room_kind.len(), "schedule arrays stay consistent");
+        assert!(p.prefix_ms.windows(2).all(|w| w[1] >= w[0]), "time stays monotonic");
+        assert!(p.death_room.is_none(), "a strong team still completes");
+        // determinism: same (team, path, seed) ⇒ identical decision tables + choices
+        let p2 = g.resolve_run(0, &path, seed);
+        assert_eq!(p.decision_choices, p2.decision_choices);
+        assert_eq!(p.decisions.len(), p2.decisions.len());
+        assert!(p.decisions.iter().zip(&p2.decisions).all(|(a, b)| a.options[1].echo_bonus == b.options[1].echo_bonus));
+    }
+
+    // ── Delve decisions Slice 2: the live override (choose_decision) + tail re-resolution ──
+
+    fn first_decision_room(g: &GameState) -> usize {
+        g.active_run.as_ref().unwrap().room_kind.iter().position(|&k| k == expedition::RoomKind::Decision.as_u8()).expect("a crossroads exists")
+    }
+
+    #[test]
+    fn choose_decision_overrides_to_a_loot_option_and_raises_loot() {
+        // Overriding a Crossroads to a LOOT-bearing option (echo_bonus > 0) raises total delve loot vs the safe
+        // auto-default, and records exactly one override. (With themed 2–3-option crossroads the loot option isn't
+        // always index 1, so we find the best-loot option on the first crossroads that offers one.)
+        let path: Vec<usize> = (0..6).collect();
+        // not every themed crossroads offers loot (the Offering template is all-boon), so scan team seeds for a run
+        // that does, then take that crossroads' best-loot option.
+        let (mut g, room, opt) = (20u64..90)
+            .find_map(|s| {
+                let mut g = strong_team(s);
+                if !g.send_expedition(0, &path, 0.0) {
+                    return None;
+                }
+                let pick = g.active_run.as_ref().unwrap().decisions.iter().find_map(|d| {
+                    d.options.iter().enumerate().filter(|(_, e)| e.echo_bonus > 0).max_by_key(|(_, e)| e.echo_bonus).map(|(i, _)| (d.room_idx, i as u8))
+                });
+                pick.map(|(room, opt)| (g, room, opt))
+            })
+            .expect("some team seed yields a run with a loot crossroads");
+        let auto_total = g.active_run.as_ref().unwrap().prefix_echoes.last().copied().unwrap();
+        assert!(g.choose_decision(room, opt, 0.0), "the crossroads is overridable before it's reached");
+        let run = g.active_run.as_ref().unwrap();
+        assert_eq!(run.decision_choices.iter().filter(|&&c| c >= 0).count(), 1, "exactly one decision overridden");
+        assert!(run.prefix_echoes.last().copied().unwrap() > auto_total, "the loot option's bonus raises total loot");
+    }
+
+    #[test]
+    fn decisions_offer_two_to_three_options_with_a_safe_default() {
+        // The themed 2–3-option crossroads: every decision has 2 or 3 options, option 0 is always the safe heal
+        // (the auto-default for idle/offline), and across a long run at least one 3-option crossroads appears.
+        let g = strong_team(29);
+        let path: Vec<usize> = (0..9).collect();
+        let seed = g.clear_seed(0, path[0]);
+        let p = g.resolve_run(0, &path, seed);
+        assert!(!p.decisions.is_empty(), "a long run interleaves crossroads");
+        for d in &p.decisions {
+            assert!((2..=3).contains(&d.options.len()), "2 or 3 options");
+            assert_eq!(d.auto_option, 0, "option 0 is the deterministic default");
+            assert!(d.options[0].heal_pct > 0 && d.options[0].echo_bonus == 0, "option 0 is the safe heal, no loot");
+            assert!((d.template as usize) < 3, "a known template id");
+        }
+        assert!(p.decisions.iter().any(|d| d.options.len() == 3), "a long run shows at least one 3-option crossroads");
+        // a 3-option crossroads' option 2 is choosable + applies (online == a pure resolve with that committed choice)
+        let mut g2 = strong_team(29);
+        assert!(g2.send_expedition(0, &path, 0.0));
+        if let Some(room) = g2.active_run.as_ref().unwrap().decisions.iter().find(|d| d.options.len() == 3).map(|d| d.room_idx) {
+            assert!(g2.choose_decision(room, 2, 0.0), "option 2 of a 3-option crossroads is choosable");
+            let (rs, ch) = { let r = g2.active_run.as_ref().unwrap(); (r.run_seed, r.decision_choices.clone()) };
+            let fresh = g2.resolve_run_with_choices(0, &path, rs, &ch);
+            assert_eq!(g2.active_run.as_ref().unwrap().prefix_echoes, fresh.prefix_echoes, "option-2 override == a pure resolve with the committed choice");
+        }
+    }
+
+    #[test]
+    fn choose_then_offline_equals_choose_then_online() {
+        // THE GATE — the single test that catches online/offline divergence on the override path: a player who
+        // overrides a crossroads then keeps playing must end BYTE-IDENTICAL to one who overrides then goes away.
+        let setup = || {
+            let mut g = strong_team(41);
+            let path: Vec<usize> = (0..6).collect();
+            assert!(g.send_expedition(0, &path, 0.0));
+            let room = first_decision_room(&g);
+            assert!(g.choose_decision(room, 1, 0.0));
+            g
+        };
+        let t_end = setup().active_run.as_ref().unwrap().total_ms + 10_000.0;
+        let mut on = setup();
+        let step = (t_end / 50.0).max(1.0);
+        let mut t = 0.0;
+        while t < t_end {
+            t = (t + step).min(t_end);
+            on.tick(t);
+        }
+        let mut off = setup();
+        off.compute_offline(t_end);
+        assert_eq!(on.echoes, off.echoes, "override: online == offline echoes");
+        assert_eq!(on.exp_cleared, off.exp_cleared, "override: online == offline clears");
+        assert!(on.active_run.is_none() && off.active_run.is_none(), "both runs completed");
+    }
+
+    #[test]
+    fn choose_keeps_banked_prefix_immutable() {
+        // Overriding a decision AFTER earlier rooms have banked must leave the banked head byte-identical (the player
+        // was already paid those) — only the unbanked tail may change.
+        let mut g = strong_team(53);
+        let path: Vec<usize> = (0..8).collect();
+        assert!(g.send_expedition(0, &path, 0.0));
+        let rk = expedition::RoomKind::Decision.as_u8();
+        let decisions: Vec<usize> = g.active_run.as_ref().unwrap().room_kind.iter().enumerate().filter(|(_, &k)| k == rk).map(|(i, _)| i).collect();
+        assert!(decisions.len() >= 2, "a long run has multiple crossroads");
+        let target = decisions[1];
+        let now = g.active_run.as_ref().unwrap().prefix_ms[target - 1] - 1.0; // just before the target arrives
+        g.tick(now);
+        let claimed = g.active_run.as_ref().unwrap().claimed_rooms as usize;
+        assert!(claimed > 0 && claimed <= target, "some rooms banked, the target is still ahead");
+        let head_ms = g.active_run.as_ref().unwrap().prefix_ms[..claimed].to_vec();
+        let head_ech = g.active_run.as_ref().unwrap().prefix_echoes[..claimed].to_vec();
+        let banked = g.echoes;
+        assert!(g.choose_decision(target, 1, now), "override the still-unbanked second crossroads");
+        let run = g.active_run.as_ref().unwrap();
+        assert_eq!(run.prefix_ms[..claimed], head_ms[..], "banked time prefix is immutable");
+        assert_eq!(run.prefix_echoes[..claimed], head_ech[..], "banked echo prefix is immutable");
+        assert_eq!(g.echoes, banked, "already-banked echoes are unchanged by the override");
+    }
+
+    #[test]
+    fn choose_is_savescum_proof() {
+        // The committed choice survives a save round-trip and can't be re-rolled.
+        let mut g = strong_team(61);
+        let path: Vec<usize> = (0..6).collect();
+        assert!(g.send_expedition(0, &path, 0.0));
+        let room = first_decision_room(&g);
+        assert!(g.choose_decision(room, 1, 0.0));
+        let di = g.active_run.as_ref().unwrap().decisions.iter().position(|d| d.room_idx == room).unwrap();
+        let back = GameState::from_json(&g.to_json()).unwrap();
+        assert_eq!(back.active_run.as_ref().unwrap().decision_choices[di], 1, "the committed choice persists across reload");
+        assert_eq!(back.active_run.as_ref().unwrap().prefix_echoes, g.active_run.as_ref().unwrap().prefix_echoes, "the re-resolved schedule persists");
+        assert!(!g.choose_decision(room, 0, 0.0), "re-choosing an already-decided crossroads is rejected (no reroll)");
+    }
+
+    #[test]
+    fn choose_rejected_after_the_room_banks() {
+        // Once the decision room has banked, the window is closed — the override is rejected (anti-scum).
+        let mut g = strong_team(71);
+        let path: Vec<usize> = (0..6).collect();
+        assert!(g.send_expedition(0, &path, 0.0));
+        let room = first_decision_room(&g);
+        let past = g.active_run.as_ref().unwrap().prefix_ms[room] + 1.0;
+        g.tick(past);
+        assert!(g.active_run.is_some(), "the run is still in flight (a decision banks well before the run ends)");
+        assert!(!g.choose_decision(room, 1, past), "a banked crossroads can't be overridden");
+    }
+
+    #[test]
+    fn override_loot_equals_a_pure_resolve_with_the_committed_choices() {
+        // Hardening (adversary §3): the override's economy is pinned to the PURE deterministic resolution — the active
+        // run's loot prefix equals a from-scratch resolve with the same committed choices. So even though tail TIMING
+        // may drift if the player re-skills mid-delve, the integer LOOT lumps never do (they're power-independent).
+        let mut g = strong_team(83);
+        let path: Vec<usize> = (0..6).collect();
+        assert!(g.send_expedition(0, &path, 0.0));
+        let room = first_decision_room(&g);
+        assert!(g.choose_decision(room, 1, 0.0));
+        let (seed, choices) = {
+            let r = g.active_run.as_ref().unwrap();
+            (r.run_seed, r.decision_choices.clone())
+        };
+        let fresh = g.resolve_run_with_choices(0, &path, seed, &choices);
+        let run = g.active_run.as_ref().unwrap();
+        assert_eq!(run.prefix_echoes, fresh.prefix_echoes, "override echoes == a pure resolve with the committed choices");
+        assert_eq!(run.prefix_flux, fresh.prefix_flux, "override flux == a pure resolve with the committed choices");
+    }
+
+    #[test]
+    fn offline_report_celebrates_a_delve_that_returned() {
+        // R9: a delve that COMPLETES during the offline span surfaces its return in the OfflineReport — the offline
+        // peak-end beat (parity with the online "your party returned" report).
+        let mut g = strong_team(91);
+        assert!(g.send_expedition(0, &[0, 1, 2], 0.0));
+        let r = g.compute_offline(6.0 * 7.0 * 24.0 * MS_PER_HOUR); // weeks away — the bounded run completes
+        assert!(g.active_run.is_none(), "the run completed offline");
+        assert!(r.delve_returned.is_some(), "the offline report celebrates the returned delve");
+        // a span with NO active run reports nothing
+        let mut g2 = strong_team(91);
+        let r2 = g2.compute_offline(5.0 * MS_PER_HOUR);
+        assert!(r2.delve_returned.is_none(), "no run in flight ⇒ no delve-return beat");
     }
 
     #[test]
@@ -5175,7 +6308,7 @@ mod tests {
         let seed = g.clear_seed(0, 0);
         let plan = g.resolve_run(0, &[0], seed);
         let o = g.team_orders(0);
-        let station_battle = expedition::resolve_battle(seed, g.build_team_combatants(0, &o, &g.team_effects(0)), expedition::quest_enemies_scaled(&QUESTS[0], g.node_mod_scale(0)), o.focus, &g.build_team_gambits(0, &o));
+        let station_battle = expedition::resolve_battle(seed, g.build_team_combatants(0, &o, &g.team_effects(0)), expedition::quest_enemies_scaled(&QUESTS[0], g.node_mod_scale(0)), o.focus, &g.build_team_gambits(0, &o, g.auto_tactics_unlocked()));
         assert_eq!(plan.prefix_ms[0], station_battle.rounds as f64 * MS_PER_ROOM_ROUND, "room 0 == the station clear fight");
         assert!(plan.death_room.is_none());
     }
@@ -5210,6 +6343,18 @@ mod tests {
         g.compute_offline(6.0 * 7.0 * 24.0 * MS_PER_HOUR); // 6 weeks — instant (binary-search read), bounded run completes
         assert!(g.active_run.is_none(), "the bounded run completed");
         assert!(g.echoes > 0);
+    }
+
+    #[test]
+    fn send_unstations_the_run_team_so_it_does_not_double_dip_the_farm_rate() {
+        // FENCE: a stationed team that is sent on a run must STOP farming the closed-form rate — otherwise it
+        // banks run loot AND the standing farm rate simultaneously (online==offline holds, but mispriced economy).
+        let mut g = strong_team(99);
+        g.station(0, 0); // clears node 0 + farms it via the closed-form rate
+        assert!(g.echo_rate_per_hr() > 0.0, "team 0 is farming via the closed-form rate");
+        assert!(g.send_expedition(0, &[1, 2, 3], 0.0), "send team 0 on a run");
+        assert_eq!(g.exp_station[0], -1, "the delving team is un-stationed");
+        assert_eq!(g.echo_rate_per_hr(), 0.0, "no closed-form farm rate while delving (no double-dip)");
     }
 
     #[test]
@@ -5259,6 +6404,81 @@ mod tests {
         assert_eq!(plan.room_kind, plan2.room_kind);
         assert_eq!(plan.prefix_echoes, plan2.prefix_echoes);
         assert_eq!(plan.prefix_ms, plan2.prefix_ms);
+    }
+
+    #[test]
+    fn replay_room_battle_re_enacts_a_run_fight() {
+        // P4: clicking a delve-track fight glyph re-resolves that room's battle. Right after send (no mid-run XP
+        // yet) it matches the frozen schedule exactly; it's deterministic; cozy/out-of-range rooms return None.
+        let mut g = strong_team(7);
+        g.send_expedition(0, &[0, 1, 2, 3], 0.0);
+        let b0 = g.replay_room_battle(0).expect("room 0 is a fight");
+        assert!(b0.win, "a revealed room was won");
+        assert_eq!(b0.rounds as f64 * MS_PER_ROOM_ROUND, g.active_run.as_ref().unwrap().prefix_ms[0], "replay matches the frozen schedule's room-0 timing");
+        let b0b = g.replay_room_battle(0).expect("deterministic");
+        assert_eq!((b0.rounds, b0.log.len()), (b0b.rounds, b0b.log.len()));
+        assert!(g.replay_room_battle(9999).is_none(), "out of range ⇒ None");
+    }
+
+    #[test]
+    fn delve_rewards_and_rate_are_read_only() {
+        // Slice 5: the run view exposes per-room reward lumps + a delve-rate, as PURE reads of the frozen schedule.
+        // Building the view must not bank anything; lumps cover BANKED rooms only (no spoiler); they sum to the
+        // banked total; the rate is the Rust-emitted whole-run average (TS must never derive it from currency deltas).
+        let mut g = strong_team(7);
+        g.send_expedition(0, &[0, 1, 2, 3], 0.0);
+        let t1 = g.active_run.as_ref().unwrap().prefix_ms[1];
+        g.tick(t1 + 1.0); // bank rooms 0 and 1
+        let (claimed, banked_e, banked_f, total_e, total_ms) = {
+            let r = g.active_run.as_ref().unwrap();
+            let c = r.claimed_rooms as usize;
+            (
+                c,
+                if c == 0 { 0 } else { r.prefix_echoes[c - 1] },
+                if c == 0 { 0 } else { r.prefix_flux[c - 1] },
+                *r.prefix_echoes.last().unwrap(),
+                r.total_ms,
+            )
+        };
+        assert!(claimed >= 2, "two rooms banked");
+        let v = g.view();
+        assert_eq!(g.active_run.as_ref().unwrap().claimed_rooms as usize, claimed, "view() is read-only — banking cursor unmoved");
+        let rv = v.run.unwrap();
+        assert_eq!(rv.room_echoes.len(), claimed, "only BANKED rooms expose a reward (current/future room hidden)");
+        assert_eq!(rv.room_flux.len(), claimed);
+        assert_eq!(rv.room_echoes.iter().sum::<u64>(), banked_e, "per-room Echo lumps sum to the banked total");
+        assert_eq!(rv.room_flux.iter().sum::<u64>(), banked_f, "per-room Flux lumps sum to the banked total");
+        let want = total_e as f64 / total_ms * 3_600_000.0;
+        assert!((rv.delve_echoes_per_hr - want).abs() < 1e-6, "delve rate is the whole-run average, not 0");
+        assert!(rv.delve_flux_per_hr >= 0.0 && rv.delve_echoes_per_hr > 0.0, "a delving team shows a real rate (was 0)");
+    }
+
+    #[test]
+    fn run_freezes_auto_tactics_at_send() {
+        // Buying auto-tactics MID-RUN must not change the in-flight run: the plan + the watch replay use the
+        // SEND-time flag, so the visual replay matches the banked schedule (online==offline).
+        let mut g = strong_team(7); // auto LOCKED at send
+        g.send_expedition(0, &[0, 1, 2, 3], 0.0);
+        assert!(!g.active_run.as_ref().unwrap().auto_tactics, "sent with auto locked ⇒ frozen false");
+        let before = g.replay_room_battle(0).map(|b| b.rounds);
+        g.upgrades[UPG_AUTO_TACTICS] = 1; // buy auto mid-run
+        let after = g.replay_room_battle(0).map(|b| b.rounds);
+        assert_eq!(before, after, "replay reads the FROZEN flag, not the live purchase");
+    }
+
+    #[test]
+    fn rest_cooldown_gates_the_next_delve() {
+        // After a run completes, the party rests REST_BETWEEN_RUNS_MS (from the run's deterministic completion)
+        // before another delve can send — gating manual + auto alike. The window is online==offline (no now_ms).
+        let mut g = strong_team(7);
+        assert!(g.send_expedition(0, &[0], 1000.0));
+        let total = g.active_run.as_ref().unwrap().total_ms;
+        g.tick(1000.0 + total + 1.0); // advance past the run's completion
+        assert!(g.active_run.is_none(), "the run completed");
+        let expect = 1000.0 + total + REST_BETWEEN_RUNS_MS;
+        assert!((g.exp_rest_until - expect).abs() < 1.0, "rest_until = completion + the rest window");
+        assert!(!g.send_expedition(0, &[1], expect - 1000.0), "still resting ⇒ a send is rejected");
+        assert!(g.exp_rest_until > 0.0);
     }
 
     #[test]
@@ -5332,7 +6552,7 @@ mod tests {
         let echo0 = g.echo_rate_per_hr();
         let flux0 = g.expedition_flux_per_hr();
         let seed_default = g.clear_seed(0, 0);
-        let wkey = |g: &GameState| g.watch_data(0).map(|r| (r.win, r.rounds, r.log.iter().map(|e| (e.actor, e.action, e.dmg, e.heal, e.fainted)).collect::<Vec<_>>()));
+        let wkey = |g: &GameState| g.watch_data(0, 0).map(|r| (r.win, r.rounds, r.log.iter().map(|e| (e.actor, e.action, e.dmg, e.heal, e.fainted)).collect::<Vec<_>>()));
         let watch0 = wkey(&g);
         // program slot 0 to always attack the threat
         g.add_gambit(0, 0);
@@ -5515,39 +6735,72 @@ mod tests {
         assert!(g.recrystallize(), "owning everything should meet the dim-3 ascent requirement");
         assert!(g.exp_node_mod.iter().all(|&m| m == 0), "node mods reset on ascent");
         assert!(g.exp_provisions.iter().all(|p| p.is_empty()), "staged provisions reset on ascent");
+        assert!(g.exp_cleared.iter().all(|&c| !c), "R3 Deeper Manifold: the quests RE-OPEN for a fresh NG+ descent");
         // meta persists
         assert!(g.relics_owned[0] && g.team_relics[0].contains(&0), "relics persist across ascent");
         assert_eq!(g.exp_orders[0].formation, 1, "orders persist across ascent");
-        assert_eq!(g.exp_clears_total, clears, "history counters persist");
+        assert_eq!(g.exp_clears_total, clears, "history counters persist (lifetime meta, not per-cycle)");
         assert!(!g.exp_runs.is_empty(), "history ring persists");
     }
 
     #[test]
-    fn auto_is_deterministic_and_never_spends_or_risks() {
-        let mut g = GameState::new(7, 0.0);
-        own_early(&mut g);
-        g.set_team(0, &[2, 0, 4]);
+    fn ngplus_deepens_the_manifold_combat_only_and_pays_more() {
+        // R3: each NG+ cycle scales enemy difficulty AND first-clear Echoes — but the enemy scaling is COMBAT-only
+        // (never the farm rate, which is power-banded), so the D4 farm fence holds.
+        let mut g = strong_team(7);
+        g.station(0, 0); // clear + station node 0 ⇒ a live farm rate to fence against
+        let scale0 = g.node_mod_scale(1);
+        let rate0 = g.expedition_flux_per_hr(); // the farm-rate band reference
+        assert!(rate0 > 0.0, "team 0 is farming via the closed-form rate");
+        g.ng_cycle = 2;
+        let scale2 = g.node_mod_scale(1);
+        assert!(scale2 > scale0, "NG+ enemies are harder ({scale0}% -> {scale2}%)");
+        assert_eq!(scale2 - scale0, 2 * NGPLUS_ENEMY_SCALE_PCT, "exactly +{NGPLUS_ENEMY_SCALE_PCT}%/cycle");
+        assert_eq!(g.expedition_flux_per_hr().to_bits(), rate0.to_bits(), "enemy scaling is COMBAT-only — the farm rate is untouched (D4 fence)");
+    }
+
+    #[test]
+    fn ngplus_first_clear_pays_more_echoes() {
+        // R3: a clear in NG+ pays more Echoes than the same clear in the base cycle (the lucrative re-climb).
+        let mut g0 = strong_team(9);
+        let e0 = g0.echoes;
+        g0.grant_first_clear(0, 0);
+        let base_gain = g0.echoes - e0;
+        let mut g1 = strong_team(9);
+        g1.ng_cycle = 1;
+        let e1 = g1.echoes;
+        g1.grant_first_clear(0, 0);
+        let ng_gain = g1.echoes - e1;
+        assert!(ng_gain > base_gain, "NG+1 clear pays more ({base_gain} -> {ng_gain})");
+        assert_eq!(ng_gain, base_gain * (100 + NGPLUS_REWARD_BONUS_PCT) / 100, "exactly +{NGPLUS_REWARD_BONUS_PCT}%");
+    }
+
+    #[test]
+    fn auto_dispatches_runs_over_time_and_never_spends_or_risks() {
+        // v6 D23: Auto now DISPATCHES runs (one in flight at a time); the run clears the chapter over idle TIME via
+        // accrue_run, so this advances now_ms each call (the old version froze time + expected instant clears).
+        let mut g = strong_team(7); // a party strong enough to actually complete the early chapters
         g.dev_add_echoes(100_000);
         let pt = expedition::PROVISIONS.iter().position(|p| p.key == "phoenix_tear").unwrap();
-        g.buy_provision(pt); // owned but NOT staged → auto can still use the team
+        g.buy_provision(pt); // owned but NOT staged → auto can still use the (provision-free) team
         let prov_before = g.prov_inv[pt];
-        let mut cleared = 0;
-        for _ in 0..40 {
-            if g.auto_expedition(0.0).delved {
-                cleared += 1;
+        let mut dispatches = 0;
+        let mut t = 0.0;
+        for _ in 0..400 {
+            t += 30_000.0; // advance 30s/call so the in-flight run progresses + completes, then the next dispatches
+            if g.auto_expedition(t).delved {
+                dispatches += 1;
             }
         }
-        assert!(cleared >= 2, "auto clears several open nodes over repeated steps");
-        assert_eq!(g.prov_inv[pt], prov_before, "auto NEVER spends provisions");
+        assert!(dispatches >= 2, "auto dispatched several runs over time");
+        assert!(g.exp_cleared[0] && g.exp_cleared[1], "auto-run cleared the early journey nodes");
+        assert_eq!(g.prov_inv[pt], prov_before, "auto NEVER spends provisions (uses a provision-free team)");
         assert!(g.exp_node_mod.iter().all(|&m| m == 0), "auto NEVER sets a risk mod");
         assert!(!g.exp_cleared[13] && !g.exp_cleared[14] && !g.exp_cleared[15], "auto NEVER clears Elite branch nodes");
-        assert!(g.exp_cleared[0] && g.exp_cleared[1], "auto progresses through the journey graph in order");
-        // determinism: same start ⇒ same first auto pick
-        let mut a = GameState::new(7, 0.0);
-        own_early(&mut a);
-        a.set_team(0, &[2, 0, 4]);
+        // determinism: same start + same time ⇒ same first dispatch destination
+        let mut a = strong_team(7);
         let mut b = a.clone();
-        assert_eq!(a.auto_expedition(0.0).quest, b.auto_expedition(0.0).quest);
+        assert_eq!(a.auto_expedition(1000.0).quest, b.auto_expedition(1000.0).quest);
     }
 
     #[test]

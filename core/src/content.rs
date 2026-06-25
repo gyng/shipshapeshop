@@ -1114,7 +1114,7 @@ pub struct UpgradeDef {
 
 // Order is load-bearing — game.rs reads effects by index. Keep in sync. A small tech tree: two roots
 // (expand_floor, patience) branch into the rest; `twin_bond` + `auto_pull` are secret (revealed on unlock).
-pub const UPGRADES: [UpgradeDef; 21] = [
+pub const UPGRADES: [UpgradeDef; 24] = [
     UpgradeDef {
         key: "expand_floor",
         flux_cost: 700.0,
@@ -1285,6 +1285,30 @@ pub const UPGRADES: [UpgradeDef; 21] = [
         secret: false,
     }, // 20: UNLOCK-ONLY (no economy effect) — opens the Expeditions idle-RPG tab. A deliberate opt-in purchase,
        // matching how auto_pull gates automation behind the Workshop. game.rs reads NO effect for this index.
+    UpgradeDef {
+        key: "auto_tactics",
+        flux_cost: 3500.0,
+        shard_cost: 0,
+        max_level: 1,
+        requires: Some((20, 1)), // behind charter_expeditions
+        secret: false,
+    }, // 21: UNLOCK-ONLY — empty gambit slots fight with the SMART ladder instead of the simple instinct default.
+    UpgradeDef {
+        key: "gambit_logic_2",
+        flux_cost: 5000.0,
+        shard_cost: 0,
+        max_level: 1,
+        requires: Some((21, 1)), // behind auto_tactics
+        secret: false,
+    }, // 22: UNLOCK-ONLY — unlocks the skill_ready/ally_low conditions + weakest/threat targeting in the editor.
+    UpgradeDef {
+        key: "gambit_logic_3",
+        flux_cost: 7000.0,
+        shard_cost: 0,
+        max_level: 1,
+        requires: Some((22, 1)), // behind gambit_logic_2
+        secret: false,
+    }, // 23: UNLOCK-ONLY — unlocks the ult_ready condition + the buff_team/sweep actions (the deepest tactics).
 ];
 pub const UPGRADE_COUNT: usize = UPGRADES.len();
 

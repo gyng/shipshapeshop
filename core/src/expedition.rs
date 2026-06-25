@@ -29,6 +29,8 @@ pub enum RoomKind {
     Boss = 1,
     Campfire = 2,
     Treasure = 3,
+    Shrine = 4,   // a no-combat blessing: a light heal + a lasting SPEED boon for the rest of the run
+    Decision = 5, // a no-combat crossroads: 2 effect-options, auto-picked at send, optionally overridden live (timeout)
 }
 impl RoomKind {
     pub fn as_u8(self) -> u8 {
@@ -52,6 +54,11 @@ pub fn splitmix64(mut x: u64) -> u64 {
 pub const MAX_ROUNDS: u32 = 30;
 /// Ultimate charge needed to fire (gained per action + when struck).
 const ULT_CHARGE: i64 = 100;
+/// ATB readiness needed to take a turn. A unit accrues `speed` per combat round, so speed 100 ⇒ ~1 turn/round
+/// (the pre-ATB baseline) and faster units act more often. The action rate is `speed / ATB_THRESHOLD`.
+const ATB_THRESHOLD: i64 = 100;
+/// Safety bound on actions resolved in a single combat round, so a pathological speed can't stall the scheduler.
+const MAX_ACTIONS_PER_ROUND: u32 = 64;
 
 // ── The affinity wheel (advantage-only — there is NO off-type penalty, so you're never punished for
 //    bringing who you love) ────────────────────────────────────────────────────────────────────────────
@@ -153,6 +160,7 @@ pub struct Combatant {
     pub ult_power: i64,   // signature-scaled ultimate magnitude (percent of a basic, ≥100)
     // volatile battle state
     pub charge: i64,
+    pub atb: i64,      // ATB readiness: gains `speed` each combat round; acts when it crosses ATB_THRESHOLD (faster ⇒ more turns)
     pub atk_up: i64,   // turns remaining
     pub def_down: i64, // turns remaining
     pub regen: i64,    // turns remaining
@@ -164,6 +172,8 @@ pub struct Combatant {
     // v5 orders/provisions (transient, never serialized): formation front-row flag + a one-shot revive charge.
     pub front: bool,   // formation: enemies prefer front units (false for all ⇒ v4 targeting)
     pub revive: bool,  // ReviveOnce provision: first faint restores 30% hp (deterministic, logged)
+    pub volatile: i32, // #5 lure: on faint, ENRAGES its surviving kin by this % atk (0 = none). A smarter gambit
+    // (kill the boss before the lure) beats the auto-default (attack the WEAKEST → pops the lure → the boss rages all fight).
 }
 
 impl Combatant {
@@ -207,7 +217,19 @@ pub const ENEMIES: &[EnemyDef] = &[
     EnemyDef { key: "lost_klein", nick: "the Dimmed Bottle", family: "klein_bottle", element: Element::Twisted, ai: AiKind::Boss, hp: 1300, atk: 52, def: 22, speed: 105 },
     EnemyDef { key: "lost_hept", nick: "the Seven-Fold", family: "heptoroid", element: Element::Solid, ai: AiKind::Boss, hp: 2000, atk: 66, def: 30, speed: 110 },
     EnemyDef { key: "lost_tess", nick: "the Folded Cube", family: "tesseract", element: Element::Solid, ai: AiKind::Boss, hp: 3200, atk: 88, def: 40, speed: 120 },
+    // #5 a volatile "lure" (index 9): LOW hp so the auto-gambit's attack-weakest pops it first, LOW atk so an
+    // attack-THREAT rule targets the boss instead. On death it ENRAGES its kin (see VOLATILE_ENEMIES) — the soft-wall
+    // that makes the gambit depth load-bearing at the final gate.
+    EnemyDef { key: "echo_lure", nick: "Echo Lure", family: "klein_bottle", element: Element::Twisted, ai: AiKind::Bumper, hp: 90, atk: 10, def: 0, speed: 90 },
 ];
+
+/// Enemies that ENRAGE their surviving kin on death (key → +atk % granted to every other living enemy). A soft-wall,
+/// not a hard wall: a smarter gambit program (kill the boss BEFORE the lure, so there's nothing left to enrage) beats
+/// the auto-default (attack the weakest → pops the lure → the boss rages all fight). Power alone doesn't fix the program.
+pub const VOLATILE_ENEMIES: &[(&str, i32)] = &[("echo_lure", 100)];
+pub fn enemy_volatile(key: &str) -> i32 {
+    VOLATILE_ENEMIES.iter().find(|(k, _)| *k == key).map_or(0, |(_, p)| *p)
+}
 
 /// A map node's role. `boss.is_some()` stays the source of truth for boss-ness; Elite is the new opt-in branch.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -259,7 +281,9 @@ pub const QUESTS: &[QuestDef] = &[
     QuestDef { key: "deep_boss", nick: "The Seven-Fold", chapter: 3, min_dim: 3, tier: 6, enemies: &[3], boss: Some(7), recruit_id: 26, base_echo: 520, kind: NodeKind::Boss, map_xy: (100, 0) },
     // ── Chapter 4 — the Higher Vantage (NG+ / viewport ≥ 4) ──
     QuestDef { key: "vantage_1", nick: "Above the Equator", chapter: 4, min_dim: 4, tier: 8, enemies: &[3, 4, 2], boss: None, recruit_id: -1, base_echo: 760, kind: NodeKind::Combat, map_xy: (110, 0) },
-    QuestDef { key: "vantage_boss", nick: "The Folded Cube", chapter: 4, min_dim: 4, tier: 9, enemies: &[4], boss: Some(8), recruit_id: 44, base_echo: 1100, kind: NodeKind::Boss, map_xy: (120, 0) },
+    // #5 the tactical climax: the final boss is flanked by an Echo Lure (idx 9) — attack-weakest pops it and the
+    // Folded Cube rages; a smarter attack-threat program fells the boss first. Brute power survives; tactics win clean.
+    QuestDef { key: "vantage_boss", nick: "The Folded Cube", chapter: 4, min_dim: 4, tier: 9, enemies: &[9, 4], boss: Some(8), recruit_id: 44, base_echo: 1100, kind: NodeKind::Boss, map_xy: (120, 0) },
     // ── Elite branch nodes (v5, appended so indices 0..12 stay stable) — optional harder alt-routes to the boss,
     //    paying a fat first-clear Echoes lump (provision/relic fuel). Lane y=10. ──
     QuestDef { key: "elite_shallows", nick: "Riptide Hollow", chapter: 1, min_dim: 3, tier: 2, enemies: &[2, 2, 3], boss: None, recruit_id: -1, base_echo: 110, kind: NodeKind::Elite, map_xy: (15, 12) },
@@ -299,7 +323,10 @@ pub const EXP_PERKS: &[ExpPerkDef] = &[
     ExpPerkDef { key: "fourth_berth", cost: 400, max_level: 1 }, // +1 party slot (3 → 4)
     ExpPerkDef { key: "rich_currents", cost: 120, max_level: 5 }, // +10%/lvl farm Echoes
     ExpPerkDef { key: "battle_vigor", cost: 200, max_level: 3 }, // party starts each fight with +charge
+    ExpPerkDef { key: "stalwart", cost: 250, max_level: 3 }, // +8%/lvl team max HP in COMBAT (folds in exp_combatant — farm-fenced)
 ];
+/// Perk index for `stalwart` (the combat HP perk) — folded in `exp_combatant`, never the farm band.
+pub const PERK_STALWART: usize = 3;
 pub const EXP_PERK_COUNT: usize = EXP_PERKS.len();
 
 /// One node in a per-ROLE skill tree (shared across all shapes of that role, to bound content). A node grants
@@ -374,6 +401,7 @@ pub enum EffKind {
     FlatDefPct(i16),     // ± defence %
     SpeedPct(i16),       // ± speed %
     DoubleClearEchoes,   // double the FIRST-CLEAR Echoes lump only (never Flux, never the farm rate)
+    Reflect,             // grant the Reflect quirk: bounce a sliver of melee damage back at the attacker
 }
 
 impl EffKind {
@@ -391,6 +419,7 @@ impl EffKind {
             FlatDefPct(n) => ("def_pct", n as i64),
             SpeedPct(n) => ("speed_pct", n as i64),
             DoubleClearEchoes => ("double_echoes", 0),
+            Reflect => ("reflect", 0),
         }
     }
 }
@@ -420,9 +449,15 @@ pub struct RelicDef {
     pub down: EffKind,       // the cost you pay for it
 }
 pub const RELICS: &[RelicDef] = &[
+    // A cheaper ENTRY relic (400 vs the flat 600 of the rest) so the relic system has a gentle on-ramp — a sturdy,
+    // forgiving pick (lots of bulk, softer punch) that suits a new player still learning the fights.
+    RelicDef { key: "teamwork_sigil", cost: 400, up: EffKind::HpBoost(30), down: EffKind::FlatDmgPct(-20) },
     RelicDef { key: "glass_cannon", cost: 600, up: EffKind::FlatDmgPct(40), down: EffKind::FlatDefPct(-35) },
     RelicDef { key: "slow_heart", cost: 600, up: EffKind::HpBoost(45), down: EffKind::SpeedPct(-25) },
     RelicDef { key: "warding_sigil", cost: 600, up: EffKind::StartShield(50), down: EffKind::FlatDmgPct(-15) },
+    // a MECHANIC relic (not a stat-swap) — grants the whole party the Reflect bounce, but you go squishier to feel
+    // the hits you punish. Creates a "thorns" archetype distinct from the pure stat relics.
+    RelicDef { key: "retribution_prism", cost: 500, up: EffKind::Reflect, down: EffKind::FlatDefPct(-20) },
 ];
 pub const RELIC_COUNT: usize = RELICS.len();
 pub const RELIC_SLOTS_PER_TEAM: usize = 2;
@@ -477,6 +512,7 @@ pub fn enemy_combatant(enemy_id: usize, tier: u32, idx: usize) -> Combatant {
         reflect: false,
         ult_power: 180,
         charge: 0,
+        atb: 0,
         atk_up: 0,
         def_down: 0,
         regen: 0,
@@ -487,6 +523,7 @@ pub fn enemy_combatant(enemy_id: usize, tier: u32, idx: usize) -> Combatant {
         cd_b: 0,
         front: false,
         revive: false,
+        volatile: enemy_volatile(e.key),
     }
 }
 
@@ -540,6 +577,8 @@ pub struct LogEvent {
     pub heal: i64,
     pub status: &'static str,   // applied status label, or ""
     pub fainted: i32,           // unit index that fainted on this event, or -1
+    pub rule_idx: i8, // RENDER-ONLY: the gambit rule (0-based) that produced this event, or -1 (legacy ladder / fallback / enemy). Never compared by goldens.
+    pub action_id: i8, // RENDER-ONLY: which ACT_* ability produced this event (0-9, see fire_action), or -1. Lets the combat log name the skill.
 }
 
 // ── Gambits: FF12-style "when <cond> → do <action>" party programming. Stored as small ints (locale-invariant +
@@ -573,6 +612,77 @@ pub const ACT_HEX: u8 = 7;
 pub const ACT_FLURRY: u8 = 8;
 pub const ACT_ULT: u8 = 9;
 pub const ACT_COUNT: u8 = 10;
+
+/// The per-role DEFAULT gambit program (spec D8) — the "smart" template the editor's Auto button writes. Each role's
+/// template MUST equal the empty (legacy ladder) program byte-for-byte (pinned by `template_gambits_equal_legacy`), so
+/// "Auto" reproduces today's stock behavior — it just makes the implicit ladder explicit + editable. Authoritative
+/// (the templates are truth); TS never constructs a gambit program.
+pub fn default_gambit_program(role: Role) -> Vec<GambitRule> {
+    let r = |cond: u8, action: u8| GambitRule { cond, action, on: true };
+    match role {
+        Role::Support => vec![r(COND_ULT_READY, ACT_ULT), r(COND_ALLY_HURT, ACT_HEAL), r(COND_SKILL_READY, ACT_BUFF_TEAM), r(COND_ALWAYS, ACT_ATTACK_FOCUS)],
+        Role::Tank => vec![r(COND_ULT_READY, ACT_ULT), r(COND_SKILL_READY, ACT_GUARD), r(COND_SKILL_READY, ACT_SWEEP), r(COND_ALWAYS, ACT_ATTACK_FOCUS)],
+        Role::Control => vec![r(COND_ULT_READY, ACT_ULT), r(COND_SKILL_READY, ACT_HEX), r(COND_ALWAYS, ACT_ATTACK_FOCUS)],
+        Role::Dps => vec![r(COND_ULT_READY, ACT_ULT), r(COND_SKILL_READY, ACT_FLURRY), r(COND_ALWAYS, ACT_ATTACK_FOCUS)],
+    }
+}
+
+/// The SMART auto-tactics program (gated by the gambit-logic Workshop upgrades) — builds the best EDITABLE program a
+/// role can field from the CURRENTLY-UNLOCKED conditions/actions (`conds`/`acts` = the unlocked sets, game.rs is the
+/// single source). It contains ONLY unlocked rules (so none are sanitized off) and visibly grows smarter as the
+/// player buys upgrades: ult-timing, skill gating, emergency heals, and kill-securing targeting unlock progressively.
+/// Always ends with a valid `ALWAYS → attack` (base-unlocked), so the program is never empty. Pure & deterministic.
+pub fn smart_gambit_program(role: Role, conds: &[u8], acts: &[u8]) -> Vec<GambitRule> {
+    let has_c = |x: u8| conds.contains(&x);
+    let has_a = |x: u8| acts.contains(&x);
+    let rule = |c: u8, a: u8| GambitRule { cond: c, action: a, on: true };
+    let mut prog: Vec<GambitRule> = Vec::new();
+    // Fire the Ultimate the instant it's charged (needs the T3 ult-ready read).
+    if has_c(COND_ULT_READY) && has_a(ACT_ULT) {
+        prog.push(rule(COND_ULT_READY, ACT_ULT));
+    }
+    match role {
+        Role::Support => {
+            if has_c(COND_ALLY_LOW) && has_a(ACT_HEAL) {
+                prog.push(rule(COND_ALLY_LOW, ACT_HEAL)); // emergency heal first (T2 ally-low read)
+            }
+            if has_c(COND_ALLY_HURT) && has_a(ACT_HEAL) {
+                prog.push(rule(COND_ALLY_HURT, ACT_HEAL)); // gentle top-ups (base)
+            }
+            if has_c(COND_SKILL_READY) && has_a(ACT_BUFF_TEAM) {
+                prog.push(rule(COND_SKILL_READY, ACT_BUFF_TEAM)); // team buff when off cooldown (T3)
+            }
+        }
+        Role::Tank => {
+            if has_c(COND_SELF_HURT) && has_a(ACT_GUARD) {
+                prog.push(rule(COND_SELF_HURT, ACT_GUARD)); // guard when hurt (base)
+            }
+            if has_c(COND_SKILL_READY) && has_a(ACT_SWEEP) {
+                prog.push(rule(COND_SKILL_READY, ACT_SWEEP)); // sweep when off cooldown (T3)
+            }
+        }
+        Role::Control => {
+            if has_c(COND_SKILL_READY) && has_a(ACT_HEX) {
+                prog.push(rule(COND_SKILL_READY, ACT_HEX)); // hex when off cooldown (T2 skill-ready read)
+            }
+        }
+        Role::Dps => {
+            if has_c(COND_SKILL_READY) && has_a(ACT_FLURRY) {
+                prog.push(rule(COND_SKILL_READY, ACT_FLURRY)); // flurry when off cooldown (T2 skill-ready read)
+            }
+        }
+    }
+    // Kill-securing finisher: prefer weakest (secure kills) > threat (focus the dangerous) > plain focus (base).
+    let attack = if has_a(ACT_ATTACK_WEAKEST) {
+        ACT_ATTACK_WEAKEST
+    } else if has_a(ACT_ATTACK_THREAT) {
+        ACT_ATTACK_THREAT
+    } else {
+        ACT_ATTACK_FOCUS
+    };
+    prog.push(rule(COND_ALWAYS, attack));
+    prog
+}
 pub const MAX_GAMBIT_RULES: usize = 8; // cozy ceiling per slot (O(8) scan, small save)
 
 /// A combatant's display info (snapshotted at battle start) so the TS layer can render cards + HP bars and
@@ -584,6 +694,11 @@ pub struct UnitInfo {
     pub family: String,
     pub is_enemy: bool,
     pub max_hp: i64,
+    // Combat stats, snapshotted at battle start so the card/HUD can show them WITHOUT recomputing (mirror, never derive).
+    pub atk: i64,
+    pub def: i64,
+    pub speed: i64,
+    pub ult_power: i64,
     pub element: &'static str,
     pub role: &'static str,
 }
@@ -720,31 +835,51 @@ pub fn resolve_battle_from_hp(seed: u64, mut party: Vec<Combatant>, mut enemies:
             family: c.family.clone(),
             is_enemy: c.is_enemy,
             max_hp: c.max_hp,
+            atk: c.atk,
+            def: c.def,
+            speed: c.speed,
+            ult_power: c.ult_power,
             element: c.element.as_str(),
             role: c.role.as_str(),
         })
         .collect();
     let mut rng = Rng { seed, ctr: 0 };
     let mut log: Vec<LogEvent> = Vec::new();
-    let mut round = 0u32;
+    let mut round = 0u32; // combat-round counter — one ATB time-advance per round; bounds the fight + reports `rounds`
+    let mut turn = 0u32; // per-ACTION counter, stamped as LogEvent.round so the watch timeline beats once per turn
 
     while round < MAX_ROUNDS && any_living(&units, false) && any_living(&units, true) {
         round += 1;
-        // speed order (desc), stable by index
-        let mut order: Vec<usize> = (0..units.len()).collect();
-        order.sort_by(|&a, &b| units[b].speed.cmp(&units[a].speed).then(a.cmp(&b)));
-
-        for actor in order {
-            if !units[actor].alive() {
-                continue;
+        // ATB time-advance: every living unit accrues `speed` readiness this round (Slice 3 / ATB). Callers keep
+        // speed ≥ 1; `.max(0)` defensively guards against a future speed≤0 (debuff/content) ever driving atb negative —
+        // a 0-speed unit simply never accrues and stays benched (frozen), it can never act "less than never".
+        for u in units.iter_mut() {
+            if u.alive() {
+                u.atb += u.speed.max(0);
             }
+        }
+        // Everyone who crossed ATB_THRESHOLD acts this round — readiest first, paying the threshold per action; a
+        // FAST unit may act more than once (speed 100 ⇒ ~1 turn/round, baseline). Each action gets its own `turn`,
+        // so the watch never fuses two turns into one beat. Bounded by MAX_ACTIONS_PER_ROUND against pathological speed.
+        let mut acted = 0u32;
+        while acted < MAX_ACTIONS_PER_ROUND {
             if !any_living(&units, false) || !any_living(&units, true) {
                 break;
             }
+            let actor = match (0..units.len())
+                .filter(|&i| units[i].alive() && units[i].atb >= ATB_THRESHOLD)
+                .max_by_key(|&i| (units[i].atb, std::cmp::Reverse(i)))
+            {
+                Some(a) => a, // readiest (highest atb), ties to lowest index — fully deterministic, no RNG
+                None => break, // no one is ready ⇒ this round is done, advance the clock again
+            };
+            units[actor].atb -= ATB_THRESHOLD;
+            turn += 1;
+            acted += 1;
             // tick down status timers that gate acting
             if units[actor].stun > 0 {
                 units[actor].stun -= 1;
-                log.push(LogEvent { round, actor, action: "stunned", target: -1, dmg: 0, heal: 0, status: "", fainted: -1 });
+                log.push(LogEvent { rule_idx: -1, action_id: -1, round: turn, actor, action: "stunned", target: -1, dmg: 0, heal: 0, status: "", fainted: -1 });
                 continue;
             }
             // start-of-turn bleed — true damage (bypasses shield), ticks BEFORE regen so a heal can't be
@@ -757,8 +892,17 @@ pub fn resolve_battle_from_hp(seed: u64, mut party: Vec<Combatant>, mut enemies:
                 if fainted {
                     units[actor].hp = 0;
                 }
-                log.push(LogEvent { round, actor, action: "bleed", target: actor as i32, dmg: bd, heal: 0, status: "bleed", fainted: if fainted { actor as i32 } else { -1 } });
+                log.push(LogEvent { rule_idx: -1, action_id: -1, round: turn, actor, action: "bleed", target: actor as i32, dmg: bd, heal: 0, status: "bleed", fainted: if fainted { actor as i32 } else { -1 } });
                 if fainted {
+                    // ReviveOnce (phoenix_tear) must fire on a START-OF-TURN bleed death exactly as on an attack death:
+                    // this branch `continue`s past the post-action revive sweep below, and if this was the last living
+                    // hero the battle would END as a loss before any later action could revive them — silently dropping
+                    // a charged revive and flipping a winnable fight. So revive here, mirroring the sweep.
+                    if units[actor].revive {
+                        units[actor].revive = false;
+                        units[actor].hp = (units[actor].max_hp * 3 / 10).max(1);
+                        log.push(LogEvent { rule_idx: -1, action_id: -1, round: turn, actor, action: "revive", target: actor as i32, dmg: 0, heal: units[actor].hp, status: "revive", fainted: -1 });
+                    }
                     continue;
                 }
             }
@@ -769,7 +913,7 @@ pub fn resolve_battle_from_hp(seed: u64, mut party: Vec<Combatant>, mut enemies:
                 units[actor].hp += healed;
                 units[actor].regen -= 1;
                 if healed > 0 {
-                    log.push(LogEvent { round, actor, action: "regen", target: actor as i32, dmg: 0, heal: healed, status: "", fainted: -1 });
+                    log.push(LogEvent { rule_idx: -1, action_id: -1, round: turn, actor, action: "regen", target: actor as i32, dmg: 0, heal: healed, status: "", fainted: -1 });
                 }
             }
             // decay buffs
@@ -787,9 +931,9 @@ pub fn resolve_battle_from_hp(seed: u64, mut party: Vec<Combatant>, mut enemies:
             }
 
             if units[actor].is_enemy {
-                enemy_turn(&mut units, actor, round, &mut rng, &mut log);
+                enemy_turn(&mut units, actor, turn, &mut rng, &mut log);
             } else {
-                hero_turn(&mut units, actor, round, &mut rng, &mut log, focus, gambits);
+                hero_turn(&mut units, actor, turn, &mut rng, &mut log, focus, gambits);
             }
             // ReviveOnce (provision): any hero downed THIS action with a revive charge pops back at 30% hp —
             // deterministic (no RNG) and LOGGED (heal from 0 → 30%) so the TS replay tracks HP exactly. The
@@ -798,10 +942,29 @@ pub fn resolve_battle_from_hp(seed: u64, mut party: Vec<Combatant>, mut enemies:
                 if !u.is_enemy && u.hp <= 0 && u.revive {
                     u.revive = false;
                     u.hp = (u.max_hp * 3 / 10).max(1);
-                    log.push(LogEvent { round, actor: i, action: "revive", target: i as i32, dmg: 0, heal: u.hp, status: "revive", fainted: -1 });
+                    log.push(LogEvent { rule_idx: -1, action_id: -1, round: turn, actor: i, action: "revive", target: i as i32, dmg: 0, heal: u.hp, status: "revive", fainted: -1 });
                 }
             }
-            // gain charge for taking a turn
+            // Volatile lure (#5): on death it ENRAGES its surviving kin (+volatile% atk, permanent). The auto-gambit's
+            // attack-weakest pops the lure FIRST (lowest HP) → the boss rages for the whole fight → the party is ground
+            // down. A smarter attack-THREAT rule kills the boss first → when the lure dies last there's nothing left to
+            // enrage. So the SAME power wins-or-loses on the PROGRAM. Consumed (volatile=0) so it fires once.
+            let enraging: Vec<usize> = (0..units.len()).filter(|&i| units[i].volatile > 0 && units[i].hp <= 0).collect();
+            for i in enraging {
+                let pct = units[i].volatile as i64;
+                let side = units[i].is_enemy;
+                units[i].volatile = 0;
+                for (j, u) in units.iter_mut().enumerate() {
+                    if j != i && u.is_enemy == side && u.hp > 0 {
+                        u.atk += u.atk * pct / 100; // enrage the surviving boss/kin
+                        // attribute the beat to the ENRAGED unit (alive), not the dead lure (the UI-fidelity replay
+                        // must never show a downed unit acting).
+                        log.push(LogEvent { rule_idx: -1, action_id: -1, round: turn, actor: j, action: "enrage", target: j as i32, dmg: 0, heal: 0, status: "enrage", fainted: -1 });
+                    }
+                }
+            }
+            // gain charge for taking a turn — flat (ATB already grants faster units MORE turns, so the speed→ult
+            // tempo emerges from turn frequency; no extra speed scaling here, which would double-count).
             units[actor].charge = (units[actor].charge + 18).min(ULT_CHARGE);
         }
     }
@@ -840,15 +1003,42 @@ fn hero_turn(units: &mut [Combatant], actor: usize, round: u32, rng: &mut Rng, l
 /// checks draw ZERO RNG (like `focus_target`); only the fired action's compute_damage/chance advances `ctr` —
 /// so a program that selects the same (action,target) sequence as the ladder yields a byte-identical log.
 fn run_gambits(units: &mut [Combatant], actor: usize, round: u32, rng: &mut Rng, log: &mut Vec<LogEvent>, focus: i8, rules: &[GambitRule]) {
-    for r in rules {
+    for (idx, r) in rules.iter().enumerate() {
         if !r.on {
             continue;
         }
-        if cond_matches(units, actor, *r) && fire_action(units, actor, round, rng, log, focus, r.action) {
-            return;
+        if cond_matches(units, actor, *r) {
+            let before = log.len();
+            if fire_action(units, actor, round, rng, log, focus, r.action) {
+                // RENDER-ONLY tag: mark every event this fired rule produced so the watch can surface it (the
+                // tag is never read by the truth path or compared by goldens — log_key omits rule_idx).
+                for e in log[before..].iter_mut() {
+                    e.rule_idx = idx as i8;
+                }
+                return;
+            }
         }
     }
-    act_basic(units, actor, round, rng, log, focus_target(units, focus)); // guaranteed fallback
+    act_basic(units, actor, round, rng, log, focus_target(units, focus)); // guaranteed fallback (rule_idx stays -1)
+}
+
+/// The LOCKED-default program for an empty slot BEFORE the player buys auto-tactics (Workshop). Deliberately
+/// simple: ult-when-charged → the role's PRIMARY skill when ready → basic attack on the focus target. It drops
+/// what `legacy_ladder` (= the auto-tactics reward) adds — the SECOND role skill, HP-conditional prioritisation,
+/// and smart weakest/threat targeting. Expressed in the existing GambitRule vocabulary so it runs through
+/// `run_gambits` with ZERO new combat code; deterministic (cond scan + fire_action draw no extra RNG).
+pub fn simple_program(role: Role) -> Vec<GambitRule> {
+    let primary = match role {
+        Role::Support => ACT_HEAL,
+        Role::Tank => ACT_GUARD,
+        Role::Control => ACT_HEX,
+        Role::Dps => ACT_FLURRY,
+    };
+    vec![
+        GambitRule { cond: COND_ULT_READY, action: ACT_ULT, on: true },
+        GambitRule { cond: COND_SKILL_READY, action: primary, on: true },
+        GambitRule { cond: COND_ALWAYS, action: ACT_ATTACK_FOCUS, on: true },
+    ]
 }
 
 /// Is the skill a given action maps to off cooldown / chargeable? (basic attacks are always "ready"). Pure.
@@ -878,7 +1068,8 @@ fn cond_matches(units: &[Combatant], actor: usize, rule: GambitRule) -> bool {
 /// out-of-role or unknown action returns false so the scan continues); each act_* also self-checks cd/charge/target.
 fn fire_action(units: &mut [Combatant], actor: usize, round: u32, rng: &mut Rng, log: &mut Vec<LogEvent>, focus: i8, action: u8) -> bool {
     let role = units[actor].role;
-    match action {
+    let before = log.len();
+    let fired = match action {
         ACT_ATTACK_WEAKEST => act_basic(units, actor, round, rng, log, focus_target(units, -1)),
         ACT_ATTACK_THREAT => act_basic(units, actor, round, rng, log, focus_target(units, 1)),
         ACT_ATTACK_FOCUS => act_basic(units, actor, round, rng, log, focus_target(units, focus)),
@@ -890,7 +1081,14 @@ fn fire_action(units: &mut [Combatant], actor: usize, round: u32, rng: &mut Rng,
         ACT_FLURRY if role == Role::Dps => act_flurry(units, actor, round, rng, log, focus),
         ACT_ULT => act_ult(units, actor, round, rng, log),
         _ => false,
+    };
+    if fired {
+        // stamp every event this action produced with its id, so the combat log can name the ability (render-only)
+        for e in log[before..].iter_mut() {
+            e.action_id = action as i8;
+        }
     }
+    fired
 }
 
 /// The original fixed ladder, now a thin sequence over the extracted `act_*` actions in their exact prior order.
@@ -955,7 +1153,7 @@ fn act_heal(units: &mut [Combatant], actor: usize, round: u32, log: &mut Vec<Log
             units[t].regen = units[t].regen.max(2);
             units[t].shield += units[actor].atk; // a little ward on top of the mend
             units[actor].cd_a = 2;
-            log.push(LogEvent { round, actor, action: "skillA", target: t as i32, dmg: 0, heal: healed, status: "regen", fainted: -1 });
+            log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "skillA", target: t as i32, dmg: 0, heal: healed, status: "regen", fainted: -1 });
             return true;
         }
     }
@@ -969,7 +1167,7 @@ fn act_buff_team(units: &mut [Combatant], actor: usize, round: u32, log: &mut Ve
             c.atk_up = c.atk_up.max(3);
         }
         units[actor].cd_b = 3;
-        log.push(LogEvent { round, actor, action: "skillB", target: -1, dmg: 0, heal: 0, status: "atk_up", fainted: -1 });
+        log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "skillB", target: -1, dmg: 0, heal: 0, status: "atk_up", fainted: -1 });
         return true;
     }
     false
@@ -981,7 +1179,7 @@ fn act_guard(units: &mut [Combatant], actor: usize, round: u32, log: &mut Vec<Lo
         units[actor].atk_up = units[actor].atk_up.max(3); // reuse atk_up flag as the "taunt/guard" marker
         units[actor].shield += units[actor].max_hp / 5;
         units[actor].cd_a = 3;
-        log.push(LogEvent { round, actor, action: "skillA", target: actor as i32, dmg: 0, heal: 0, status: "guard", fainted: -1 });
+        log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "skillA", target: actor as i32, dmg: 0, heal: 0, status: "guard", fainted: -1 });
         return true;
     }
     false
@@ -997,7 +1195,7 @@ fn act_sweep(units: &mut [Combatant], actor: usize, round: u32, rng: &mut Rng, l
             let (dealt, fainted) = deal(&mut units[t], dmg);
             units[t].def_down = units[t].def_down.max(2);
             units[actor].cd_b = 3;
-            log.push(LogEvent { round, actor, action: "skillB", target: t as i32, dmg: dealt, heal: 0, status: "def_down", fainted: if fainted { t as i32 } else { -1 } });
+            log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "skillB", target: t as i32, dmg: dealt, heal: 0, status: "def_down", fainted: if fainted { t as i32 } else { -1 } });
             return true;
         }
     }
@@ -1018,7 +1216,7 @@ fn act_hex(units: &mut [Combatant], actor: usize, round: u32, rng: &mut Rng, log
                 units[t].bleed = units[t].bleed.max(3); // a hard lock-down also leaves them bleeding
             }
             units[actor].cd_a = 3;
-            log.push(LogEvent { round, actor, action: "skillA", target: t as i32, dmg: dealt, heal: 0, status: if stunned { "stun" } else { "def_down" }, fainted: if fainted { t as i32 } else { -1 } });
+            log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "skillA", target: t as i32, dmg: dealt, heal: 0, status: if stunned { "stun" } else { "def_down" }, fainted: if fainted { t as i32 } else { -1 } });
             return true;
         }
     }
@@ -1034,7 +1232,7 @@ fn act_flurry(units: &mut [Combatant], actor: usize, round: u32, rng: &mut Rng, 
                 let adv = units[actor].element.beats(units[t].element);
                 let dmg = compute_damage(rng, units[actor].atk, units[t].def, 55, adv, units[actor].atk_up > 0, units[t].def_down > 0);
                 let (dealt, fainted) = deal(&mut units[t], dmg);
-                log.push(LogEvent { round, actor, action: "skillB", target: t as i32, dmg: dealt, heal: 0, status: "", fainted: if fainted { t as i32 } else { -1 } });
+                log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "skillB", target: t as i32, dmg: dealt, heal: 0, status: "", fainted: if fainted { t as i32 } else { -1 } });
             }
         }
         units[actor].cd_b = 2;
@@ -1050,7 +1248,7 @@ fn act_basic(units: &mut [Combatant], actor: usize, round: u32, rng: &mut Rng, l
         let power = if units[actor].role == Role::Dps { 120 } else { 90 };
         let dmg = compute_damage(rng, units[actor].atk, units[t].def, power, adv, units[actor].atk_up > 0, units[t].def_down > 0);
         let (dealt, fainted) = deal(&mut units[t], dmg);
-        log.push(LogEvent { round, actor, action: "basic", target: t as i32, dmg: dealt, heal: 0, status: if adv { "adv" } else { "" }, fainted: if fainted { t as i32 } else { -1 } });
+        log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "basic", target: t as i32, dmg: dealt, heal: 0, status: if adv { "adv" } else { "" }, fainted: if fainted { t as i32 } else { -1 } });
         return true;
     }
     false
@@ -1068,7 +1266,7 @@ fn ultimate(units: &mut [Combatant], actor: usize, role: Role, round: u32, rng: 
                     c.hp += healed;
                     c.stun = 0;
                     c.def_down = 0;
-                    log.push(LogEvent { round, actor, action: "ult", target: i as i32, dmg: 0, heal: healed, status: "cleanse", fainted: -1 });
+                    log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "ult", target: i as i32, dmg: 0, heal: healed, status: "cleanse", fainted: -1 });
                 }
             }
         }
@@ -1077,7 +1275,7 @@ fn ultimate(units: &mut [Combatant], actor: usize, role: Role, round: u32, rng: 
             for (i, c) in units.iter_mut().enumerate() {
                 if !c.is_enemy && c.alive() {
                     c.shield += c.max_hp / 4;
-                    log.push(LogEvent { round, actor, action: "ult", target: i as i32, dmg: 0, heal: 0, status: "bulwark", fainted: -1 });
+                    log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "ult", target: i as i32, dmg: 0, heal: 0, status: "bulwark", fainted: -1 });
                 }
             }
         }
@@ -1088,7 +1286,7 @@ fn ultimate(units: &mut [Combatant], actor: usize, role: Role, round: u32, rng: 
                 let adv = units[actor].element.beats(units[t].element);
                 let dmg = compute_damage(rng, units[actor].atk, units[t].def, up, adv, units[actor].atk_up > 0, units[t].def_down > 0);
                 let (dealt, fainted) = deal(&mut units[t], dmg);
-                log.push(LogEvent { round, actor, action: "ult", target: t as i32, dmg: dealt, heal: 0, status: "", fainted: if fainted { t as i32 } else { -1 } });
+                log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "ult", target: t as i32, dmg: dealt, heal: 0, status: "", fainted: if fainted { t as i32 } else { -1 } });
             }
         }
     }
@@ -1125,7 +1323,7 @@ fn enemy_turn(units: &mut [Combatant], actor: usize, round: u32, rng: &mut Rng, 
         for ti in targets {
             let dmg = compute_damage(rng, units[actor].atk, units[ti].def, 130, false, units[actor].atk_up > 0, units[ti].def_down > 0);
             let (dealt, fainted) = deal(&mut units[ti], dmg);
-            log.push(LogEvent { round, actor, action: "ult", target: ti as i32, dmg: dealt, heal: 0, status: "", fainted: if fainted { ti as i32 } else { -1 } });
+            log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "ult", target: ti as i32, dmg: dealt, heal: 0, status: "", fainted: if fainted { ti as i32 } else { -1 } });
         }
         return;
     }
@@ -1134,14 +1332,14 @@ fn enemy_turn(units: &mut [Combatant], actor: usize, round: u32, rng: &mut Rng, 
         AiKind::Warden if rng.chance(1, 3) => {
             units[actor].shield += units[actor].max_hp / 6;
             units[actor].def_down = 0; // bracing also shakes off a DEF-down
-            log.push(LogEvent { round, actor, action: "skillA", target: actor as i32, dmg: 0, heal: 0, status: "guard", fainted: -1 });
+            log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "skillA", target: actor as i32, dmg: 0, heal: 0, status: "guard", fainted: -1 });
         }
         AiKind::Hexer if rng.chance(1, 2) => {
             let dmg = compute_damage(rng, units[actor].atk, units[t].def, 80, false, units[actor].atk_up > 0, units[t].def_down > 0);
             let (dealt, fainted) = deal(&mut units[t], dmg);
             units[t].def_down = units[t].def_down.max(2);
             units[t].bleed = units[t].bleed.max(2); // a hex leaves a lingering bleed
-            log.push(LogEvent { round, actor, action: "skillA", target: t as i32, dmg: dealt, heal: 0, status: "def_down", fainted: if fainted { t as i32 } else { -1 } });
+            log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "skillA", target: t as i32, dmg: dealt, heal: 0, status: "def_down", fainted: if fainted { t as i32 } else { -1 } });
         }
         _ => {
             let dmg = compute_damage(rng, units[actor].atk, units[t].def, 100, false, units[actor].atk_up > 0, units[t].def_down > 0);
@@ -1150,12 +1348,12 @@ fn enemy_turn(units: &mut [Combatant], actor: usize, round: u32, rng: &mut Rng, 
             if units[actor].ai == AiKind::Skitter && !units[t].is_enemy && units[t].alive() {
                 units[t].cd_b = units[t].cd_b.max(1);
             }
-            log.push(LogEvent { round, actor, action: "basic", target: t as i32, dmg: dealt, heal: 0, status: "", fainted: if fainted { t as i32 } else { -1 } });
+            log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor, action: "basic", target: t as i32, dmg: dealt, heal: 0, status: "", fainted: if fainted { t as i32 } else { -1 } });
             // Reflect quirk: a non-orientable hero bounces a sliver back at a melee attacker
             if !units[t].is_enemy && units[t].reflect && units[t].alive() {
                 let bounce = (dealt / 5).max(1);
                 let (_, f2) = deal(&mut units[actor], bounce);
-                log.push(LogEvent { round, actor: t, action: "skillB", target: actor as i32, dmg: bounce, heal: 0, status: "reflect", fainted: if f2 { actor as i32 } else { -1 } });
+                log.push(LogEvent { rule_idx: -1, action_id: -1, round,actor: t, action: "skillB", target: actor as i32, dmg: bounce, heal: 0, status: "reflect", fainted: if f2 { actor as i32 } else { -1 } });
             }
         }
     }
@@ -1181,8 +1379,8 @@ mod tests {
         Combatant {
             shape_id: 0, nick: "H".into(), family: "sphere".into(), max_hp: hp, hp, atk, def: 12,
             speed: 100, element: el, role, is_enemy: false, ai: AiKind::Bumper, reflect: false,
-            ult_power: 200, charge: 0, atk_up: 0, def_down: 0, regen: 0, stun: 0, bleed: 0, shield: 0, cd_a: 0, cd_b: 0,
-            front: false, revive: false,
+            ult_power: 200, charge: 0, atb: 0, atk_up: 0, def_down: 0, regen: 0, stun: 0, bleed: 0, shield: 0, cd_a: 0, cd_b: 0,
+            front: false, revive: false, volatile: 0,
         }
     }
 
@@ -1193,6 +1391,24 @@ mod tests {
         assert!(Element::Woven.beats(Element::Solid));
         assert!(!Element::Solid.beats(Element::Woven)); // advantage only, no reverse
         assert!(!Element::Solid.beats(Element::Solid));
+    }
+
+    #[test]
+    fn volatile_lure_punishes_attack_weakest_and_rewards_attack_threat() {
+        // #5: an encounter with a low-HP volatile LURE + a boss. The auto-default (attack the weakest) pops the lure
+        // → it DETONATES → the party suffers. A smarter program (attack the THREAT, leave the lure) ends cleaner. This
+        // makes the gambit depth LOAD-BEARING — a soft-wall that authoring beats, not just raw power.
+        let lure = ENEMIES.iter().position(|e| e.key == "echo_lure").unwrap();
+        let boss = ENEMIES.iter().position(|e| e.key == "lost_klein").unwrap();
+        let party = || vec![hero(95, 800, Role::Dps, Element::Solid), hero(95, 800, Role::Dps, Element::Solid), hero(45, 1000, Role::Tank, Element::Solid)];
+        let foes = || vec![enemy_combatant(lure, 1, 0), enemy_combatant(boss, 1, 1)];
+        let prog = |act: u8| -> Vec<Vec<GambitRule>> { vec![vec![GambitRule { cond: COND_ALWAYS, action: act, on: true }]; 3] };
+        let weak = resolve_battle_from_hp(7, party(), foes(), -1, &prog(ACT_ATTACK_WEAKEST));
+        let threat = resolve_battle_from_hp(7, party(), foes(), -1, &prog(ACT_ATTACK_THREAT));
+        assert!(weak.log.iter().any(|e| e.status == "enrage"), "attack-weakest pops the lure → the boss enrages for the rest of the fight");
+        let hp = |r: &BattleResult| r.final_hp.iter().map(|&h| h.max(0)).sum::<i64>();
+        assert!(threat.win, "the attack-threat plan clears it (kills the boss before the lure can enrage it)");
+        assert!(hp(&threat) > hp(&weak), "the tactic pays — attack-threat ends with more party HP ({} vs {})", hp(&threat), hp(&weak));
     }
 
     #[test]
@@ -1247,16 +1463,14 @@ mod tests {
     }
     /// The per-role default editor templates (spec D8) — each MUST equal the empty (legacy) program byte-for-byte.
     fn template_for(role: Role) -> Vec<GambitRule> {
-        match role {
-            Role::Support => vec![gr(COND_ULT_READY, ACT_ULT), gr(COND_ALLY_HURT, ACT_HEAL), gr(COND_SKILL_READY, ACT_BUFF_TEAM), gr(COND_ALWAYS, ACT_ATTACK_FOCUS)],
-            Role::Tank => vec![gr(COND_ULT_READY, ACT_ULT), gr(COND_SKILL_READY, ACT_GUARD), gr(COND_SKILL_READY, ACT_SWEEP), gr(COND_ALWAYS, ACT_ATTACK_FOCUS)],
-            Role::Control => vec![gr(COND_ULT_READY, ACT_ULT), gr(COND_SKILL_READY, ACT_HEX), gr(COND_ALWAYS, ACT_ATTACK_FOCUS)],
-            Role::Dps => vec![gr(COND_ULT_READY, ACT_ULT), gr(COND_SKILL_READY, ACT_FLURRY), gr(COND_ALWAYS, ACT_ATTACK_FOCUS)],
-        }
+        // delegate to the production template so the editor's Auto button + this keystone test share ONE source.
+        default_gambit_program(role)
     }
     fn log_key(e: &LogEvent) -> (usize, &'static str, i32, i64, i64, i32) {
         (e.actor, e.action, e.target, e.dmg, e.heal, e.fainted)
     }
+    // (round, actor, action, target, dmg, heal, status, fainted) — the full golden-log row for value-pinning tests.
+    type GoldenRow = (u32, usize, &'static str, i32, i64, i64, &'static str, i32);
 
     #[test]
     fn legacy_ladder_golden_log_is_pinned() {
@@ -1267,16 +1481,157 @@ mod tests {
         let r = resolve_battle(7, party, quest_enemies(&QUESTS[0]), -1, &[]);
         assert!(r.win);
         assert_eq!(r.rounds, 2);
-        let got: Vec<(u32, usize, &str, i32, i64, i64, &str, i32)> = r.log.iter().map(|e| (e.round, e.actor, e.action, e.target, e.dmg, e.heal, e.status, e.fainted)).collect();
-        let want: Vec<(u32, usize, &str, i32, i64, i64, &str, i32)> = vec![
+        let got: Vec<GoldenRow> = r.log.iter().map(|e| (e.round, e.actor, e.action, e.target, e.dmg, e.heal, e.status, e.fainted)).collect();
+        // Note (ATB): the first column is now a per-TURN counter (the watch beats once per turn), not a combat round —
+        // hence 1,1,1,2,3,4 rather than 1,1,1,1,1,2. Every dmg/heal/action/target is byte-identical to pre-ATB, which
+        // proves ATB re-sequenced the turns WITHOUT changing the combat math for these speed-100 units.
+        let want: Vec<GoldenRow> = vec![
             (1, 0, "skillB", 2, 57, 0, "", -1),
             (1, 0, "skillB", 2, 65, 0, "", 2),
             (1, 0, "skillB", 3, 63, 0, "", -1),
-            (1, 1, "skillB", -1, 0, 0, "atk_up", -1),
-            (1, 3, "basic", 1, 20, 0, "", -1),
-            (2, 0, "basic", 3, 185, 0, "", 3),
+            (2, 1, "skillB", -1, 0, 0, "atk_up", -1),
+            (3, 3, "basic", 1, 20, 0, "", -1),
+            (4, 0, "basic", 3, 185, 0, "", 3),
         ];
         assert_eq!(got, want, "combat golden drifted — a default-ladder value/sequence changed");
+    }
+
+    #[test]
+    fn update_golden_printer() {
+        // De-risks RE-PINNING the combat golden when a balance change is INTENDED (Slices 2-4). Run:
+        //   UPDATE_GOLDEN=1 cargo test update_golden_printer -- --nocapture
+        // then paste the printed rows into `legacy_ladder_golden_log_is_pinned`. No-op (passes) otherwise, so
+        // it never blocks CI — it exists purely so the golden is regenerated mechanically, never hand-typed.
+        if std::env::var("UPDATE_GOLDEN").is_err() {
+            return;
+        }
+        let party = vec![hero(120, 1000, Role::Dps, Element::Solid), hero(70, 900, Role::Support, Element::Twisted)];
+        let r = resolve_battle(7, party, quest_enemies(&QUESTS[0]), -1, &[]);
+        eprintln!("// assert rounds == {}", r.rounds);
+        for e in &r.log {
+            eprintln!(
+                "            ({}, {}, {:?}, {}, {}, {}, {:?}, {}),",
+                e.round, e.actor, e.action, e.target, e.dmg, e.heal, e.status, e.fainted
+            );
+        }
+    }
+
+    #[test]
+    fn unit_info_carries_combat_stats() {
+        // Slice 1: the UnitInfo projection surfaces atk/def/speed/ult_power verbatim from the Combatant (so the
+        // TS card/HUD mirror, never recompute). Pin that the projection is faithful and the values are sane.
+        let h = hero(120, 1000, Role::Dps, Element::Solid);
+        let (atk, def, speed, ult) = (h.atk, h.def, h.speed, h.ult_power);
+        let r = resolve_battle(7, vec![h], quest_enemies(&QUESTS[0]), -1, &[]);
+        let u = &r.units[0];
+        assert_eq!((u.atk, u.def, u.speed, u.ult_power), (atk, def, speed, ult), "UnitInfo must mirror the Combatant stats");
+        assert!(u.atk > 0 && u.speed > 0 && u.ult_power >= 100, "combat stats must be populated, not defaulted to 0");
+    }
+
+    #[test]
+    fn speed_scales_ult_charge_so_faster_ults_sooner() {
+        // Slice 3: ult charge accrues ∝ speed, so a faster unit reaches its Ultimate in fewer rounds (speed → tempo).
+        let mk = |spd: i64, enemy: bool| {
+            let mut c = hero(80, 4000, Role::Dps, Element::Solid); // big HP so the fight lasts many rounds
+            c.speed = spd;
+            c.is_enemy = enemy;
+            c
+        };
+        let party = vec![mk(150, false), mk(90, false)];
+        let enemies = vec![mk(100, true), mk(100, true)];
+        let r = resolve_battle(1, party, enemies, -1, &[]);
+        let first_ult = |actor: usize| r.log.iter().filter(|e| e.actor == actor && e.action == "ult").map(|e| e.round).min();
+        let fast = first_ult(0);
+        let slow = first_ult(1);
+        assert!(fast.is_some(), "the fast hero reaches its ult within the fight");
+        if let (Some(f), Some(s)) = (fast, slow) {
+            assert!(f < s, "the faster hero (speed 150) ults strictly sooner than the slower one (90): {f} vs {s}");
+        }
+    }
+
+    #[test]
+    fn atb_fast_unit_takes_more_turns() {
+        // The core ATB guarantee: a faster unit acts MORE OFTEN. Low atk + huge HP ⇒ a long, survivable fight so the
+        // turn counts diverge cleanly. Each action carries a unique turn id (the log's first column), so counting
+        // distinct turn ids per actor == that actor's number of turns.
+        let mk = |spd: i64, enemy: bool| {
+            let mut c = hero(40, 6000, Role::Dps, Element::Solid);
+            c.speed = spd;
+            c.is_enemy = enemy;
+            c
+        };
+        let party = vec![mk(160, false), mk(80, false)];
+        let enemies = vec![mk(100, true), mk(100, true)];
+        let r = resolve_battle(3, party, enemies, -1, &[]);
+        let turns_of = |actor: usize| {
+            r.log.iter().filter(|e| e.actor == actor).map(|e| e.round).collect::<std::collections::BTreeSet<u32>>().len()
+        };
+        let fast = turns_of(0);
+        let slow = turns_of(1);
+        assert!(fast > slow, "the speed-160 hero takes more turns than the speed-80 hero ({fast} vs {slow})");
+        assert!(slow > 0, "the slow hero still acts");
+    }
+
+    #[test]
+    fn bleed_death_revives_once_like_attack_death() {
+        // Regression: a phoenix_tear (ReviveOnce) hero dying to a START-OF-TURN bleed must revive exactly like an
+        // attack death — and as the LAST hero, that revive turns a silent loss into a win (the bug skipped the revive
+        // sweep via `continue`, ending the fight as a loss before the charge could fire).
+        let mut h = hero(60, 160, Role::Dps, Element::Solid);
+        h.revive = true;
+        h.bleed = 1;
+        h.hp = 10; // the first bleed tick (max_hp/16 = 10) drops it to 0 on its own turn
+        let mut e = hero(4, 24, Role::Dps, Element::Solid); // a weak foe the revived hero can finish
+        e.is_enemy = true;
+        let r = resolve_battle(1, vec![h], vec![e], -1, &[]);
+        let revives = r.log.iter().filter(|ev| ev.action == "revive").count();
+        assert_eq!(revives, 1, "the bleed death triggers the one-shot revive (not skipped by `continue`)");
+        assert!(r.win, "the revived last hero wins instead of silently losing the fight");
+    }
+
+    #[test]
+    fn reflect_quirk_bounces_damage_at_melee_attackers() {
+        // The non-orientable Reflect quirk: when a melee BASIC attack lands on a reflecting hero, it bounces dealt/5
+        // back at the attacker (a "reflect"-status event). This is a shipped invariant→mechanic link (non-orientable
+        // shapes are priced on it), so pin it: a Reflect hero produces bounces; a plain hero never does.
+        let mk = |reflect: bool| {
+            let mut h = hero(60, 3000, Role::Tank, Element::Solid);
+            h.reflect = reflect;
+            h
+        };
+        let enemy = || {
+            let mut e = hero(150, 3000, Role::Dps, Element::Solid);
+            e.is_enemy = true;
+            e
+        };
+        let r = resolve_battle(5, vec![mk(true)], vec![enemy()], -1, &[]);
+        let bounces: Vec<&LogEvent> = r.log.iter().filter(|ev| ev.status == "reflect").collect();
+        assert!(!bounces.is_empty(), "a Reflect hero bounces a sliver back at melee attackers");
+        for b in &bounces {
+            assert_eq!(b.actor, 0, "the reflecting hero is the actor of the bounce");
+            assert_eq!(b.target, 1, "the bounce hits the attacker");
+            assert!(b.dmg >= 1, "the bounce deals at least 1");
+        }
+        // control: an identical NON-reflect hero never produces a bounce — proving it's the quirk, not a baseline.
+        let r2 = resolve_battle(5, vec![mk(false)], vec![enemy()], -1, &[]);
+        assert!(r2.log.iter().all(|ev| ev.status != "reflect"), "no Reflect quirk ⇒ no bounces");
+    }
+
+    #[test]
+    fn resolve_battle_respects_threaded_hp() {
+        // The HP-threading contract that carries survivor HP room→room in a delve: resolve_battle_from_hp starts from
+        // the GIVEN hp (not max_hp), so a party entering a room already wounded ends strictly worse — less HP, or a loss.
+        let full = vec![hero(70, 1200, Role::Dps, Element::Solid)];
+        let wounded = {
+            let mut p = full.clone();
+            p[0].hp = 60; // enters the room nearly dead
+            p
+        };
+        let rf = resolve_battle_from_hp(3, full, quest_enemies(&QUESTS[0]), -1, &[]);
+        let rw = resolve_battle_from_hp(3, wounded, quest_enemies(&QUESTS[0]), -1, &[]);
+        let sf: i64 = rf.final_hp.iter().sum();
+        let sw: i64 = rw.final_hp.iter().sum();
+        assert!(!rw.win || sw < sf, "a wounded entry threads through to a strictly worse outcome (less HP or a loss)");
     }
 
     #[test]
@@ -1316,6 +1671,31 @@ mod tests {
     }
 
     #[test]
+    fn smart_gambit_program_grows_with_unlocks_and_stays_valid() {
+        // The "smarter auto gambit" feature: more unlocked options ⇒ a richer program, and EVERY rule uses only
+        // unlocked primitives (so none is ever sanitized off), always ending with a valid ALWAYS rule.
+        let base_c = vec![COND_ALWAYS, COND_ALLY_HURT, COND_SELF_HURT];
+        let base_a = vec![ACT_ATTACK_FOCUS, ACT_HEAL, ACT_GUARD, ACT_HEX, ACT_FLURRY, ACT_ULT];
+        let full_c = vec![COND_ALWAYS, COND_ALLY_HURT, COND_SELF_HURT, COND_SKILL_READY, COND_ALLY_LOW, COND_ULT_READY];
+        let mut full_a = base_a.clone();
+        full_a.extend([ACT_ATTACK_WEAKEST, ACT_ATTACK_THREAT, ACT_BUFF_TEAM, ACT_SWEEP]);
+        for role in [Role::Tank, Role::Dps, Role::Support, Role::Control] {
+            let base = smart_gambit_program(role, &base_c, &base_a);
+            let full = smart_gambit_program(role, &full_c, &full_a);
+            assert!(!base.is_empty() && base.last().unwrap().cond == COND_ALWAYS, "never empty; ends with ALWAYS");
+            assert!(full.len() >= base.len(), "more unlocks ⇒ a richer (≥) program for {role:?}");
+            for r in &base {
+                assert!(base_c.contains(&r.cond) && base_a.contains(&r.action), "base program uses only base primitives");
+            }
+            for r in &full {
+                assert!(full_c.contains(&r.cond) && full_a.contains(&r.action), "full program uses only unlocked primitives");
+            }
+            assert!(full.iter().any(|r| r.cond == COND_ULT_READY && r.action == ACT_ULT), "T3 unlock adds ult-timing");
+            assert!(full.last().unwrap().action == ACT_ATTACK_WEAKEST, "T2 unlock upgrades the finisher to kill-securing");
+        }
+    }
+
+    #[test]
     fn custom_gambits_are_deterministic_and_override_the_ladder() {
         // A custom program is deterministic AND diverges from the ladder. Here the Dps is told to only basic-attack
         // (never Flurry) — proving the selector overrode the ladder, and the selector itself drew no extra RNG
@@ -1331,6 +1711,36 @@ mod tests {
         assert!(!a.log.iter().any(|e| e.actor == 0 && e.action == "skillB"), "custom 'always attack' suppresses Flurry");
         let legacy = resolve_battle(42, party(), quest_enemies(&QUESTS[3]), -1, &[]);
         assert!(legacy.log.iter().any(|e| e.actor == 0 && e.action == "skillB"), "the legacy ladder DOES Flurry — so the program changed behaviour");
+    }
+
+    #[test]
+    fn gambit_rule_idx_tags_fired_rules_only() {
+        // RENDER-ONLY rule_idx (M1 watch feedback): the legacy ladder leaves every event at -1; a program tags the
+        // events ITS fired rule produced with that rule's 0-based index. Members without a program + enemies stay -1.
+        let party = || vec![hero(120, 1000, Role::Dps, Element::Solid), hero(70, 900, Role::Support, Element::Twisted)];
+        let legacy = resolve_battle(42, party(), quest_enemies(&QUESTS[3]), -1, &[]);
+        assert!(legacy.log.iter().all(|e| e.rule_idx == -1), "the legacy ladder tags nothing");
+        let progs = vec![vec![gr(COND_ALWAYS, ACT_ATTACK_THREAT)], vec![]]; // Dps: rule 0 = always attack; Support: none
+        let r = resolve_battle(42, party(), quest_enemies(&QUESTS[3]), -1, &progs);
+        assert!(r.log.iter().any(|e| e.actor == 0 && e.rule_idx == 0), "the Dps's fired rule 0 is tagged");
+        assert!(r.log.iter().filter(|e| e.actor == 1).all(|e| e.rule_idx == -1), "the program-less Support stays untagged");
+        assert!(r.log.iter().filter(|e| e.actor >= 2).all(|e| e.rule_idx == -1), "enemies are never gambit-tagged");
+    }
+
+    #[test]
+    fn simple_program_is_deterministic_and_drops_the_second_skill() {
+        // The LOCKED default (simple_program): deterministic + deliberately dumber than legacy_ladder. A Support
+        // uses its PRIMARY skill (heal=skillA) but never the SECOND (buff=skillB) the smart ladder would add.
+        let party = || vec![hero(120, 1000, Role::Dps, Element::Solid), hero(70, 900, Role::Support, Element::Twisted)];
+        let progs = vec![simple_program(Role::Dps), simple_program(Role::Support)];
+        let a = resolve_battle(42, party(), quest_enemies(&QUESTS[3]), -1, &progs);
+        let b = resolve_battle(42, party(), quest_enemies(&QUESTS[3]), -1, &progs);
+        assert_eq!(a.log.len(), b.log.len());
+        for (x, y) in a.log.iter().zip(b.log.iter()) {
+            assert_eq!(log_key(x), log_key(y));
+        }
+        assert!(a.log.iter().any(|e| e.actor == 1 && e.action == "skillA"), "Support uses its primary (heal)");
+        assert!(!a.log.iter().any(|e| e.actor == 1 && e.action == "skillB"), "simple_program never fires the second skill (buff)");
     }
 
     #[test]
