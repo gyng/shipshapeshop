@@ -73,11 +73,13 @@ function Poly4DPanel({ angles, setAngle, spin, setSpin, dist, setDist }: { angle
   )
 }
 
-// Dynamic render scale (on by default): sample the frame rate and nudge the canvas render-scale to hold ~60fps.
-// rAF caps at the display refresh, and dropped frames (GPU overload) lower the measured rate — a good-enough signal.
+// Dynamic render scale (on by default): sample the frame rate and DROP the canvas render-scale to hold ~60fps.
+// DROP-ONLY by design — raising the dpr while a path-traced gem sits idle (frozen / converged, demand frameloop)
+// resizes the canvas and it won't re-render → black. So quality recovers on shape change (`resetKey`), never mid-idle.
 // Returns 1 (full res) when disabled.
-function useDynamicRenderScale(enabled: boolean, target = 60): number {
+function useDynamicRenderScale(enabled: boolean, resetKey: string, target = 60): number {
   const [scale, setScale] = useState(1)
+  useEffect(() => { setScale(1) }, [resetKey]) // new shape → start sharp, then adapt down from there
   useEffect(() => {
     if (!enabled) {
       setScale(1)
@@ -91,11 +93,8 @@ function useDynamicRenderScale(enabled: boolean, target = 60): number {
         const fps = (frames * 1000) / dt
         frames = 0
         t0 = now
-        setScale((s) => {
-          if (fps < target - 6) return Math.max(0.15, +(s - 0.1).toFixed(2)) // struggling → drop resolution (floor 15% — blurry but holds 60 on anything)
-          if (fps > target - 1.5 && s < 1) return Math.min(1, +(s + 0.05).toFixed(2)) // headroom → recover toward full
-          return s
-        })
+        // DROP-ONLY (see header): only ever lower the scale. Never auto-raise — raising the dpr resizes an idle canvas → black.
+        if (fps < target - 6) setScale((s) => Math.max(0.15, +(s - 0.1).toFixed(2))) // floor 15% — blurry but holds 60 on anything
       }
       raf = requestAnimationFrame(tick)
     }
@@ -126,7 +125,7 @@ export function Viewer() {
   const [angles4d, setAngles4d] = useState<Angles6>([0, 0, 0, 0, 0, 0])
   const [spin4d, setSpin4d] = useState(true)
   const [dist4d, setDist4d] = useState(2.6)
-  const renderScale = useDynamicRenderScale(dynScale)
+  const renderScale = useDynamicRenderScale(dynScale, family)
   // Music: the generative lofi bed. Off (paused) by default — the viewer boots no game core, so the first press
   // lazy-loads it, owns every shape (so the 'library' bed has the full palette), and starts playing. After that,
   // the button just mutes/unmutes.
