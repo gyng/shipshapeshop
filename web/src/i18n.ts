@@ -1042,6 +1042,8 @@ const STR: Dict = {
   'transport.prev': { en: 'Previous style', ja: '前のスタイル', zh: '上一种风格' },
   'transport.toggle': { en: 'Play / pause music', ja: '音楽の再生／一時停止', zh: '播放／暂停音乐' },
   'transport.next': { en: 'Next style', ja: '次のスタイル', zh: '下一种风格' },
+  'viewer.dynRes': { en: 'Dynamic res', ja: '動的解像度', zh: '动态分辨率' },
+  'viewer.dynResTip': { en: 'Auto-scale the render resolution to hold ~60fps', ja: '描画解像度を自動調整して約60fpsを保つ', zh: '自动缩放渲染分辨率以保持约60fps' },
   'transport.bg': { en: 'Play when window unfocused', ja: 'ウィンドウ非アクティブ時も再生', zh: '窗口失焦时继续播放' },
   'transport.bgOn': { en: 'Keeps playing when the window is unfocused — tap to pause on blur', ja: 'ウィンドウが非アクティブでも再生継続 — タップで停止', zh: '窗口失焦时继续播放——点击则失焦时暂停' },
   'transport.bgOff': { en: 'Pauses when the window loses focus — tap to keep playing', ja: 'ウィンドウが非アクティブになると停止 — タップで再生継続', zh: '窗口失焦时暂停——点击则继续播放' },

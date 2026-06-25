@@ -475,7 +475,7 @@ function HelpNote({ id, children, style }: { id: string; children: ReactNode; st
 
 // "Now playing" — a cozy lofi-stream caption for the live generative bed, shown in the top bar only while music
 // is actually playing (shapes deployed, not muted). Hover for the details: tempo, feel, and your shape "band".
-function NowPlaying() {
+export function NowPlaying() {
   const status = useBedStatus()
   const musicMuted = useMute((s) => s.musicMuted)
   const shapes = useGame((s) => s.shapes)

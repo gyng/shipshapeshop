@@ -5,13 +5,14 @@
 // layer via its preview-* props. 4D polytopes get manual 6-plane rotation + projection-distance controls.
 import { useState, useEffect } from 'react'
 import { HeroView } from '../three/HeroView'
-import { SettingsModal } from '../App'
+import { SettingsModal, NowPlaying } from '../App'
 import { RARITY_ORDER, type RarityName, useGame } from '../game/store'
 import { RARITY_COLOR } from '../three/Gem'
 import { SCENES, ATMOSPHERES, GEM_FINISHES, LIGHTING_MOODS, HERO_CURSORS, POST_FX, DIORAMAS, GEM_COLORS } from '../content/cosmetics'
 import { FAMILY_CATEGORIES, ALL_FAMILIES, type RenderPath } from './families'
 import { useMute } from '../audio'
 import { OrreryBedDriver } from '../orreryBedDriver'
+import { useT } from '../i18n'
 
 const PATH_LABEL: Record<RenderPath, string> = { sdf: 'SDF · raymarched', '4d': '4D polytope', relic: 'relic mesh', mesh: 'mesh' }
 const PLANES_4D = ['XY', 'XZ', 'XW', 'YZ', 'YW', 'ZW'] // the six rotation planes of 4-space
@@ -106,6 +107,7 @@ function useDynamicRenderScale(enabled: boolean, target = 60): number {
 
 export function Viewer() {
   const [family, setFamily] = useState('klein_bottle')
+  const tr = useT()
   const [q, setQ] = useState('')
   const [rarity, setRarity] = useState<RarityName>('Ssr')
   const [scene, setScene] = useState(0)
@@ -161,11 +163,11 @@ export function Viewer() {
       <header className="viewer-head">
         <button className="viewer-back" onClick={() => { location.href = '?game' }}>← Back to game</button>
         <strong style={{ fontSize: 18 }}>Shape Viewer</strong>
-        <span style={{ color: 'var(--c-text-dim)', fontSize: 13 }}>{ALL_FAMILIES.length} shapes · every renderable family</span>
+        <NowPlaying />
         <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 12 }}>
           {showFps && <Fps />}
-          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', color: 'var(--c-text-secondary)' }} title="Auto-scale render resolution to hold ~60fps">
-            <input type="checkbox" checked={dynScale} onChange={(e) => setDynScale(e.target.checked)} /> Dyn. res
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', color: 'var(--c-text-secondary)' }} title={tr('viewer.dynResTip')}>
+            <input type="checkbox" checked={dynScale} onChange={(e) => setDynScale(e.target.checked)} /> {tr('viewer.dynRes')}
             {dynScale && renderScale < 1 ? <span style={{ marginLeft: 4, color: 'var(--c-text-dim)', fontVariantNumeric: 'tabular-nums' }}>{Math.round(renderScale * 100)}%</span> : null}
           </label>
           {/* the game's Settings modal (defaults to the Graphics tab) — quality/path-trace live in the shared gfx store */}

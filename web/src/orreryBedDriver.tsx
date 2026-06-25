@@ -179,12 +179,11 @@ function buildDeck(Tone: ToneMod, initial: Arrangement, sharedReverb: T.Reverb):
   // orrery the voices stack past the default 32 ("Max polyphony exceeded; note dropped"). Give it headroom; the
   // pad only ever holds one sustained chord so it stays modest. (Idle-deck gating keeps the steady-state count to
   // one deck's worth, so this doesn't balloon CPU.)
-  keys.maxPolyphony = 48
-  pad.maxPolyphony = 24
-  // Cap polyphony so overlapping voices (long releases × two decks; pad voices are 3 oscillators each) can't
-  // pile up and spike CPU into buffer-underrun crackle. Generous — only bites on overload, stealing the oldest.
-  keys.maxPolyphony = 12
-  pad.maxPolyphony = 8
+  // Cap polyphony: high enough that a dense LIBRARY bed (every owned shape — the Viewer case) doesn't drop notes,
+  // low enough that overlapping long releases × two decks can't spike CPU into buffer-underrun crackle. Steals the
+  // oldest voice on overload. (12/8 here used to drop notes in library mode — "Max polyphony exceeded" — hence the bump.)
+  keys.maxPolyphony = 24 // comp chords (1.4s tail) + the shape-voice arp share this synth — the dense one
+  pad.maxPolyphony = 16
   const bass = new Tone.MonoSynth({
     oscillator: { type: 'sine' },
     envelope: { attack: 0.02, decay: 0.3, sustain: 0.7, release: 0.8 },
