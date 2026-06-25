@@ -1,14 +1,17 @@
 # Ship Shape Shop
 
-A gacha + idle game where the things you collect are mathematical shapes. You pull them, set them on a hex board to generate currency, glue two together in a forge (which is the real connected-sum operation, so crafting is just topology), raise bonds with them, and send them on expeditions. It runs in a browser, finishes in a day or two, and there's nothing to buy.
+A browser for looking at mathematical shapes. Pick a sphere, a torus knot, a Klein bottle, a 120-cell, the Stanford bunny — then dress it in materials, lighting, scenes and post-processing, and turn it around. It all renders in real time: raymarched SDFs, path-traced gems, real 4D projection. The render resolution scales itself to hold 60fps.
 
-The shapes are spheres, knots, tori, Klein bottles, 4D polytopes and the like, each given a name and a personality. You can play it as a calm collector and ignore all the maths, or treat it as an optimization puzzle. Either way you pick up some real topology on the way through.
+**[▶ Open it](https://gyng.github.io/shipshapeshop/)**
 
-**[▶ Play it in your browser](https://gyng.github.io/shipshapeshop/)** · or [browse every shape in the viewer](https://gyng.github.io/shipshapeshop/?viewer)
+![The shape viewer](docs/screenshots/viewer.png)
 
-![Pulling a shape](docs/screenshots/gacha.png)
+<details>
+<summary><b>There's a whole game hidden in here, too</b></summary>
 
-## What you do
+Add `?game` to the URL ([or just click here](https://gyng.github.io/shipshapeshop/?game)). It's a gacha + idle game where you collect the shapes, set them on a board to run an economy, glue them together in a forge (the real connected-sum), and send them on expeditions. The shapes are prettier than the game is fun, but it's all there.
+
+### What you do
 
 - **Pull or craft shapes.** The gacha hands you shapes; the Forge lets you glue two into a third. Gluing is the actual connected-sum, so Euler characteristics add, genus adds, and non-orientability spreads. The recipe system is topology, not a lookup table.
 - **Deploy them on a board.** A shape's topology and where you put it decide how much currency it makes. The same board drives a generative lofi soundtrack, so the layout you're optimizing is the music you're hearing.
@@ -16,13 +19,15 @@ The shapes are spheres, knots, tori, Klein bottles, 4D polytopes and the like, e
 - **Run expeditions.** Optional idle dungeon-crawler: send teams into the Manifold, clear rooms on auto, farm currency. There's a gambit editor for programming the combat, and a few fights where a good rule-set beats a stronger team playing dumb.
 - **Finish it.** A day or two to the end, then New Game+ re-opens everything a dimension higher. No daily logins, no FOMO timers, no purchases, because there's nothing to sell.
 
-## Screenshots
+### A look around
 
 | The Orrery | Expeditions | The Forge |
 |---|---|---|
 | ![Orrery](docs/screenshots/orrery.png) | ![Expeditions](docs/screenshots/expeditions.png) | ![Forge](docs/screenshots/forge.png) |
 | **Gallery** | **The Gacha** | **The Ledger** |
 | ![Gallery](docs/screenshots/gallery.png) | ![Gacha](docs/screenshots/gacha.png) | ![Ledger](docs/screenshots/ledger.png) |
+
+</details>
 
 ## Developers
 
