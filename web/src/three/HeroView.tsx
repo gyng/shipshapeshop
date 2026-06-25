@@ -116,6 +116,8 @@ export function HeroView({
   previewDiorama,
   previewGemColor,
   poly4d,
+  renderScale = 1,
+  cameraPos = HERO_CAMERA,
 }: {
   family: string
   rarity: RarityName
@@ -135,10 +137,14 @@ export function HeroView({
   previewDiorama?: number // shop/viewer preview: place the gem in this (unequipped) diorama set
   previewGemColor?: number // shop/viewer preview: tint the gem body with this (unequipped) Gem Colour
   poly4d?: Poly4DControls // viewer-only: manual 4D rotation (6 planes) + projection distance for polytopes
+  renderScale?: number // viewer-only: multiplies the canvas dpr (× the gfx preset) to hold a target framerate
+  cameraPos?: [number, number, number] // viewer-only: override the camera (a higher 3/4 angle so flat shapes aren't edge-on)
 }) {
   const sceneId = useGame((s) => s.view?.scene ?? 0)
   const scene = sceneById(sceneId)
   const g = useGfxPreset()
+  // viewer render-scale (60fps target): scales every canvas dpr tuple by `renderScale` (1 = untouched, for the game)
+  const rs = (d: [number, number]): [number, number] => [d[0] * renderScale, d[1] * renderScale]
   const rank = RARITY_RANK[rarity]
   const ptScope = useGfx((s) => s.pathTrace)
   const rarityMotes = useGfx((s) => s.rarityMotes) // rarity now reads as floating motes around the gem, not a body tint
@@ -192,7 +198,7 @@ export function HeroView({
   if (dioramaPtScene) {
     tech = 'meshpt'
     content = (
-      <Canvas frameloop={frameloop} resize={{ offsetSize: true }} className={controls ? 'orbit-canvas' : undefined} camera={{ position: HERO_CAMERA, fov: 42 }} dpr={g.dpr} gl={{ antialias: true, powerPreference: 'high-performance' }}>
+      <Canvas frameloop={frameloop} resize={{ offsetSize: true }} className={controls ? 'orbit-canvas' : undefined} camera={{ position: cameraPos, fov: 42 }} dpr={rs(g.dpr)} gl={{ antialias: true, powerPreference: 'high-performance' }}>
         <ExpeditionPathTrace scene={dioramaPtScene} backdrop="#1c1c2a" keyCol="#54586c" controls={false} orbit={false} converge particles={false} />
       </Canvas>
     )
@@ -245,7 +251,7 @@ export function HeroView({
     // demand-loop converge-then-idle pass — was reverted: its off-screen FBO render never reached the composer.)
     const ptFrameloop = frameloop // SDF keeps rendering even when paused so its ambient motes keep drifting (gem spin freezes via the clock split, not by stopping the loop)
     content = (
-      <Canvas frameloop={ptFrameloop} resize={{ offsetSize: true }} className={controls ? 'orbit-canvas' : undefined} camera={{ position: HERO_CAMERA, fov: 42 }} dpr={pathTraced ? ptDpr : g.dpr} gl={{ antialias: true, powerPreference: 'high-performance' }}>
+      <Canvas frameloop={ptFrameloop} resize={{ offsetSize: true }} className={controls ? 'orbit-canvas' : undefined} camera={{ position: cameraPos, fov: 42 }} dpr={pathTraced ? rs(ptDpr) : rs(g.dpr)} gl={{ antialias: true, powerPreference: 'high-performance' }}>
         {/* previews (hover/mascot/compact): compile the gem + atmosphere shaders OFF-SCREEN and reveal once linked,
             so settling on a new preview never freezes a frame compiling. The interactive inspector renders directly. */}
         {(!controls || compact) ? <ShaderGate key={family + rarity}>{sceneBody}</ShaderGate> : sceneBody}
@@ -294,7 +300,7 @@ export function HeroView({
       // demand frameloop: the BVH tracer now temporally ACCUMULATES (converge-then-idle), self-invalidating while
       // converging / the spin settles, then going quiet. An explicit `frameloop` prop (e.g. 'never') still wins.
       content = (
-        <Canvas frameloop={frameloop ?? 'demand'} resize={{ offsetSize: true }} className="orbit-canvas" camera={{ position: HERO_CAMERA, fov: 42 }} dpr={meshPtDpr} gl={{ antialias: true, powerPreference: 'high-performance' }}>
+        <Canvas frameloop={frameloop ?? 'demand'} resize={{ offsetSize: true }} className="orbit-canvas" camera={{ position: cameraPos, fov: 42 }} dpr={rs(meshPtDpr)} gl={{ antialias: true, powerPreference: 'high-performance' }}>
           <MeshPathTraceGem family={family} rarity={rarity} controls={controls} paused={paused} previewScene={previewScene} previewAtmosphere={previewAtmosphere} previewLighting={previewLighting} previewFinish={previewFinish} previewGemColor={previewGemColor} envMap={null} />
         </Canvas>
       )

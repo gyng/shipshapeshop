@@ -10,6 +10,8 @@ import { RARITY_ORDER, type RarityName, useGame } from '../game/store'
 import { RARITY_COLOR } from '../three/Gem'
 import { SCENES, ATMOSPHERES, GEM_FINISHES, LIGHTING_MOODS, HERO_CURSORS, POST_FX, DIORAMAS, GEM_COLORS } from '../content/cosmetics'
 import { FAMILY_CATEGORIES, ALL_FAMILIES, type RenderPath } from './families'
+import { useMute } from '../audio'
+import { OrreryBedDriver } from '../orreryBedDriver'
 
 const PATH_LABEL: Record<RenderPath, string> = { sdf: 'SDF · raymarched', '4d': '4D polytope', relic: 'relic mesh', mesh: 'mesh' }
 const PLANES_4D = ['XY', 'XZ', 'XW', 'YZ', 'YW', 'ZW'] // the six rotation planes of 4-space
@@ -70,12 +72,44 @@ function Poly4DPanel({ angles, setAngle, spin, setSpin, dist, setDist }: { angle
   )
 }
 
+// Dynamic render scale (on by default): sample the frame rate and nudge the canvas render-scale to hold ~60fps.
+// rAF caps at the display refresh, and dropped frames (GPU overload) lower the measured rate — a good-enough signal.
+// Returns 1 (full res) when disabled.
+function useDynamicRenderScale(enabled: boolean, target = 60): number {
+  const [scale, setScale] = useState(1)
+  useEffect(() => {
+    if (!enabled) {
+      setScale(1)
+      return
+    }
+    let raf = 0, frames = 0, t0 = performance.now()
+    const tick = () => {
+      frames++
+      const now = performance.now(), dt = now - t0
+      if (dt >= 600) {
+        const fps = (frames * 1000) / dt
+        frames = 0
+        t0 = now
+        setScale((s) => {
+          if (fps < target - 6) return Math.max(0.45, +(s - 0.1).toFixed(2)) // struggling → drop resolution
+          if (fps > target - 1.5 && s < 1) return Math.min(1, +(s + 0.05).toFixed(2)) // headroom → recover toward full
+          return s
+        })
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [enabled, target])
+  return scale
+}
+
 export function Viewer() {
   const [family, setFamily] = useState('klein_bottle')
   const [q, setQ] = useState('')
   const [rarity, setRarity] = useState<RarityName>('Ssr')
   const [scene, setScene] = useState(0)
-  const [atmo, setAtmo] = useState(902) // Dust Motes — a calm default that gives the empty cosmos some life
+  const [atmo, setAtmo] = useState(0) // Clear — let the shape speak; the swatches dress it from there
   const [finish, setFinish] = useState(0)
   const [lighting, setLighting] = useState(0)
   const [cursor, setCursor] = useState(0)
@@ -85,10 +119,27 @@ export function Viewer() {
   const [spin, setSpin] = useState(true)
   const [motes, setMotes] = useState(true) // ambient flux motes around the gem — on, to match the in-game hero view
   const [showFps, setShowFps] = useState(true)
+  const [dynScale, setDynScale] = useState(true) // dynamic render scale: auto-hold ~60fps. On by default.
   // 4D polytope controls
   const [angles4d, setAngles4d] = useState<Angles6>([0, 0, 0, 0, 0, 0])
   const [spin4d, setSpin4d] = useState(true)
   const [dist4d, setDist4d] = useState(2.6)
+  const renderScale = useDynamicRenderScale(dynScale)
+  // Music: the generative lofi bed. Off (paused) by default — the viewer boots no game core, so the first press
+  // lazy-loads it, owns every shape (so the 'library' bed has the full palette), and starts playing. After that,
+  // the button just mutes/unmutes.
+  const musicMuted = useMute((s) => s.musicMuted)
+  const [musicReady, setMusicReady] = useState(false)
+  const onMusic = async () => {
+    if (!musicReady) {
+      await useGame.getState().boot()
+      useGame.getState().devUnlockAll()
+      useMute.setState({ musicSource: 'library', musicMuted: false })
+      setMusicReady(true)
+    } else {
+      useMute.getState().toggleMusic()
+    }
+  }
 
   const cur = ALL_FAMILIES.find((e) => e.family === family)
   const is4D = cur?.path === '4d'
@@ -106,13 +157,19 @@ export function Viewer() {
 
   return (
     <div className="viewer-root">
+      {musicReady && <OrreryBedDriver />}
       <header className="viewer-head">
-        <button className="viewer-back" onClick={() => { location.href = '/' }}>← Back to game</button>
+        <button className="viewer-back" onClick={() => { location.href = '?game' }}>← Back to game</button>
         <strong style={{ fontSize: 18 }}>Shape Viewer</strong>
         <span style={{ color: 'var(--c-text-dim)', fontSize: 13 }}>{ALL_FAMILIES.length} shapes · every renderable family</span>
         <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 12 }}>
           {showFps && <Fps />}
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, cursor: 'pointer', color: 'var(--c-text-secondary)' }} title="Auto-scale render resolution to hold ~60fps">
+            <input type="checkbox" checked={dynScale} onChange={(e) => setDynScale(e.target.checked)} /> Dyn. res
+            {dynScale && renderScale < 1 ? <span style={{ marginLeft: 4, color: 'var(--c-text-dim)', fontVariantNumeric: 'tabular-nums' }}>{Math.round(renderScale * 100)}%</span> : null}
+          </label>
           {/* the game's Settings modal (defaults to the Graphics tab) — quality/path-trace live in the shared gfx store */}
+          <button className="viewer-back" onClick={onMusic} title="Generative lofi bed from the whole shape library — off until you start it">{musicReady && !musicMuted ? '⏸ Music' : '♪ Music'}</button>
           <button className="viewer-back" onClick={() => useGame.getState().setSettingsOpen(true)} title="Graphics & settings">⚙ Settings</button>
         </span>
       </header>
@@ -151,6 +208,7 @@ export function Viewer() {
           {cur && (
             <HeroView key={family} family={family} rarity={rarity} controls autoRotate={spin} motes={motes}
               previewScene={scene} previewAtmosphere={atmo} previewLighting={lighting} previewCursor={cursor} previewPostfx={postfx} previewFinish={finish} previewDiorama={diorama} previewGemColor={gemColor}
+              renderScale={renderScale} cameraPos={[1.8, 2.3, 4.0]}
               poly4d={is4D ? { angles: angles4d, spin: spin4d, dist: dist4d } : undefined} />
           )}
           {cur && (
