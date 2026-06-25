@@ -2,6 +2,7 @@
   "name": "shipshapeshop",
   "private": true,
   "description": "Ship Shape Shop — a gacha + idle game of mathematical shapes. Monorepo root (convenience scripts).",
+  "packageManager": "pnpm@10.33.4",
   "scripts": {
     "build:core": "wasm-pack build core --target web --out-dir pkg --dev",
     "build:core:release": "wasm-pack build core --target web --out-dir pkg --release",
