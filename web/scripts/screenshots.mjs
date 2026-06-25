@@ -17,13 +17,16 @@ import { mkdir } from 'node:fs/promises'
 const webRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const outDir = resolve(webRoot, '../docs/screenshots')
 
-// number-key → screen (App.tsx: TABS = engine, workshop, gacha, room, chatlas, gallery, forge, shop, ledger)
+// Navigate by the nav button's accessible NAME — resilient to tab reordering (the old number-key map silently
+// broke when Expeditions was inserted at index 1: key '3' became Workshop, not gacha). `nav` matches the visible
+// label; note the gacha screen is labelled "Pull" and the orrery is "Orrery".
 const SHOTS = [
-  { name: 'gacha', key: '3' },
-  { name: 'gallery', key: '6' },
-  { name: 'orrery', key: '1' },
-  { name: 'forge', key: '7' },
-  { name: 'ledger', key: '9' },
+  { name: 'orrery', nav: 'Orrery' },
+  { name: 'expeditions', nav: 'Expeditions' },
+  { name: 'gacha', nav: 'Pull' },
+  { name: 'gallery', nav: 'Gallery' },
+  { name: 'forge', nav: 'Forge' },
+  { name: 'ledger', nav: 'Ledger' },
 ]
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -66,7 +69,11 @@ async function main() {
   await wait(500)
 
   for (const shot of SHOTS) {
-    await page.keyboard.press(shot.key)
+    await page
+      .locator('nav')
+      .getByRole('button', { name: new RegExp('^' + shot.nav) })
+      .first()
+      .click()
     await wait(2200) // tab transition + 3D scene settle
     const path = resolve(outDir, `${shot.name}.png`)
     await page.screenshot({ path })

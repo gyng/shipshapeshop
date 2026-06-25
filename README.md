@@ -10,8 +10,13 @@ ascend through dimensions, and let a generative lofi soundtrack play your collec
 
 Calm ASMR collector on the surface; an optimization puzzle — and a gentle topology lesson — underneath.
 
+### [▶ Play it in your browser](https://gyng.github.io/shipshapeshop/)
+
+Free, no install, no sign-up — runs entirely client-side as a PWA.
+*(Want just the eye candy? [Browse every shape in the standalone Viewer →](https://gyng.github.io/shipshapeshop/?viewer))*
+
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#-license)
-[![CI](https://github.com/OWNER/shipshapeshop/actions/workflows/ci.yml/badge.svg)](https://github.com/OWNER/shipshapeshop/actions/workflows/ci.yml)
+[![CI](https://github.com/gyng/shipshapeshop/actions/workflows/ci.yml/badge.svg)](https://github.com/gyng/shipshapeshop/actions/workflows/ci.yml)
 
 ![Pulling a shape](docs/screenshots/gacha.png)
 
@@ -27,6 +32,9 @@ Calm ASMR collector on the surface; an optimization puzzle — and a gentle topo
   by spending time with it. The real mathematical name is a reward you unlock, never jargon you're forced to parse.
 - **A board that hums.** Deploy shapes on a hex orrery; their topology drives both production *and* a live
   generative lofi soundtrack — you can literally hear your economy.
+- **Expeditions into the Manifold.** Send parties of shapes delving procedural dungeons — an opt-in idle-RPG
+  layer with auto-combat, a *gambit* (tactics) editor where a smarter program beats brute force, and farmable
+  Echoes — all fenced cleanly off the calm core loop so it never gates the cozy game.
 - **Finite and completable.** ~1–2 days of idle play to the summit, extended by New Game+ (ascend a dimension,
   re-meet everyone from a higher vantage). No infinite treadmill, no dark patterns.
 - **Gorgeous on purpose.** Real-time path-traced gems, 4D polytope projections, and a deterministic Rust core
@@ -34,9 +42,11 @@ Calm ASMR collector on the surface; an optimization puzzle — and a gentle topo
 
 ## 📸 Screenshots
 
-| Gallery | The Orrery | The Forge |
+| The Orrery | Expeditions | The Forge |
 |---|---|---|
-| ![Gallery](docs/screenshots/gallery.png) | ![Orrery](docs/screenshots/orrery.png) | ![Forge](docs/screenshots/forge.png) |
+| ![Orrery](docs/screenshots/orrery.png) | ![Expeditions](docs/screenshots/expeditions.png) | ![Forge](docs/screenshots/forge.png) |
+| **Gallery** | **The Gacha** | **The Ledger** |
+| ![Gallery](docs/screenshots/gallery.png) | ![Gacha](docs/screenshots/gacha.png) | ![Ledger](docs/screenshots/ledger.png) |
 
 > Regenerate these any time with `pnpm screenshots` (see [Screenshots rig](#-screenshots-rig)).
 
