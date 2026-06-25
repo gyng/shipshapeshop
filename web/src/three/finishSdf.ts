@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { gemFinishById, type LightingSpec } from '../content/cosmetics'
+import { create } from 'zustand'
+import { gemFinishById, type GemFinishSpec, type LightingSpec } from '../content/cosmetics'
 
 // Map an equipped Gem Finish (the Shop cosmetic, authored as PBR `mat` overrides for the mesh transmission gem)
 // onto the SDF gems' shader uniforms (RaymarchGem / PathTraceGem), so finishes show on SDF/path-traced shapes
@@ -18,13 +19,43 @@ export interface FinishSdf {
   volumetric: number // 0 = none; >0 = the gem interior is a ray-marched fbm cloud/smoke at this density (cloud gem)
 }
 
+// ── Live material override (the Viewer's "Material" panel) ────────────────────────────────────────────────────
+// A global, viewer-only override of the four optical params. The game never activates it (`active` stays false),
+// so finishes there are untouched. When active these REPLACE whatever the equipped finish set — letting you dial
+// any reflectivity/refractivity on top of a finish's colour/character. Routed through `withMatOverride` below so
+// every gem path (raster Gem / SDF PathTrace + Raymarch / mesh MeshPathTrace) reads identical optics.
+export interface MatOverride {
+  active: boolean
+  iorAdd: number // refraction bend, added to the base IOR
+  transmissionMul: number // glassiness: 0 opaque → ~1.2 ultra-clear
+  envMapIntensityMul: number // reflection / mirror strength
+  roughness: number // polished → frosted
+  set: (p: Partial<MatOverride>) => void
+}
+export const useMatOverride = create<MatOverride>((set) => ({
+  active: false,
+  iorAdd: 0,
+  transmissionMul: 1,
+  envMapIntensityMul: 1,
+  roughness: 0.1,
+  set: (p) => set(p),
+}))
+
+/** Merge the live override onto a finish's PBR `mat` (a no-op unless active). The one chokepoint every gem routes
+ * its material through, so the Material sliders read identically across raster / SDF-PT / mesh-PT. */
+export function withMatOverride(mat: GemFinishSpec['mat'], o: MatOverride | null): GemFinishSpec['mat'] {
+  return o?.active
+    ? { ...mat, iorAdd: o.iorAdd, transmissionMul: o.transmissionMul, envMapIntensityMul: o.envMapIntensityMul, roughness: o.roughness }
+    : mat
+}
+
 const lin = (hex: string) => {
   const c = new THREE.Color(hex).convertSRGBToLinear()
   return new THREE.Vector3(c.r, c.g, c.b)
 }
 
-export function finishSdf(finishId: number): FinishSdf {
-  const m = gemFinishById(finishId).mat
+export function finishSdf(finishId: number, o: MatOverride | null = null): FinishSdf {
+  const m = withMatOverride(gemFinishById(finishId).mat, o)
   const tintHex = m.attenuationColor ?? m.colorTint // the finish's body colour, if it overrides one
   return {
     tint: tintHex ? lin(tintHex) : null,

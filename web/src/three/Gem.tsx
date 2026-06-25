@@ -7,6 +7,7 @@ import { shapeGeometry, useRelics } from './relics'
 import { useGfxPreset } from '../gfx'
 import { useGame, type RarityName } from '../game/store'
 import { gemFinishById, gemColorById, SLOT_FINISH, SLOT_GEM_COLOR } from '../content/cosmetics'
+import { useMatOverride, withMatOverride } from './finishSdf'
 
 // Per-rarity look — the material ladder escalates with rarity (matte → glass → dispersive gem).
 export const RARITY_COLOR: Record<RarityName, string> = {
@@ -63,7 +64,8 @@ export function HeroGem({ family, rarity, spin = 0.4, materialize = false, finis
   // reads through (a finish changes the *surface*, never the gem's identity). `finishOverride` lets the shop
   // hover-preview a finish without equipping it.
   const equippedFinish = useGame((s) => s.view?.equipped?.[SLOT_FINISH] ?? 0)
-  const finish = gemFinishById(finishOverride ?? equippedFinish).mat
+  const matOv = useMatOverride()
+  const finish = withMatOverride(gemFinishById(finishOverride ?? equippedFinish).mat, matOv)
   // gem BODY hue from the Gem Colour cosmetic (Clear → null → neutral glass). Rarity no longer tints the gem; it
   // reads via the rarity-coloured motes instead. A finish that carries its own tint still wins.
   const equippedGemColor = useGame((s) => s.view?.equipped?.[SLOT_GEM_COLOR] ?? 0)

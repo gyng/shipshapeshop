@@ -6,7 +6,7 @@ import { RARITY_COLOR } from './Gem'
 import { shapeGeometry, useRelics } from './relics'
 import { buildBVH } from './bvh'
 import { sceneById, atmosphereById, lightingById, gemColorById, SLOT_ATMOSPHERE, SLOT_FINISH, SLOT_LIGHTING, SLOT_GEM_COLOR } from '../content/cosmetics'
-import { finishSdf, lightingKey } from './finishSdf'
+import { finishSdf, lightingKey, useMatOverride } from './finishSdf'
 import { useGame, type RarityName } from '../game/store'
 import { usePathTraceParams, useGfxPreset, useGfx } from '../gfx'
 
@@ -344,7 +344,8 @@ export function MeshPathTraceGem({ family, rarity, controls = true, paused = fal
   const atmoAmt = atmo.id === 0 ? 0 : 0.32
   // Equipped gem finish (Shop cosmetic) mapped onto the path tracer — `previewFinish` lets the shop hover-preview one.
   const equippedFinish = useGame((s) => s.view?.equipped?.[SLOT_FINISH] ?? 0)
-  const fin = finishSdf(previewFinish ?? equippedFinish)
+  const matOv = useMatOverride()
+  const fin = finishSdf(previewFinish ?? equippedFinish, matOv)
   const equippedLighting = useGame((s) => s.view?.equipped?.[SLOT_LIGHTING] ?? 0)
   const L = lightingById(previewLighting ?? equippedLighting) // equipped/previewed Lighting mood — scales the env the gem is lit by
   const rank = RANK[rarity]

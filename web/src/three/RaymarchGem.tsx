@@ -4,7 +4,7 @@ import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 import { sdfActiveGLSL } from './sdfShapes.glsl'
 import { sceneById, atmosphereById, lightingById, heroCursorById, gemColorById, SLOT_ATMOSPHERE, SLOT_FINISH, SLOT_LIGHTING, SLOT_HERO_CURSOR, SLOT_GEM_COLOR } from '../content/cosmetics'
-import { finishSdf } from './finishSdf'
+import { finishSdf, useMatOverride } from './finishSdf'
 import { useGame, type RarityName } from '../game/store'
 import { useGfxPreset, useGfx } from '../gfx'
 
@@ -329,7 +329,8 @@ export function RaymarchGem({ family, rarity, controls = true, autoRotate = fals
   const atmoAmt = atmo.id === 0 ? 0 : 0.32
   // Equipped gem finish (Shop cosmetic) mapped onto the SDF shader — `previewFinish` lets the shop hover-preview one.
   const equippedFinish = useGame((s) => s.view?.equipped?.[SLOT_FINISH] ?? 0)
-  const fin = finishSdf(previewFinish ?? equippedFinish)
+  const matOv = useMatOverride()
+  const fin = finishSdf(previewFinish ?? equippedFinish, matOv)
   const equippedLighting = useGame((s) => s.view?.equipped?.[SLOT_LIGHTING] ?? 0)
   const L = lightingById(previewLighting ?? equippedLighting) // equipped/previewed Lighting mood — scales the env the gem is lit by
   // hero cursor light (Gem Spotlight, slot 9 — default OFF). Only feeds the shader in the interactive inspector.

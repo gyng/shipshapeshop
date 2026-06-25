@@ -3,7 +3,7 @@
 // lighting/cursor/post-FX/finish, reusing the game's HeroView render stack. HeroView reads the cosmetic slots
 // from the game store but falls back to id 0 when `view` is null (which it is here), and we override every
 // layer via its preview-* props. 4D polytopes get manual 6-plane rotation + projection-distance controls.
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { HeroView } from '../three/HeroView'
 import { SettingsModal, NowPlaying } from '../App'
 import { RARITY_ORDER, type RarityName, useGame } from '../game/store'
@@ -13,6 +13,7 @@ import { FAMILY_CATEGORIES, ALL_FAMILIES, type RenderPath } from './families'
 import { useMute } from '../audio'
 import { OrreryBedDriver } from '../orreryBedDriver'
 import { useT } from '../i18n'
+import { useMatOverride } from '../three/finishSdf'
 
 const PATH_LABEL: Record<RenderPath, string> = { sdf: 'SDF · raymarched', '4d': '4D polytope', relic: 'relic mesh', mesh: 'mesh' }
 const PLANES_4D = ['XY', 'XZ', 'XW', 'YZ', 'YW', 'ZW'] // the six rotation planes of 4-space
@@ -104,19 +105,79 @@ function useDynamicRenderScale(enabled: boolean, resetKey: string, target = 60):
   return scale
 }
 
+// Live material override: sliders that override the SELECTED finish's optics (reflectivity / refractivity /
+// transmission / roughness) across all three render paths. Off by default; enabling seeds the sliders from the
+// current finish so it's continuous, then you dial from there. The finish keeps providing colour/character.
+function MaterialPanel({ finish }: { finish: number }) {
+  const o = useMatOverride()
+  const tr = useT()
+  const toggle = () => {
+    if (o.active) {
+      o.set({ active: false })
+      return
+    }
+    const m = GEM_FINISHES.find((f) => f.id === finish)?.mat ?? {}
+    o.set({ active: true, iorAdd: m.iorAdd ?? 0, transmissionMul: m.transmissionMul ?? 1, envMapIntensityMul: m.envMapIntensityMul ?? 1, roughness: m.roughness ?? 0.1 })
+  }
+  return (
+    <div className="viewer-field">
+      <button className="viewer-toggle" aria-pressed={o.active} onClick={toggle} style={{ alignSelf: 'flex-start' }}>◈ {tr('viewer.customMat')} · {o.active ? 'on' : 'off'}</button>
+      {o.active && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+          <MatSlider label={tr('viewer.matIor')} min={-0.3} max={0.6} step={0.01} value={o.iorAdd} read={(1.5 + o.iorAdd).toFixed(2)} onChange={(v) => o.set({ iorAdd: v })} />
+          <MatSlider label={tr('viewer.matTransmission')} min={0} max={1.2} step={0.01} value={o.transmissionMul} read={`${Math.round(o.transmissionMul * 100)}%`} onChange={(v) => o.set({ transmissionMul: v })} />
+          <MatSlider label={tr('viewer.matReflection')} min={0} max={2.5} step={0.05} value={o.envMapIntensityMul} read={`${o.envMapIntensityMul.toFixed(2)}×`} onChange={(v) => o.set({ envMapIntensityMul: v })} />
+          <MatSlider label={tr('viewer.matRoughness')} min={0} max={1} step={0.01} value={o.roughness} read={o.roughness.toFixed(2)} onChange={(v) => o.set({ roughness: v })} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function MatSlider({ label, min, max, step, value, read, onChange }: { label: string; min: number; max: number; step: number; value: number; read: string; onChange: (v: number) => void }) {
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 12, color: 'var(--c-text-secondary)' }}>
+      <span style={{ display: 'flex', justifyContent: 'space-between' }}>{label}<em style={{ color: 'var(--c-text-dim)', fontStyle: 'normal', fontVariantNumeric: 'tabular-nums' }}>{read}</em></span>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(+e.target.value)} style={{ width: '100%' }} />
+    </label>
+  )
+}
+
+// Deep-linkable viewer state: the whole look (shape + every cosmetic + the material override) round-trips through
+// the URL query, so a tweaked gem is a shareable link. Missing keys fall back to defaults; the writer omits the
+// defaults to keep the URL short. Routing is unaffected — these keys aren't `game`/`ui`, so ?shape=… stays on the Viewer.
+const VP_DEFAULTS = { family: 'klein_bottle', rarity: 'Ssr' as RarityName, scene: 0, atmo: 0, finish: 0, lighting: 0, cursor: 0, postfx: 0, diorama: 0, gemColor: 0 }
+function readViewerParams() {
+  const p = new URLSearchParams(typeof location !== 'undefined' ? location.search : '')
+  const num = (k: string, d: number) => {
+    const v = p.get(k)
+    return v != null && v !== '' && !Number.isNaN(+v) ? +v : d
+  }
+  return {
+    family: p.get('shape') || VP_DEFAULTS.family,
+    rarity: (RARITY_ORDER as readonly string[]).includes(p.get('rarity') ?? '') ? (p.get('rarity') as RarityName) : VP_DEFAULTS.rarity,
+    scene: num('scene', 0), atmo: num('atmo', 0), finish: num('finish', 0), lighting: num('light', 0),
+    cursor: num('cursor', 0), postfx: num('fx', 0), diorama: num('diorama', 0), gemColor: num('color', 0),
+    mat: ['mior', 'mtr', 'mrf', 'mrg'].some((k) => p.has(k))
+      ? { active: true, iorAdd: num('mior', 0), transmissionMul: num('mtr', 1), envMapIntensityMul: num('mrf', 1), roughness: num('mrg', 0.1) }
+      : null,
+  }
+}
+
 export function Viewer() {
-  const [family, setFamily] = useState('klein_bottle')
+  const init = useRef(readViewerParams()).current
+  const [family, setFamily] = useState(init.family)
   const tr = useT()
   const [q, setQ] = useState('')
-  const [rarity, setRarity] = useState<RarityName>('Ssr')
-  const [scene, setScene] = useState(0)
-  const [atmo, setAtmo] = useState(0) // Clear — let the shape speak; the swatches dress it from there
-  const [finish, setFinish] = useState(0)
-  const [lighting, setLighting] = useState(0)
-  const [cursor, setCursor] = useState(0)
-  const [postfx, setPostfx] = useState(0)
-  const [diorama, setDiorama] = useState(0)
-  const [gemColor, setGemColor] = useState(0)
+  const [rarity, setRarity] = useState<RarityName>(init.rarity)
+  const [scene, setScene] = useState(init.scene)
+  const [atmo, setAtmo] = useState(init.atmo) // default Clear — let the shape speak; the swatches dress it from there
+  const [finish, setFinish] = useState(init.finish)
+  const [lighting, setLighting] = useState(init.lighting)
+  const [cursor, setCursor] = useState(init.cursor)
+  const [postfx, setPostfx] = useState(init.postfx)
+  const [diorama, setDiorama] = useState(init.diorama)
+  const [gemColor, setGemColor] = useState(init.gemColor)
   const [spin, setSpin] = useState(true)
   const [motes, setMotes] = useState(true) // ambient flux motes around the gem — on, to match the in-game hero view
   const [showFps, setShowFps] = useState(true)
@@ -126,6 +187,38 @@ export function Viewer() {
   const [spin4d, setSpin4d] = useState(true)
   const [dist4d, setDist4d] = useState(2.6)
   const renderScale = useDynamicRenderScale(dynScale, family)
+  // Seed the material override from the URL once on mount (the rest of the look seeds via the useState initials above).
+  const matOv = useMatOverride()
+  useEffect(() => {
+    if (init.mat) useMatOverride.getState().set(init.mat)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  // Mirror the live look back into the URL (deep-link). Debounced so a slider drag doesn't spam replaceState; omits
+  // defaults so a fresh viewer stays a clean URL.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      const p = new URLSearchParams()
+      if (family !== VP_DEFAULTS.family) p.set('shape', family)
+      if (rarity !== VP_DEFAULTS.rarity) p.set('rarity', rarity)
+      if (scene) p.set('scene', String(scene))
+      if (atmo) p.set('atmo', String(atmo))
+      if (finish) p.set('finish', String(finish))
+      if (lighting) p.set('light', String(lighting))
+      if (cursor) p.set('cursor', String(cursor))
+      if (postfx) p.set('fx', String(postfx))
+      if (diorama) p.set('diorama', String(diorama))
+      if (gemColor) p.set('color', String(gemColor))
+      if (matOv.active) {
+        p.set('mior', matOv.iorAdd.toFixed(2))
+        p.set('mtr', matOv.transmissionMul.toFixed(2))
+        p.set('mrf', matOv.envMapIntensityMul.toFixed(2))
+        p.set('mrg', matOv.roughness.toFixed(2))
+      }
+      const qs = p.toString()
+      history.replaceState(null, '', qs ? `?${qs}` : location.pathname)
+    }, 250)
+    return () => clearTimeout(id)
+  }, [family, rarity, scene, atmo, finish, lighting, cursor, postfx, diorama, gemColor, matOv.active, matOv.iorAdd, matOv.transmissionMul, matOv.envMapIntensityMul, matOv.roughness])
   // Music: the generative lofi bed. Off (paused) by default — the viewer boots no game core, so the first press
   // lazy-loads it, owns every shape (so the 'library' bed has the full palette), and starts playing. After that,
   // the button just mutes/unmutes.
@@ -242,6 +335,7 @@ export function Viewer() {
           <SwatchPicker label="Lighting" value={lighting} onChange={setLighting} items={LIGHTING_MOODS.map((l) => ({ id: l.id, name: l.name, swatch: l.swatch }))} />
           <SwatchPicker label="Gem colour" value={gemColor} onChange={setGemColor} items={GEM_COLORS.map((c) => ({ id: c.id, name: c.name, swatch: c.swatch }))} />
           <SwatchPicker label="Gem finish" value={finish} onChange={setFinish} items={GEM_FINISHES.map((f) => ({ id: f.id, name: f.name, swatch: f.swatch }))} />
+          <MaterialPanel finish={finish} />
           <SwatchPicker label="Hero cursor" value={cursor} onChange={setCursor} items={HERO_CURSORS.map((c) => ({ id: c.id, name: c.name, swatch: c.swatch }))} />
           <SwatchPicker label="Post-FX" value={postfx} onChange={setPostfx} items={POST_FX.map((p) => ({ id: p.id, name: p.name, swatch: p.swatch }))} />
           <SwatchPicker label="Diorama" value={diorama} onChange={setDiorama} items={DIORAMAS.map((d) => ({ id: d.id, name: d.name, swatch: d.swatch }))} />
