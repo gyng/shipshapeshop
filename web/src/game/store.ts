@@ -1,8 +1,7 @@
 import { create } from 'zustand'
 import init, { Game, shapes_json, recipes_json, upgrades_json, milestones_json, facets_json, banners_json, expeditions_json, core_version } from 'shipshape-core'
-import { sfxPull, sfxForge, sfxMilestone, sfxAscend, sfxBondUp, sfxDeploy, sfxRecall, sfxTap, sfxPat, sfxDrop } from '../audio'
+import { sfxPull, sfxForge, sfxMilestone, sfxAscend, sfxBondUp, sfxDeploy, sfxRecall, sfxTap, sfxPat, sfxDrop, sfxEmbark, sfxCampfire, sfxTreasure, sfxVictory, sfxDefeat } from '../audio'
 import { useFloaters, useMascotCheer } from '../juice'
-import { glyphOf } from '../content/glyphs'
 import { MILESTONE_INFO } from '../content/milestones'
 import { useHistory } from '../history'
 
@@ -121,6 +120,7 @@ export interface View {
   exp_perks: number[]
   exp_perk_costs: number[]
   exp_power: number[] // FULL combat/farm power per shape id (Rust truth)
+  exp_stats: ExpStatView[] // per-shape base combat stats (hp/atk/def/speed/ult) for the team card (Rust truth)
   shape_levels: number[]
   shape_xp: number[]
   xp_to_next: number[]
@@ -144,15 +144,46 @@ export interface View {
   exp_runs: ExpRunRec[]
   run: RunView | null // v6: the in-flight Delve run (clipped — no future loot/death exposed)
   can_send_run: boolean // v6: a new linear run is available to send
+  run_rest_until: number // v6: wall-clock ms the party rests at base camp until (the HUD counts down; 0 = ready)
+  run_history: RunRecordView[] // v6: completed-run summaries (newest first) — drives the Delve Report
+  gambit_auto: boolean // v6 progression: is auto-tactics (smart empty-slot ladder) unlocked?
+  gambit_conds: number[] // v6 progression: currently-unlocked gambit condition ids (the editor mirrors this)
+  gambit_acts: number[] // v6 progression: currently-unlocked gambit action ids
 }
 
 export interface RunView {
   team: number
-  path: number[] // route node indices (derive room kinds from expContent.quests[q].kind)
+  path: number[] // route node indices
+  room_kind: number[] // REVEALED room kinds (0 combat, 1 boss, 2 campfire, 3 treasure) — the delve track
   current_room: number
   total_rooms: number
   start_ms: number
   total_ms: number // estimated return time
+  room_echoes: number[] // per-BANKED-room Echo lump (earned only; len == current_room) — Slice 5 reward toast
+  room_flux: number[] // per-BANKED-room Flux lump (earned only; len == current_room)
+  delve_echoes_per_hr: number // whole-run average Echo/hr while delving (Rust-emitted; never derived in TS)
+  delve_flux_per_hr: number // whole-run average Flux/hr while delving — fixes the "shows 0/hr" gap
+  pending_decision: PendingDecision | null // a live Crossroads the player can override now (else null)
+}
+export interface DecisionOption {
+  heal_pct: number
+  atk_pct: number
+  echo_bonus: number
+  speed_pct: number
+}
+export interface PendingDecision {
+  room_idx: number
+  deadline_ms: number // absolute wall-clock; the UI counts down to it (never derives truth)
+  options: DecisionOption[] // 2–3 themed options; index `auto_option` is the safe default if the window lapses
+  auto_option: number // which option idle/offline takes (always 0 — the heal)
+  template: number // the themed crossroads (drives the flavor + scene)
+}
+export interface RunRecordView {
+  team: number
+  rooms: number
+  echoes: number
+  died: boolean
+  at_ms: number
 }
 
 export interface GambitRule {
@@ -176,6 +207,14 @@ export interface TeamView {
   orders: Orders
   provisions: number[] // staged provision ids
   relics: number[] // equipped relic ids
+  // QW-4 team-selection aggregates (Rust-computed; UI compares teams, never recomputes)
+  total_hp: number
+  total_atk: number
+  total_def: number
+  total_speed: number
+  role_counts: number[] // [tank, dps, support, control]
+  element_counts: number[] // [solid, twisted, woven]
+  kin_pairs: number
 }
 export interface ExpRunRec {
   kind: number // 0 first-clear, 1 boss freed
@@ -235,6 +274,13 @@ export interface NodeModRow {
   enemy_scale_pct: number
   first_clear_mult_pct: number
 }
+export interface SkillNodeDef {
+  key: string
+  max: number
+  req: [number, number] | null // (prereq node index, min rank), or null
+  stat: number
+  farm: number
+}
 export interface ExpContent {
   quests: ExpQuest[]
   perks: ExpPerk[]
@@ -242,6 +288,7 @@ export interface ExpContent {
   provisions: ProvisionRow[]
   relics: RelicRow[]
   node_mods: NodeModRow[]
+  skill_trees: SkillNodeDef[][] // R6: codegen'd from Rust SKILL_TREES — no hand-mirror to drift
 }
 export interface LogEvent {
   round: number
@@ -252,6 +299,8 @@ export interface LogEvent {
   heal: number
   status: string
   fainted: number
+  rule_idx?: number // RENDER-ONLY: the gambit rule (0-based) that produced this event, or -1 (legacy/fallback/enemy)
+  action_id?: number // RENDER-ONLY: which ability fired (0-9, indexes GACT_KEYS), or -1 — lets the combat log name the skill
 }
 export interface UnitInfo {
   shape_id: number
@@ -259,8 +308,20 @@ export interface UnitInfo {
   family: string
   is_enemy: boolean
   max_hp: number
+  atk: number
+  def: number
+  speed: number
+  ult_power: number
   element: ExpElement
   role: string
+}
+/** Per-shape base combat stats for the team card (mirror of Rust `exp_combatant`, indexed by shape id). */
+export interface ExpStatView {
+  max_hp: number
+  atk: number
+  def: number
+  speed: number
+  ult: number
 }
 export interface BattleResult {
   win: boolean
@@ -360,6 +421,7 @@ export interface PullOutcome {
 export interface OfflineReport {
   elapsed_ms: number
   capped_ms: number
+  delve_returned?: RunRecordView | null // a delve that completed while away — surfaced as the offline peak-end beat
   gained_flux: number
   gained_echoes: number
 }
@@ -419,6 +481,8 @@ interface Store {
   recrystallize: () => void
   ascended: number | null // the viewport dimension just ascended INTO (drives the post-ascension "what's new" modal); null = none
   dismissAscension: () => void
+  delveReport: RunRecordView | null // v6: a just-returned Delve run's summary (peak-end report); null = none
+  dismissDelveReport: () => void
   inspect: (id: number) => void
   pat: (id: number) => void
   tapShape: (id: number) => number
@@ -478,8 +542,13 @@ interface Store {
   station: (t: number, q: number) => void
   unstation: (t: number) => void
   watch: (q: number) => void
+  watchRunRoom: (roomIdx: number) => void
+  runRoomBattle: (roomIdx: number) => BattleResult | null // fetch a delve room's re-enacted battle WITHOUT opening the modal (for the live in-run view)
+  stationBattle: (q: number, variant?: number) => BattleResult | null // fetch a stationed/farming team's re-enacted clear battle WITHOUT the modal (live farm view); `variant` re-seeds the cosmetic replay (#6 vary)
   spendSkillPoint: (id: number, node: number) => void
   respec: (id: number) => void
+  autoSkill: (id: number) => void
+  chooseDecision: (roomIdx: number, option: number) => void
   buyExpPerk: (id: number) => void
   // ── v5: routing, orders, provisions, relics, auto ──
   setNodeMod: (q: number, m: number) => void
@@ -488,9 +557,11 @@ interface Store {
   setGambitRule: (t: number, slot: number, idx: number, cond: number, action: number) => void
   toggleGambit: (t: number, slot: number, idx: number) => void
   moveGambit: (t: number, slot: number, idx: number, up: boolean) => void
+  reorderGambit: (t: number, slot: number, from: number, to: number) => void
   addGambit: (t: number, slot: number) => void
   removeGambit: (t: number, slot: number, idx: number) => void
   resetGambits: (t: number, slot: number) => void
+  autoGambits: (t: number, slot: number) => void
   buyProvision: (id: number) => void
   loadProvision: (t: number, id: number) => void
   clearProvisions: (t: number) => void
@@ -546,7 +617,7 @@ export const useGame = create<Store>((set, get) => ({
       try {
         game = Game.from_save(saved, now())
         offline = JSON.parse(game.compute_offline(now())) as OfflineReport
-        if (offline.gained_flux < 1) offline = null
+        if (offline.gained_flux < 1 && !offline.delve_returned) offline = null // keep it if a delve returned (R9 peak-end)
       } catch {
         game = null
       }
@@ -561,6 +632,7 @@ export const useGame = create<Store>((set, get) => ({
     game.set_use_orrery(true, now())
     set({ ready: true, firstLaunch: !saved, version: core_version(), shapes, recipes, upgradeDefs, milestoneDefs, facetDefs, bannerDefs, expContent, offline })
     get().refresh()
+    if (offline?.delve_returned) set({ delveReport: offline.delve_returned }) // R9: celebrate an offline-completed delve on load
     persist()
     // idle tick: advance the economy on a slow cadence (display is extrapolated in the HUD)
     setInterval(() => {
@@ -640,7 +712,42 @@ export const useGame = create<Store>((set, get) => ({
         }
       }
     }
-    set({ view: v })
+    // v6: a Delve run just returned (active → none) → surface the Delve Report (peak-end "your party returned")
+    const prevRun = get().view?.run
+    const justReturned = !!prevRun && !v.run && v.run_history.length > 0
+    // cozy-room beats: when the SAME run advanced across a campfire/treasure, play its sound (at most one each —
+    // offline catch-up can jump many rooms in one tick, so we fire by kind-crossed, never per-room)
+    if (prevRun && v.run && prevRun.start_ms === v.run.start_ms && v.run.current_room > prevRun.current_room) {
+      let campfire = false
+      let treasure = false
+      for (let r = prevRun.current_room + 1; r <= v.run.current_room && r < v.run.room_kind.length; r++) {
+        if (v.run.room_kind[r] === 2) campfire = true
+        if (v.run.room_kind[r] === 3) treasure = true
+      }
+      if (campfire) sfxCampfire()
+      if (treasure) sfxTreasure()
+      // v6 reward toast (Slice 5): surface the loot banked across the newly-cleared room(s) — peak-end "rewards earned".
+      // Sums the per-room lumps for rooms [prev, current) (offline catch-up can jump many rooms ⇒ one aggregate toast).
+      let de = 0
+      let df = 0
+      for (let r = prevRun.current_room; r < v.run.current_room && r < v.run.room_echoes.length; r++) {
+        de += v.run.room_echoes[r] ?? 0
+        df += v.run.room_flux[r] ?? 0
+      }
+      if (de > 0) useFloaters.getState().spawn(`+${de.toLocaleString()} ✶`, { color: '#9b8cff', big: de > 50, y: 190 })
+      if (df > 0) useFloaters.getState().spawn(`+${df.toLocaleString()} ✦`, { color: '#ffcf6b', big: df > 30, y: 216 })
+    }
+    set({ view: v, ...(justReturned ? { delveReport: v.run_history[0] } : {}) })
+    if (justReturned) {
+      // peak-end: celebrate a safe return (NOT the orrery goodbye blip); a wipe gets a soft defeat note
+      const rep = v.run_history[0]
+      if (rep.died) {
+        sfxDefeat()
+      } else {
+        sfxVictory()
+        useFloaters.getState().spawn('✶', { color: '#9b8cff', big: true, y: 150 })
+      }
+    }
   },
 
   pull: () => {
@@ -763,7 +870,7 @@ export const useGame = create<Store>((set, get) => ({
           const cx = screenCx()
           for (let k = 0; k < 7; k++) {
             const j = k
-            setTimeout(() => useFloaters.getState().spawn(glyphOf(out.family), { color: FLUX_C, big: true, x: cx + (j - 3) * 26, y: 200 }), k * 60)
+            setTimeout(() => useFloaters.getState().spawn('', { family: out.family, color: FLUX_C, big: true, x: cx + (j - 3) * 26, y: 200 }), k * 60)
           }
         }
       }
@@ -971,6 +1078,8 @@ export const useGame = create<Store>((set, get) => ({
   dismissMilestone: () => set({ milestoneToast: null }),
   ascended: null,
   dismissAscension: () => set({ ascended: null }),
+  delveReport: null,
+  dismissDelveReport: () => set({ delveReport: null }),
   dismissReveal: () => set({ lastReveal: null }),
   dismissForge: () => set({ lastForge: null }),
   dismissOffline: () => {
@@ -1005,7 +1114,8 @@ export const useGame = create<Store>((set, get) => ({
   },
   sendExpedition: (t) => {
     if (game?.send_expedition(t, now())) {
-      sfxTap()
+      sfxEmbark() // a decisive embark sting (not a generic tap) — the party sets off
+      useFloaters.getState().spawn('⛏ Delving…', { color: '#9b8cff', y: 150 })
       get().refresh()
       persist()
     }
@@ -1033,7 +1143,7 @@ export const useGame = create<Store>((set, get) => ({
         const sh = get().shapes[r.recruited_id]
         useFloaters.getState().spawn('FREED ★', { color: '#ff5d8f', big: true, x: cx, y: 170 })
         if (sh) {
-          for (let k = 0; k < 7; k++) setTimeout(() => useFloaters.getState().spawn(glyphOf(sh.family), { color: ECHO_C, big: true, x: cx + (k - 3) * 26, y: 210 }), k * 60)
+          for (let k = 0; k < 7; k++) setTimeout(() => useFloaters.getState().spawn('', { family: sh.family, color: ECHO_C, big: true, x: cx + (k - 3) * 26, y: 210 }), k * 60)
           useHistory.getState().recordEvent({ icon: '✶', text: `Freed ${sh.nick} from the Manifold!`, color: '#ff5d8f' })
         }
       }
@@ -1046,8 +1156,21 @@ export const useGame = create<Store>((set, get) => ({
   },
   watch: (q) => {
     if (!game) return
-    const battle = JSON.parse(game.watch_data(q)) as BattleResult | null
+    const battle = JSON.parse(game.watch_data(q, 0)) as BattleResult | null // the modal watch shows the canonical clear (variant 0)
     if (battle) set({ combat: { battle, quest: q, result: null } }) // spectator — no rewards
+  },
+  watchRunRoom: (roomIdx) => {
+    if (!game) return
+    const battle = JSON.parse(game.run_room_battle(roomIdx)) as BattleResult | null
+    if (battle) set({ combat: { battle, quest: -1, result: null } }) // spectate a delve room's fight (re-enacted)
+  },
+  runRoomBattle: (roomIdx) => {
+    if (!game) return null
+    return JSON.parse(game.run_room_battle(roomIdx)) as BattleResult | null // null for non-combat rooms (campfire/treasure)
+  },
+  stationBattle: (q, variant = 0) => {
+    if (!game) return null
+    return JSON.parse(game.watch_data(q, variant >>> 0)) as BattleResult | null // re-enacted clear; `variant` re-seeds the cosmetic farm replay (#6 vary)
   },
   spendSkillPoint: (id, node) => {
     if (game?.spend_skill_point(id, node, now())) {
@@ -1061,6 +1184,20 @@ export const useGame = create<Store>((set, get) => ({
     sfxTap()
     get().refresh()
     persist()
+  },
+  autoSkill: (id) => {
+    game?.auto_skill(id, now())
+    sfxTap()
+    get().refresh()
+    persist()
+  },
+  chooseDecision: (roomIdx, option) => {
+    // live Crossroads override — the core re-resolves the unbanked tail; persist immediately (save-scum-proof)
+    if (game?.choose_decision(roomIdx, option, now())) {
+      sfxTap()
+      get().refresh()
+      persist()
+    }
   },
   buyExpPerk: (id) => {
     if (game?.buy_exp_perk(id, now())) {
@@ -1101,6 +1238,11 @@ export const useGame = create<Store>((set, get) => ({
     get().refresh()
     persist()
   },
+  reorderGambit: (t, slot, from, to) => {
+    game?.reorder_gambit(t, slot, from, to, now())
+    get().refresh()
+    persist()
+  },
   addGambit: (t, slot) => {
     game?.add_gambit(t, slot, now())
     sfxTap()
@@ -1114,6 +1256,12 @@ export const useGame = create<Store>((set, get) => ({
   },
   resetGambits: (t, slot) => {
     game?.reset_gambits(t, slot, now())
+    sfxTap()
+    get().refresh()
+    persist()
+  },
+  autoGambits: (t, slot) => {
+    game?.auto_gambits(t, slot, now())
     sfxTap()
     get().refresh()
     persist()

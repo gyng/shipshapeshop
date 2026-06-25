@@ -1,7 +1,7 @@
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { useGame } from './game/store'
 import { useT } from './i18n'
-import { glyphOf } from './content/glyphs'
+import { ShapeGlyph } from './content/shapeGlyphs'
 import { arrangementForEpoch, STYLES, type Arrangement, type Role } from './orreryBed'
 import { useBedStatus } from './bedStatus'
 import { bedControl, type BedLayer } from './bedControl'
@@ -280,7 +280,7 @@ export function MusicEngineInspector() {
               const sh = shapes[v.id]
               return (
                 <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-1_5)', fontSize: 'var(--fs-caption)', padding: '3px 8px', borderRadius: 'var(--r-sm)', background: 'var(--c-surface-2)', border: '1px solid var(--c-border)' }}>
-                  <span style={{ fontSize: 'var(--fs-h4)' }}>{glyphOf(sh?.family ?? '')}</span>
+                  <span style={{ fontSize: 'var(--fs-h4)' }}><ShapeGlyph family={sh?.family ?? ''} /></span>
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--c-text-secondary)' }}>{sh?.nick}</span>
                   <span style={{ color: 'var(--c-text-dim)' }}>{ROLE_LABEL[v.role]}</span>
                   <span style={{ color: 'var(--c-text-faint)' }}>{v.instrument.patch}</span>

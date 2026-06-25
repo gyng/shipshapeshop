@@ -15,9 +15,8 @@ import { setForcedStyle, STYLES } from './orreryBed'
 import { bedControl } from './bedControl'
 import { KINSHIP } from './content/kinship'
 import { SHIP_SCENES, useShips, hasShip, availableShips } from './content/ships'
-import { glyphOf } from './content/glyphs'
 import { fontOf } from './content/fonts'
-import { useGfx, presetFor, PT_PRESETS, useFpsWatchdog, type Quality, type PathTraceScope, type PathTraceQuality } from './gfx'
+import { useGfx, presetFor, PT_PRESETS, useFpsWatchdog, type Quality, type PathTraceScope, type PathTraceQuality, type ExpeditionPtEma, type ExpeditionPtCaustics, type FpsWatchdog, type FpsTarget } from './gfx'
 import { UPGRADE_INFO, DOCTRINE_EXCLUSIONS } from './content/upgrades'
 import { WorkshopTree } from './WorkshopTree'
 import { ExpeditionView } from './ExpeditionView'
@@ -56,6 +55,7 @@ import { installButtonJuice } from './buttonJuice'
 import { useBedStatus } from './bedStatus'
 import { SoundIcon, MusicIcon, LogIcon, SettingsIcon, WrenchIcon, CosmeticsIcon } from './ui/Icons'
 import { SkipBack, SkipForward, Play, Pause, Headphones, Library, Radio } from 'lucide-react'
+import { ShapeGlyph } from './content/shapeGlyphs'
 import { DEV_MODE } from './devmode'
 import { Floaters, useFloaters, Sparks, useSparks, purchaseBurst, useMascotCheer } from './juice'
 
@@ -265,7 +265,7 @@ export function App() {
           {tab === 'chatlas' && <ChatlasView />}
           {tab === 'gallery' && <GalleryView onInspect={setInspect} />}
           {tab === 'engine' && <EngineView />}
-          {tab === 'expedition' && <><ExpeditionView /><MascotOverlay family="trefoil" name={tr('expedition.mascot.name')} lines={[tr('expedition.mascot.line'), tr('expedition.mascot.line2'), tr('expedition.mascot.line3')]} thanks={tr('expedition.mascot.thanks')} /></>}
+          {tab === 'expedition' && <ExpeditionView />}{/* mascot omitted on Expeditions — the scene/map/PT canvases are heavy enough (perf) */}
           {tab === 'workshop' && <WorkshopView />}
           {tab === 'forge' && <ForgeView />}
           {tab === 'shop' && <ShopView />}
@@ -814,7 +814,7 @@ function BannerSelector() {
                 <span style={{ color: '#8a90a8', fontSize: 'var(--fs-eyebrow)' }}>{tr('banner.fullPool')}</span>
               ) : (
                 def.featured.slice(0, 6).map((id) => (
-                  <span key={id} style={{ fontSize: 'var(--fs-h4)' }}>{glyphOf(shapes[id]?.family ?? '')}</span>
+                  <span key={id} style={{ fontSize: 'var(--fs-h4)' }}><ShapeGlyph family={shapes[id]?.family ?? ''} label={shapes[id]?.nick} /></span>
                 ))
               )}
             </div>
@@ -893,7 +893,7 @@ function FeaturedDetails() {
         if (!sh) return null
         return (
           <button key={id} style={S.featChip} onClick={() => useInspector.getState().set(id)} title={`${sh.nick} · ${tr('gacha.details')}`}>
-            <span style={{ fontSize: 'var(--fs-body)' }}>{glyphOf(sh.family)}</span>
+            <span style={{ fontSize: 'var(--fs-body)' }}><ShapeGlyph family={sh.family} /></span>
             <span style={S.featChipNick}>{sh.nick}</span>
             <span style={{ color: 'var(--c-text-faint)' }}>ⓘ</span>
           </button>
@@ -1741,14 +1741,14 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
   const toggle = (r: string) => setHidden((h) => { const n = new Set(h); if (n.has(r)) n.delete(r); else n.add(r); return n })
   return (
     <div style={S.gallery}>
-      <MascotOverlay family="sphere" name={tr('gallery.mascot.name')} lines={[tr('gallery.mascot.line'), tr('gallery.mascot.line2'), tr('gallery.mascot.line3')]} thanks={tr('gallery.mascot.thanks')} />
+      {/* mascot omitted on the Gallery — the collection grid renders many 3D thumbnails already (perf) */}
       {ships.length > 0 && (
         <div style={S.shipNotice}>
           <div style={S.shipNoticeHead}>♥ {tr('gallery.newCutscenes', { n: ships.length })}</div>
           <div style={S.shipNoticeList}>
             {ships.map((sp) => (
               <button key={sp.key} style={S.shipNoticeBtn} onClick={() => useShips.getState().open(sp.a.family, sp.b.family)}>
-                {glyphOf(sp.a.family)} {sp.a.nick} <span style={{ opacity: 0.6 }}>&amp;</span> {sp.b.nick} {glyphOf(sp.b.family)} <span style={{ color: 'var(--c-accent-pink)' }}>▸</span>
+                <ShapeGlyph family={sp.a.family} /> {sp.a.nick} <span style={{ opacity: 0.6 }}>&amp;</span> {sp.b.nick} <ShapeGlyph family={sp.b.family} /> <span style={{ color: 'var(--c-accent-pink)' }}>▸</span>
               </button>
             ))}
           </div>
@@ -1779,7 +1779,7 @@ function GalleryView({ onInspect }: { onInspect: (id: number) => void }) {
                   onMouseEnter={owned ? (e) => showPrev(e, s) : undefined}
                   onMouseLeave={owned ? hidePrev : undefined}
                   style={{ ...S.tile, borderColor: owned ? RARITY_COLOR[r] : '#23252f', color: owned ? '#fff' : '#555', background: owned ? `${RARITY_COLOR[r]}14` : 'linear-gradient(180deg,#15161f,#0e0f16)', boxShadow: owned ? `inset 0 1px 0 rgba(255,255,255,0.06), 0 2px 6px rgba(0,0,0,0.4), 0 0 10px ${RARITY_COLOR[r]}33` : 'inset 0 2px 5px rgba(0,0,0,0.55)' }}>
-                  <span style={S.tileGlyph}>{owned ? glyphOf(s.family) : '❓'}</span>
+                  <span style={S.tileGlyph}>{owned ? <ShapeGlyph family={s.family} size={30} color={RARITY_COLOR[r]} /> : '❓'}</span>
                   {owned ? s.nick : tr('gallery.unknownTile')}
                   {(view.star_levels[s.id] ?? 0) > 0 ? (
                     <span style={S.starBadge} title={tr('gallery.starTooltip', { level: view.star_levels[s.id], copies: view.owned[s.id] })}>{'★'.repeat(view.star_levels[s.id])}</span>
@@ -1932,7 +1932,11 @@ function UpgradesPanel() {
     if (!u) return null
     const lvl = view.upgrades[i] ?? 0
     const unlocked = view.upgrade_unlocked[i] ?? true
-    const info = UPGRADE_INFO[u.key] ?? { name: u.key, desc: '', icon: '⚙' }
+    const baseInfo = UPGRADE_INFO[u.key] ?? { name: u.key, desc: '', icon: '⚙' }
+    // the gambit-progression cards are localized (§10); the rest of UPGRADE_INFO stays English until keyed.
+    const info = ['auto_tactics', 'gambit_logic_2', 'gambit_logic_3'].includes(u.key)
+      ? { ...baseInfo, name: tr(`workshop.${u.key}.name`), short: tr(`workshop.${u.key}.short`), desc: tr(`workshop.${u.key}.desc`) }
+      : baseInfo
     if (!unlocked && u.secret) return null // secret nodes stay hidden until unlocked
     if (!unlocked) {
       const req = u.requires
@@ -2257,7 +2261,7 @@ function BoardGrid({ sel, setSel }: { sel: number | null; setSel: (id: number | 
             title={s ? s.nick : tr('board.emptyCell')}
             style={{ ...S.boardCell, borderColor: s ? RARITY_COLOR[s.rarity] : '#23252f', background: selected ? '#33384e' : s ? '#171922' : 'linear-gradient(180deg, #14151e, #0e0f17)', boxShadow: selected ? '0 0 10px #5fe0c6, inset 0 0 0 1px #5fe0c6' : s ? `inset 0 0 10px -2px ${RARITY_COLOR[s.rarity]}, 0 0 0 1px ${RARITY_COLOR[s.rarity]}` : 'inset 0 1px 2px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(120,130,160,0.06)' }}
           >
-            {s ? <span style={{ fontSize: 'clamp(14px, 5vw, 22px)' }}>{glyphOf(s.family)}</span> : sel != null ? <span style={{ color: '#5fe0c6', opacity: 0.5 }}>+</span> : ''}
+            {s ? <span style={{ fontSize: 'clamp(14px, 5vw, 22px)' }}><ShapeGlyph family={s.family} /></span> : sel != null ? <span style={{ color: '#5fe0c6', opacity: 0.5 }}>+</span> : ''}
           </button>
         )
       })}
@@ -2358,7 +2362,7 @@ function EngineView() {
               onClick={() => setSel(picked ? null : s.id)}
             >
               <span style={{ ...S.tileDot, background: RARITY_COLOR[s.rarity] }} />
-              <span style={S.chipNick}>{glyphOf(s.family)} {s.nick}</span>
+              <span style={S.chipNick}><ShapeGlyph family={s.family} /> {s.nick}</span>
               <span style={S.chipProd}>+{fmt(s.prod)} ✦/hr</span>
               <span style={S.chipMeta}>{picked ? tr('engine.benchTapToPlace') : s.euler_cost === 0 ? tr('engine.benchFree') : fits ? tr('engine.benchSpace', { cost: s.euler_cost }) : tr('engine.benchNeedsSpace', { cost: s.euler_cost })}</span>
             </button>
@@ -2603,7 +2607,7 @@ function RevealModal() {
                 title={`${sh.nick} — ${tr('reveal.tapDetails')}`}
                 onClick={() => { setDetailIdx(i); setPhase('step') }}
               >
-                <span style={{ fontSize: 'var(--fs-numeral)', filter: hi ? `drop-shadow(0 0 6px ${col})` : 'none' }}>{glyphOf(sh.family)}</span>
+                <span style={{ fontSize: 'var(--fs-numeral)', filter: hi ? `drop-shadow(0 0 6px ${col})` : 'none' }}><ShapeGlyph family={sh.family} color={col} /></span>
                 {hi && <span className="haul-spark" style={{ color: col }}>✦</span>}
                 {o.is_new && <span className="haul-new-pulse" style={S.haulNew}>{tr('reveal.newShort')}</span>}
               </button>
@@ -2753,11 +2757,41 @@ function PatSurface({ id }: { id: number }) {
   )
 }
 
+// Expedition role badge meta (icon + colour) — mirrors ExpeditionView's ROLE so the inspector reads the same.
+const INSPECT_ROLE: Record<string, { icon: string; c: string }> = {
+  tank: { icon: '🛡', c: '#7fb0ff' },
+  dps: { icon: '⚔', c: '#ff8a6b' },
+  support: { icon: '✚', c: '#5fe0c6' },
+  control: { icon: '🌀', c: '#c08cff' },
+}
+// Expedition combat element from topology (same rule as ExpeditionView.elementOf) — ties the maths to the mode.
+const INSPECT_KNOTS = new Set(['trefoil', 'figure8_knot', 'torus_knot_2_5', 'borromean', 'seifert', 'hopf_link'])
+const inspectElement = (family: string, orientable: boolean): 'twisted' | 'woven' | 'solid' =>
+  !orientable ? 'twisted' : INSPECT_KNOTS.has(family) ? 'woven' : 'solid'
+// the knots that get the coiled-spring combat_bias in core (content::is_knot) — kept exact so the kit copy is honest.
+const COMBAT_KNOTS = new Set(['trefoil', 'figure8_knot', 'torus_knot_2_5', 'torus_knot_2_7', 'borromean', 'seifert', 'hopf', 'cable_knot'])
+// a shape's topology → combat-signature i18n lines (honest to combat_bias; they stack, so a shape can show several).
+const combatTopoLines = (family: string, genus: number, orientable: boolean): string[] => {
+  const keys: string[] = []
+  if (COMBAT_KNOTS.has(family)) keys.push('inspect.exp.topo.knot')
+  if (!orientable) keys.push('inspect.exp.topo.reflect')
+  if (genus > 0) keys.push('inspect.exp.topo.handles')
+  if (keys.length === 0) keys.push('inspect.exp.topo.steady')
+  return keys
+}
+
 function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
   const { shapes, view, inspect, secretaryId, setSecretary } = useGame()
   const tr = useT()
   const { bubble, setBubble, talk } = useChatter()
   const [patMode, setPatMode] = useState(false)
+  // The dossier is tabbed (Info/Orrery/Expedition). The chosen tab is remembered across paging, closes/reopens
+  // and reloads (localStorage), so the panel feels continuous. The layout is identical owned-or-not, so the
+  // ‹ › arrows never move.
+  const [detailTab, setDetailTabState] = useState<'info' | 'orrery' | 'expedition'>(() => {
+    try { const v = localStorage.getItem('shipshape-inspect-tab'); return v === 'orrery' || v === 'expedition' ? v : 'info' } catch { return 'info' }
+  })
+  const setDetailTab = (t: 'info' | 'orrery' | 'expedition') => { setDetailTabState(t); try { localStorage.setItem('shipshape-inspect-tab', t) } catch { /* ignore */ } }
   const s = shapes[id]
   const owned = !!view && view.owned[id] > 0
   // Inspecting an owned shape grants affinity — the calm idler's path to bonds — and a little spoken greeting.
@@ -2811,127 +2845,154 @@ function Inspector({ id, onClose }: { id: number; onClose: () => void }) {
   )
   return (
     <div style={S.modal} onClick={onClose}>
-      <div className="pop-in" role="dialog" aria-modal="true" aria-label={s.nick}
-        style={owned ? { ...S.revealCard, position: 'relative', maxWidth: 'min(900px, 96vw)', width: '100%', textAlign: 'left', display: 'flex', flexDirection: 'column', padding: 'var(--sp-4)' } : { ...S.revealCard, position: 'relative' }}
+      <div className="pop-in" role="dialog" aria-modal="true" aria-label={owned ? s.nick : tr('inspect.undiscovered.title')}
+        style={{ ...S.revealCard, position: 'relative', maxWidth: 'min(1040px, 96vw)', width: '100%', textAlign: 'left', display: 'flex', flexDirection: 'column', padding: 'var(--sp-4)' }}
         onClick={(e) => e.stopPropagation()}>
         <button onClick={onClose} style={S.inspectClose} title={tr('common.close')} aria-label={tr('common.close')}>✕</button>
-        {/* keyed by id so the sheet gently re-fades each time you page to another shape */}
-        <div key={id} className="fade-in" style={owned ? { display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 } : undefined}>
-        {owned ? (
-          // Desktop: two columns — a big gem hero (left) beside the independently-scrolling dossier (right),
-          // so the long sheet never overflows a short viewport. Stacks back to one column under 760px.
+        {/* keyed by id so the sheet gently re-fades each time you page to another shape. The structure (card
+            width, two columns, ‹ › position) is IDENTICAL owned-or-not, so paging never shifts the layout. */}
+        <div key={id} className="fade-in" style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
           <div className="inspect-split">
+            {/* LEFT: the gem (real if owned, a "?" placeholder if not) + the name/nav row */}
             <div className="inspect-hero">
               <div className="inspect-stage" style={{ ...S.revealStage, position: 'relative', height: 'auto', marginBottom: 0 }}>
-                <HeroView key={s.family} family={s.family} rarity={s.rarity} controls={!patMode} />
-                {patMode && <PatSurface id={id} />}
-                <button style={S.patBtn} onClick={() => setPatMode((p) => !p)} title={tr('inspect.pat.title')}>
-                  {patMode ? tr('inspect.pat.orbit') : tr('inspect.pat.pat')}
-                </button>
-                {!patMode && <button style={S.talkBtn} onClick={() => talk(s, bond)} title={tr('inspect.talk.title')}>💬</button>}
-                {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
+                {owned ? (
+                  <>
+                    <HeroView key={s.family} family={s.family} rarity={s.rarity} controls={!patMode} />
+                    {patMode && <PatSurface id={id} />}
+                    <button style={S.patBtn} onClick={() => setPatMode((p) => !p)} title={tr('inspect.pat.title')}>
+                      {patMode ? tr('inspect.pat.orbit') : tr('inspect.pat.pat')}
+                    </button>
+                    {!patMode && <button style={S.talkBtn} onClick={() => talk(s, bond)} title={tr('inspect.talk.title')}>💬</button>}
+                    {bubble && <SpeechBubble bubble={bubble} onClose={() => setBubble(null)} />}
+                  </>
+                ) : (
+                  <div style={{ display: 'grid', placeItems: 'center', width: '100%', height: '100%' }}>
+                    <span style={{ fontSize: 96, color: '#2a2c3a', fontWeight: 'var(--fw-bold)' }}>?</span>
+                  </div>
+                )}
               </div>
               {navRow(
-                <>
-                  <h2 style={{ color: RARITY_COLOR[s.rarity], margin: '0 0 2px' }}>{s.nick}</h2>
-                  <p style={{ ...S.revealSub, margin: 0 }}>{rarityLabel(s.rarity)} · {s.family.replace(/_/g, ' ')}</p>
-                </>,
+                owned ? (
+                  <>
+                    <h2 style={{ color: RARITY_COLOR[s.rarity], margin: '0 0 2px' }}>{s.nick}</h2>
+                    <p style={{ ...S.revealSub, margin: 0 }}>{rarityLabel(s.rarity)} · {s.family.replace(/_/g, ' ')}</p>
+                  </>
+                ) : (
+                  <>
+                    <h2 style={{ color: '#6b7088', margin: '0 0 2px' }}>{tr('inspect.undiscovered.title')}</h2>
+                    <p style={{ ...S.revealSub, margin: 0 }}>{rarityLabel(s.rarity)} · {tr('inspect.undiscovered.sub')}</p>
+                  </>
+                ),
               )}
             </div>
+            {/* RIGHT: the tabbed dossier (owned) or a locked teaser (not) — same column, so ‹ › never move */}
             <div className="inspect-detail">
-            {/* ── Abilities: the skill, how it plays on the flux floor, and the topology facts ── */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', textAlign: 'left', borderRadius: 'var(--r-lg)', padding: '9px 11px', border: `1px solid ${eff.special ? 'rgba(158,240,255,0.28)' : 'var(--c-border)'}`, background: eff.special ? 'rgba(95,224,198,0.07)' : 'var(--c-surface-2)' }}>
-                <span style={{ fontSize: 26, lineHeight: 1, flexShrink: 0, opacity: eff.special ? 1 : 0.5 }}>{eff.icon}</span>
-                <div>
-                  <div style={{ fontSize: 'var(--fs-eyebrow)', fontWeight: 'var(--fw-heavy)', color: 'var(--c-text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{tr('inspect.skill.heading')}</div>
-                  <strong style={{ color: eff.special ? '#9ef0ff' : 'var(--c-text-secondary)' }}>{eff.name}</strong>
-                  <p style={{ ...S.hint, margin: '2px 0 0' }}>{eff.desc}</p>
-                </div>
-              </div>
-              <FluxBehaviour family={s.family} genus={s.genus} heading={tr('inspect.flux.heading')} />
-              <p style={{ ...S.hint, margin: 0 }}>
-                {s.genus > 0 ? tr('inspect.topology.holesLanes', { genus: s.genus }).replace(/\{s\}/g, s.genus > 1 ? 's' : '') : tr('inspect.topology.noHoles')}
-                {tr('inspect.topology.eulerCost', { cost: s.euler_cost })}{codex ? tr('inspect.topology.termReveal', { term: codex.term }) : ''}
-              </p>
-              {/* Its Eigenmode instrument (the voice it sings in the orrery) — timbre derived from its topology. */}
-              {(() => {
-                const voice = instrumentForShape(s)
-                return (
-                  <button
-                    style={{ ...S.smallBtn, alignSelf: 'flex-start' }}
-                    onClick={() => previewInstrument(noteForShape(s), voice.wave, voice.detune, voice.flip)}
-                    title={tr('inspect.instrument.title')}
-                  >
-                    🔊 {tr('inspect.instrument.label')} · {voice.patch.charAt(0).toUpperCase() + voice.patch.slice(1)}
-                  </button>
-                )
-              })()}
-            </div>
-            {/* ── Progression: bond + stars ── */}
-            <p style={{ ...S.bondRow, marginTop: 4 }}>
-              <span style={{ color: '#ff5d8f', letterSpacing: 2 }}>{'♥'.repeat(bond)}</span>
-              <span style={{ color: '#3b2b38', letterSpacing: 2 }}>{'♡'.repeat(Math.max(0, 5 - bond))}</span>
-              <span style={S.bondHint}>{tr('inspect.bond.hint', { bond })}</span>
-            </p>
-            <p style={S.bondRow}>
-              <span style={{ color: '#ffd76b', letterSpacing: 2 }}>{'★'.repeat(st)}</span>
-              <span style={{ color: '#3a3320', letterSpacing: 2 }}>{'☆'.repeat(5 - st)}</span>
-              <span style={S.bondHint}>{tr('inspect.star.hint', { st })}</span>
-            </p>
-            {/* ── Lore ── */}
-            {codex && <p style={{ ...S.hint, fontStyle: 'italic', color: '#cdd2e0', fontFamily: fontOf(s.family), marginTop: 6 }}>“{codex.blurb}”</p>}
-            {codex && bond >= 1 && <p style={{ ...S.hint, color: RARITY_COLOR[s.rarity], fontFamily: fontOf(s.family) }}>{codex.bond}</p>}
-            {codex && bond < 1 && <p style={{ ...S.hint, opacity: 0.7 }}>{tr('inspect.bond.locked')}</p>}
-            <button
-              style={{ ...S.smallBtn, marginBottom: 6, ...(secretaryId === id ? S.toggleOn : {}) }}
-              onClick={() => setSecretary(secretaryId === id ? null : id)}
-              title={tr('inspect.secretary.title')}
-            >
-              {secretaryId === id ? tr('inspect.secretary.on') : tr('inspect.secretary.set')}
-            </button>
-            {KINSHIP[s.family]?.length ? (
-              <div style={S.kinBox}>
-                <div style={S.kinHead}>{tr('inspect.kinship.head')}</div>
-                {KINSHIP[s.family].map((k, i) => {
-                  const partner = shapes.find((sh) => sh.family === k.with)
-                  const self = k.with === s.family
-                  const united = self || (!!partner && view.owned[partner.id] > 0)
-                  const canWatch = united && hasShip(s.family, k.with)
-                  return (
-                    <div
-                      key={i}
-                      style={{ ...S.kinRow, cursor: canWatch ? 'pointer' : 'default' }}
-                      onClick={canWatch ? () => useShips.getState().open(s.family, k.with) : undefined}
-                    >
-                      <span style={{ color: united ? '#ff9ecf' : '#4a4d5f', width: 12, flexShrink: 0 }}>{united ? '♥' : '○'}</span>
-                      <span style={S.kinType}>{k.type}</span>
-                      <span style={{ color: united ? '#e8eaf2' : '#8a90a8', fontWeight: 'var(--fw-bold)', flexShrink: 0 }}>{partner ? partner.nick : '???'}</span>
-                      <span style={S.kinNote}>— {k.note}</span>
-                      {canWatch && <span style={S.watchPill}>{tr('inspect.kinship.watchScene')}</span>}
+              {owned ? (
+                <>
+                  <div style={S.subTabs}>
+                    {(['info', 'orrery', 'expedition'] as const).map((t) => (
+                      <button key={t} style={{ ...S.subTab, ...(detailTab === t ? S.subTabOn : {}) }} onClick={() => setDetailTab(t)}>
+                        {tr(`inspect.tab.${t}`)}
+                      </button>
+                    ))}
+                  </div>
+                  {detailTab === 'info' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                      {/* ── the shape itself (the real geometry) ── */}
+                      <p style={{ ...S.hint, margin: 0 }}>
+                        {s.genus > 0 ? tr('inspect.topology.holesLanes', { genus: s.genus }).replace(/\{s\}/g, s.genus > 1 ? 's' : '') : tr('inspect.topology.noHoles')}
+                        {tr('inspect.topology.eulerCost', { cost: s.euler_cost })}{codex ? tr('inspect.topology.termReveal', { term: codex.term }) : ''}
+                      </p>
+                      <p style={{ ...S.hint, margin: 0 }}>{s.orientable ? tr('inspect.topology.orientable') : tr('inspect.topology.nonOrientable')}</p>
+                      {codex && <p style={{ ...S.hint, fontStyle: 'italic', color: '#cdd2e0', fontFamily: fontOf(s.family), margin: 0 }}>“{codex.blurb}”</p>}
+                      {/* ── your bond with it ── */}
+                      <p style={{ ...S.bondRow, margin: '4px 0 0' }}>
+                        <span style={{ color: '#ff5d8f', letterSpacing: 2 }}>{'♥'.repeat(bond)}</span>
+                        <span style={{ color: '#3b2b38', letterSpacing: 2 }}>{'♡'.repeat(Math.max(0, 5 - bond))}</span>
+                        <span style={S.bondHint}>{tr('inspect.bond.hint', { bond })}</span>
+                      </p>
+                      <p style={{ ...S.bondRow, margin: 0 }}>
+                        <span style={{ color: '#ffd76b', letterSpacing: 2 }}>{'★'.repeat(st)}</span>
+                        <span style={{ color: '#3a3320', letterSpacing: 2 }}>{'☆'.repeat(5 - st)}</span>
+                        <span style={S.bondHint}>{tr('inspect.star.hint', { st })}</span>
+                      </p>
+                      {codex && bond >= 1 && <p style={{ ...S.hint, color: RARITY_COLOR[s.rarity], fontFamily: fontOf(s.family), margin: '2px 0 0' }}>{codex.bond}</p>}
+                      {codex && bond < 1 && <p style={{ ...S.hint, opacity: 0.7, margin: '2px 0 0' }}>{tr('inspect.bond.locked')}</p>}
+                      <button style={{ ...S.smallBtn, alignSelf: 'flex-start', ...(secretaryId === id ? S.toggleOn : {}) }} onClick={() => setSecretary(secretaryId === id ? null : id)} title={tr('inspect.secretary.title')}>
+                        {secretaryId === id ? tr('inspect.secretary.on') : tr('inspect.secretary.set')}
+                      </button>
+                      {KINSHIP[s.family]?.length ? (
+                        <div style={S.kinBox}>
+                          <div style={S.kinHead}>{tr('inspect.kinship.head')}</div>
+                          {KINSHIP[s.family].map((k, i) => {
+                            const partner = shapes.find((sh) => sh.family === k.with)
+                            const self = k.with === s.family
+                            const united = self || (!!partner && view.owned[partner.id] > 0)
+                            const canWatch = united && hasShip(s.family, k.with)
+                            return (
+                              <div key={i} style={{ ...S.kinRow, cursor: canWatch ? 'pointer' : 'default' }} onClick={canWatch ? () => useShips.getState().open(s.family, k.with) : undefined}>
+                                <span style={{ color: united ? '#ff9ecf' : '#4a4d5f', width: 12, flexShrink: 0 }}>{united ? '♥' : '○'}</span>
+                                <span style={S.kinType}>{k.type}</span>
+                                <span style={{ color: united ? '#e8eaf2' : '#8a90a8', fontWeight: 'var(--fw-bold)', flexShrink: 0 }}>{partner ? partner.nick : '???'}</span>
+                                <span style={S.kinNote}>— {k.note}</span>
+                                {canWatch && <span style={S.watchPill}>{tr('inspect.kinship.watchScene')}</span>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : null}
                     </div>
-                  )
-                })}
-              </div>
-            ) : null}
+                  )}
+                  {detailTab === 'orrery' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', textAlign: 'left', borderRadius: 'var(--r-lg)', padding: '9px 11px', border: `1px solid ${eff.special ? 'rgba(158,240,255,0.28)' : 'var(--c-border)'}`, background: eff.special ? 'rgba(95,224,198,0.07)' : 'var(--c-surface-2)' }}>
+                        <span style={{ fontSize: 26, lineHeight: 1, flexShrink: 0, opacity: eff.special ? 1 : 0.5 }}>{eff.icon}</span>
+                        <div>
+                          <div style={{ fontSize: 'var(--fs-eyebrow)', fontWeight: 'var(--fw-heavy)', color: 'var(--c-text-dim)', textTransform: 'uppercase', letterSpacing: 0.5 }}>{tr('inspect.skill.heading')}</div>
+                          <strong style={{ color: eff.special ? '#9ef0ff' : 'var(--c-text-secondary)' }}>{eff.name}</strong>
+                          <p style={{ ...S.hint, margin: '2px 0 0' }}>{eff.desc}</p>
+                        </div>
+                      </div>
+                      <FluxBehaviour family={s.family} genus={s.genus} heading={tr('inspect.flux.heading')} />
+                      {(() => {
+                        const voice = instrumentForShape(s)
+                        return (
+                          <button style={{ ...S.smallBtn, alignSelf: 'flex-start' }} onClick={() => previewInstrument(noteForShape(s), voice.wave, voice.detune, voice.flip)} title={tr('inspect.instrument.title')}>
+                            🔊 {tr('inspect.instrument.label')} · {voice.patch.charAt(0).toUpperCase() + voice.patch.slice(1)}
+                          </button>
+                        )
+                      })()}
+                    </div>
+                  )}
+                  {detailTab === 'expedition' && (() => {
+                    const role = INSPECT_ROLE[s.role] ? s.role : 'dps'
+                    const rm = INSPECT_ROLE[role]
+                    const elem = inspectElement(s.family, s.orientable)
+                    return (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start', borderRadius: 'var(--r-pill)', padding: '5px 12px', border: `1px solid ${rm.c}55`, background: `${rm.c}14`, color: rm.c, fontWeight: 'var(--fw-heavy)' }}>
+                          <span style={{ fontSize: 18 }}>{rm.icon}</span> {tr(`exp.role.${role}`)}
+                        </div>
+                        <p style={{ ...S.hint, margin: 0 }}>{tr(`inspect.exp.role.${role}`)}</p>
+                        <p style={{ ...S.hint, margin: '4px 0 0' }}><strong style={{ color: 'var(--c-text-secondary)' }}>{tr('inspect.exp.kit.heading')} · </strong>{tr(`inspect.exp.kit.${role}`)}</p>
+                        {combatTopoLines(s.family, s.genus, s.orientable).map((key) => (
+                          <p key={key} style={{ ...S.hint, margin: '2px 0 0', fontSize: 12.5 }}>{tr(key)}</p>
+                        ))}
+                        <p style={{ ...S.hint, margin: '4px 0 0' }}><strong style={{ color: 'var(--c-text-secondary)' }}>{tr(`inspect.exp.element.${elem}`)}</strong></p>
+                        <p style={{ ...S.hint, opacity: 0.7, margin: 0 }}>{tr('inspect.exp.hint')}</p>
+                      </div>
+                    )
+                  })()}
+                </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, justifyContent: 'center', height: '100%' }}>
+                  <p style={{ ...S.hint, fontStyle: 'italic', color: '#aab', margin: 0 }}>{vagueHint(s.rarity, s.genus, tr)}</p>
+                  <p style={{ ...S.hint, opacity: 0.7, margin: 0 }}>{tr('inspect.undiscovered.pullHint')}</p>
+                </div>
+              )}
             </div>
           </div>
-        ) : (
-          <>
-            {/* No 3D preview for undiscovered shapes — pulling is the joy. Just a vague teaser. */}
-            <div style={{ ...S.revealStage, display: 'grid', placeItems: 'center' }}>
-              <span style={{ fontSize: 72, color: '#2a2c3a', fontWeight: 'var(--fw-bold)' }}>?</span>
-            </div>
-            {navRow(
-              <>
-                <h2 style={{ color: '#6b7088', margin: '0 0 2px' }}>{tr('inspect.undiscovered.title')}</h2>
-                <p style={{ ...S.revealSub, margin: 0 }}>{rarityLabel(s.rarity)} · {tr('inspect.undiscovered.sub')}</p>
-              </>,
-            )}
-            <p style={{ ...S.hint, fontStyle: 'italic', color: '#aab' }}>{vagueHint(s.rarity, s.genus, tr)}</p>
-            <p style={{ ...S.hint, opacity: 0.7 }}>{tr('inspect.undiscovered.pullHint')}</p>
-          </>
-        )}
         </div>
       </div>
     </div>
@@ -3123,7 +3184,7 @@ function AscensionModal() {
             <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 'var(--sp-3)', marginBottom: 'var(--sp-3_5)' }}>
               {fresh.map((s) => (
                 <div key={s.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <span style={{ fontSize: 'var(--fs-numeral)', color: RARITY_COLOR[s.rarity], filter: `drop-shadow(0 0 7px ${RARITY_COLOR[s.rarity]})` }}>{glyphOf(s.family)}</span>
+                  <span style={{ fontSize: 'var(--fs-numeral)', color: RARITY_COLOR[s.rarity], filter: `drop-shadow(0 0 7px ${RARITY_COLOR[s.rarity]})` }}><ShapeGlyph family={s.family} /></span>
                   <span style={{ fontSize: 'var(--fs-caption)', color: 'var(--c-text-secondary)' }}>{s.nick}</span>
                 </div>
               ))}
@@ -3836,7 +3897,7 @@ function CosmeticsQuickPopup() {
   )
 }
 
-function SettingsModal() {
+export function SettingsModal() {
   const tr = useT()
   const settingsOpen = useGame((s) => s.settingsOpen)
   const setSettingsOpen = useGame((s) => s.setSettingsOpen)
@@ -3857,8 +3918,11 @@ function SettingsModal() {
   const quality = useGfx((s) => s.quality)
   const setQuality = useGfx((s) => s.setQuality)
   const showFps = useGfx((s) => s.showFps)
+  const gfxWatchdog = useGfx((s) => s.fpsWatchdog)
+  const gfxFpsTarget = useGfx((s) => s.fpsTarget)
   const gfxShadows = useGfx((s) => s.shadows)
   const particleScale = useGfx((s) => s.particleScale)
+  const rarityMotes = useGfx((s) => s.rarityMotes)
   const starScale = useGfx((s) => s.starScale)
   const gfxBloom = useGfx((s) => s.bloom)
   const gfxGlass = useGfx((s) => s.sceneGlass)
@@ -3877,6 +3941,8 @@ function SettingsModal() {
   const gfxPtEnvCubeRes = useGfx((s) => s.ptEnvCubeRes)
   const gfxPtEnvCubeAmt = useGfx((s) => s.ptEnvCubeAmt)
   const gfxMeshPtCycle = useGfx((s) => s.meshPtCycle)
+  const gfxExpEma = useGfx((s) => s.expeditionPtEma)
+  const gfxExpCaustics = useGfx((s) => s.expeditionPtCaustics)
   const gfxUpdate = useGfx((s) => s.update)
   const ptP = PT_PRESETS[gfxPtQuality] // preset the params fall back to
   const preset = presetFor(quality) // what each "Auto" override resolves to at the active quality
@@ -3951,12 +4017,35 @@ function SettingsModal() {
                 </span>
               </SettingRow>
               <p style={S.hint}>{tr('settings.qualityHint')}</p>
+              <SettingRow label={tr('settings.shapeViewer')} tip={tr('settings.shapeViewerTip')}>
+                <button style={S.toggle} onClick={() => { location.search = '?viewer' }}>{tr('settings.shapeViewerOpen')}</button>
+              </SettingRow>
               {/* finer-grained overrides on top of the preset */}
               <SettingRow label={tr('settings.fpsLabel')} tip={tr('settings.tip.fps')}>
                 <button onClick={() => gfxUpdate({ showFps: !showFps })} style={{ ...S.toggle, ...(showFps ? S.toggleOn : {}) }}>
                   {showFps ? tr('settings.on') : tr('settings.off')}
                 </button>
               </SettingRow>
+              <SettingRow label={tr('settings.fpsWatchdog')} tip={tr('settings.tip.fpsWatchdog')}>
+                <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {(['off', 'on', 'dynamic'] as FpsWatchdog[]).map((ww) => (
+                    <button key={ww} onClick={() => gfxUpdate({ fpsWatchdog: ww })} style={{ ...S.toggle, ...(gfxWatchdog === ww ? S.toggleOn : {}) }}>
+                      {tr(ww === 'off' ? 'settings.off' : ww === 'on' ? 'settings.on' : 'settings.watchdog.dynamic')}
+                    </button>
+                  ))}
+                </span>
+              </SettingRow>
+              {gfxWatchdog === 'dynamic' && (
+                <SettingRow label={tr('settings.fpsTarget')} tip={tr('settings.tip.fpsTarget')}>
+                  <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {([15, 30, 60, 144, 'unlimited'] as FpsTarget[]).map((tf) => (
+                      <button key={String(tf)} onClick={() => gfxUpdate({ fpsTarget: tf })} style={{ ...S.toggle, ...(gfxFpsTarget === tf ? S.toggleOn : {}) }}>
+                        {tf === 'unlimited' ? tr('settings.fpsTarget.unlimited') : tf}
+                      </button>
+                    ))}
+                  </span>
+                </SettingRow>
+              )}
               <GfxTriToggle label={tr('settings.shadowsLabel')} tip={tr('settings.tip.shadows')} value={gfxShadows} resolved={preset.shadows} onChange={(v) => gfxUpdate({ shadows: v })} />
               <SettingRow label={tr('settings.particlesLabel')} tip={tr('settings.tip.particles')}>
                 <span style={{ display: 'flex', gap: 6 }}>
@@ -3966,6 +4055,11 @@ function SettingsModal() {
                     </button>
                   ))}
                 </span>
+              </SettingRow>
+              <SettingRow label={tr('settings.rarityMotesLabel')} tip={tr('settings.tip.rarityMotes')}>
+                <button onClick={() => gfxUpdate({ rarityMotes: !rarityMotes })} style={{ ...S.toggle, ...(rarityMotes ? S.toggleOn : {}) }}>
+                  {rarityMotes ? tr('settings.on') : tr('settings.off')}
+                </button>
               </SettingRow>
               <SettingRow label={tr('settings.starsLabel')} tip={tr('settings.tip.stars')}>
                 <span style={{ display: 'flex', gap: 6 }}>
@@ -4015,6 +4109,25 @@ function SettingsModal() {
                   {gfxPtEnvCube && <GfxStepper label={tr('settings.pt.envCubeRes')} tip={tr('settings.tip.ptEnvCubeRes')} value={gfxPtEnvCubeRes} min={64} max={256} step={64} fmt={(v) => `${v}px`} onChange={(v) => gfxUpdate({ ptEnvCubeRes: v })} />}
                   {gfxPtEnvCube && <GfxStepper label={tr('settings.pt.envCubeAmt')} tip={tr('settings.tip.ptEnvCubeAmt')} value={gfxPtEnvCubeAmt} min={0} max={1} step={0.05} fmt={(v) => `${Math.round(v * 100)}%`} onChange={(v) => gfxUpdate({ ptEnvCubeAmt: v })} />}
                   <SettingRow label={tr('settings.pt.meshCycle')} tip={tr('settings.tip.ptMeshCycle')}><button style={{ ...S.toggle, ...(gfxMeshPtCycle ? S.toggleOn : {}) }} onClick={() => gfxUpdate({ meshPtCycle: !gfxMeshPtCycle })}>{gfxMeshPtCycle ? tr('settings.toggleOn') : tr('settings.toggleOff')}</button></SettingRow>
+                  {/* Expeditions party-PT knobs: temporal denoise of the spinning party + photon-caustic quality */}
+                  <SettingRow label={tr('settings.pt.expEma')} tip={tr('settings.tip.expEma')}>
+                    <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {(['off', 'low', 'high'] as ExpeditionPtEma[]).map((ee) => (
+                        <button key={ee} onClick={() => gfxUpdate({ expeditionPtEma: ee })} style={{ ...S.toggle, ...(gfxExpEma === ee ? S.toggleOn : {}) }}>
+                          {ee === 'off' ? tr('settings.off') : tr('settings.quality' + ee[0].toUpperCase() + ee.slice(1))}
+                        </button>
+                      ))}
+                    </span>
+                  </SettingRow>
+                  <SettingRow label={tr('settings.pt.expCaustics')} tip={tr('settings.tip.expCaustics')}>
+                    <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {(['off', 'low', 'medium', 'high', 'extreme', 'ultra'] as ExpeditionPtCaustics[]).map((cc) => (
+                        <button key={cc} onClick={() => gfxUpdate({ expeditionPtCaustics: cc })} style={{ ...S.toggle, ...(gfxExpCaustics === cc ? S.toggleOn : {}) }}>
+                          {cc === 'off' ? tr('settings.off') : tr('settings.quality' + cc[0].toUpperCase() + cc.slice(1))}
+                        </button>
+                      ))}
+                    </span>
+                  </SettingRow>
                 </>
               )}
             </>

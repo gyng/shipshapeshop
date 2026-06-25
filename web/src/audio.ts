@@ -393,6 +393,23 @@ export function sfxRecall() {
   tone(659.25, 0.07, 0, 'sine', 0.06) // E5
   tone(440.0, 0.12, 0.05, 'sine', 0.05) // → A4
 }
+/** Embark on a delve: a decisive rising arpeggio that resolves up (the party sets off). */
+export function sfxEmbark() {
+  tone(392.0, 0.07, 0, 'triangle', 0.06) // G4
+  tone(523.25, 0.07, 0.06, 'triangle', 0.06) // C5
+  tone(659.25, 0.08, 0.12, 'sine', 0.06) // E5
+  tone(783.99, 0.18, 0.19, 'sine', 0.055) // → G5 resolve
+}
+/** Rest at a campfire: a warm low hum (cozy heal beat). */
+export function sfxCampfire() {
+  tone(196.0, 0.32, 0, 'sine', 0.05) // G3 warmth
+  tone(293.66, 0.22, 0.04, 'sine', 0.03) // D4 soft overtone
+}
+/** Open a treasure: a bright two-note coin chime. */
+export function sfxTreasure() {
+  tone(1046.5, 0.07, 0, 'triangle', 0.05) // C6
+  tone(1567.98, 0.12, 0.05, 'sine', 0.04) // → G6 sparkle
+}
 /** Tap a shape for Flux: a tiny bright coin blip (kept very quiet — taps can be rapid). */
 export function sfxTap() {
   tone(880, 0.045, 0, 'triangle', 0.04) // A5

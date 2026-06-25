@@ -232,15 +232,52 @@ button:disabled { filter: grayscale(0.6) brightness(0.82); cursor: not-allowed; 
    close button is a pinned footer; only .inspect-detail scrolls. */
 .inspect-split { display: flex; flex-direction: column; gap: var(--sp-3); min-height: 0; flex: 1; }
 .inspect-hero { display: flex; flex-direction: column; gap: var(--sp-2); }
-.inspect-hero .inspect-stage { flex: 1 1 auto; min-height: 240px; }
+/* On mobile (stacked) the gem sits ON TOP of the dossier, so cap it so the tabs + first content stay above
+   the fold; on desktop (the side column) it grows to fill — see the min-width:760px block below. */
+.inspect-hero .inspect-stage { flex: 1 1 auto; min-height: 240px; max-height: min(46vh, 380px); }
 .inspect-detail { display: flex; flex-direction: column; gap: var(--sp-2_5); text-align: left; }
 @media (min-width: 760px) {
   .inspect-split { flex-direction: row; align-items: stretch; gap: var(--sp-4); }
   /* explicit width (not flex-basis) + min-width:0 — a clamp() flex-basis is flaky and the gem <canvas>'s
      intrinsic width would otherwise inflate this column and squeeze the dossier. */
-  .inspect-split > .inspect-hero { flex: 0 0 auto; width: clamp(290px, 34%, 380px); min-width: 0; }
+  .inspect-split > .inspect-hero { flex: 0 0 auto; width: clamp(330px, 37%, 470px); min-width: 0; }
   .inspect-split > .inspect-detail { flex: 1 1 auto; min-width: 0; min-height: 0; overflow-y: auto; padding-right: 8px; }
-  .inspect-hero .inspect-stage { min-width: 0; min-height: 280px; }
+  .inspect-hero .inspect-stage { min-width: 0; min-height: 280px; max-height: none; }
+}
+
+/* Standalone shape/SDF viewer (/?viewer) — a dev/showcase surface decoupled from the game. */
+.viewer-root { height: 100dvh; display: flex; flex-direction: column; background: var(--c-bg-base); color: var(--c-text); font-family: var(--font-app); overflow: hidden; }
+.viewer-head { display: flex; align-items: center; gap: 14px; padding: 9px 16px; border-bottom: 1px solid #20222e; flex-shrink: 0; background: linear-gradient(180deg, #15161f, #0e0f17); }
+.viewer-back { background: var(--c-surface-2); border: 1px solid var(--c-border); color: var(--c-text-secondary); border-radius: var(--r-md); padding: 5px 12px; font-size: 13px; cursor: pointer; }
+.viewer-back:hover { border-color: var(--c-accent-teal); color: var(--c-text-bright); }
+.viewer-body { flex: 1; min-height: 0; display: flex; }
+.viewer-browser { width: 264px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid #20222e; padding: 12px; }
+.viewer-search { width: 100%; box-sizing: border-box; background: var(--c-surface-0); border: 1px solid #2a2c3a; border-radius: var(--r-md); color: var(--c-text); padding: 7px 10px; font-size: 13px; }
+.viewer-cat { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--c-text-dim); margin-bottom: 6px; }
+.viewer-tiles { display: flex; flex-direction: column; gap: 3px; }
+.viewer-tile { display: flex; align-items: center; gap: 8px; text-align: left; background: var(--c-surface-1); border: 1px solid #23252f; border-radius: var(--r-md); padding: 6px 9px; font-size: 13px; color: var(--c-text-secondary); cursor: pointer; }
+.viewer-tile:hover { border-color: #3a3d4f; color: var(--c-text-bright); }
+.viewer-stage { flex: 1; min-width: 0; position: relative; }
+.viewer-stage-label { position: absolute; left: 0; right: 0; bottom: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 15px; pointer-events: none; text-shadow: 0 1px 6px #000; }
+.viewer-controls { width: 296px; flex-shrink: 0; overflow-y: auto; border-left: 1px solid #20222e; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.viewer-field { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--c-text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+.viewer-rarity { display: flex; flex-wrap: wrap; gap: 5px; }
+.viewer-select { background: var(--c-surface-0); border: 1px solid #2a2c3a; border-radius: var(--r-md); color: var(--c-text); padding: 7px 10px; font-size: 14px; }
+.viewer-toggle { background: var(--c-surface-2); border: 1px solid var(--c-border); color: var(--c-text-secondary); border-radius: var(--r-md); padding: 6px 11px; font-size: 12px; cursor: pointer; }
+.viewer-toggle[aria-pressed="true"] { border-color: var(--c-accent-teal); color: var(--c-text-bright); background: rgba(95, 224, 198, 0.10); }
+.viewer-swatches { display: flex; flex-wrap: wrap; gap: 5px; }
+.viewer-swatch { width: 30px; height: 26px; border-radius: var(--r-sm); border: 1px solid rgba(255, 255, 255, 0.14); cursor: pointer; padding: 0; transition: transform 0.1s ease, border-color 0.1s ease; }
+.viewer-swatch:hover { transform: scale(1.12); border-color: var(--c-text-secondary); }
+.viewer-swatch-on { outline: 2px solid var(--c-accent-teal); outline-offset: 1px; border-color: var(--c-accent-teal); }
+.viewer-random { align-self: stretch; padding: 9px 12px; border-radius: var(--r-md); border: 1px solid rgba(185, 133, 255, 0.5); background: linear-gradient(120deg, rgba(185, 133, 255, 0.18), rgba(95, 224, 198, 0.16)); color: var(--c-text-bright); font-weight: 700; font-size: 13px; cursor: pointer; transition: filter 0.12s ease, transform 0.08s ease; }
+.viewer-random:hover { filter: brightness(1.18); }
+.viewer-random:active { transform: scale(0.98); }
+@media (max-width: 900px) {
+  .viewer-body { flex-direction: column; overflow-y: auto; }
+  .viewer-browser, .viewer-controls { width: auto; flex-shrink: 0; border: none; border-bottom: 1px solid #20222e; }
+  .viewer-stage { height: 56vh; min-height: 340px; flex: none; order: 0; }
+  .viewer-controls { order: 1; }
+  .viewer-browser { order: 2; }
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -694,3 +731,51 @@ button, nav, header, kbd, canvas, .orrery-wrap, .nav-rail, [role='button'] {
 /* v5 expedition map: a gentle pulse on a node a team is actively farming */
 @keyframes expNodePulse { 0%, 100% { box-shadow: 0 0 8px rgba(155, 140, 255, 0.35); } 50% { box-shadow: 0 0 18px rgba(155, 140, 255, 0.65); } }
 .exp-node-farm { animation: expNodePulse 2.2s ease-in-out infinite; }
+/* v6 delve track: the party's CURRENT room breathes (the journey is alive) */
+@keyframes expRoomPulse { 0%, 100% { transform: scale(1.1); } 50% { transform: scale(1.35); } }
+.exp-room-cur { display: inline-block; animation: expRoomPulse 1.4s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .exp-room-cur { animation: none; transform: scale(1.25); } }
+/* a live Crossroads on the delve-track glows so the optional fork isn't missed (the overlay is transient) */
+@keyframes expDecisionGlow { 0%, 100% { filter: drop-shadow(0 0 2px rgba(255,200,90,0.6)); } 50% { filter: drop-shadow(0 0 7px rgba(255,200,90,1)); } }
+.exp-room-decision { display: inline-block; animation: expDecisionGlow 1.1s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .exp-room-decision { animation: none; filter: drop-shadow(0 0 4px rgba(255,200,90,0.9)); } }
+/* watchable (fight) delve rooms carry a PERSISTENT tap affordance (a ring + a tiny ▸), so touch users see they're
+   tappable — hover-only telegraphs are invisible on touch. Hover/focus brightens further. */
+.delve-fight { position: relative; border-radius: 6px; cursor: pointer; box-shadow: inset 0 0 0 1px rgba(155, 140, 255, 0.4); transition: filter 0.15s, text-shadow 0.15s, box-shadow 0.15s; }
+.delve-fight::after { content: '▸'; position: absolute; right: -1px; bottom: -3px; font-size: 8px; line-height: 1; color: rgba(155, 140, 255, 0.85); pointer-events: none; }
+.delve-fight:hover, .delve-fight:focus-visible { filter: brightness(1.35); text-shadow: 0 0 8px rgba(155, 140, 255, 0.9); box-shadow: inset 0 0 0 1px rgba(155, 140, 255, 0.85); outline: none; }
+/* v6 desktop two-pane: LEFT = 3D scene / map (the views), RIGHT = parties, gambits & controls. Stacks on mobile. */
+.exp-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.exp-left, .exp-right { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+@media (min-width: 1000px) {
+  .exp-grid { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: start; }
+  .exp-left { position: sticky; top: 12px; } /* the scene/map stays in view while the controls scroll */
+}
+/* The Crossroads decision bar depletes over its window via one CSS keyframe (no per-frame React, no FOMO ticking). */
+.exp-decision-bar { animation-name: expDecisionShrink; animation-timing-function: linear; animation-fill-mode: forwards; }
+@keyframes expDecisionShrink { from { width: 100%; } to { width: 0%; } }
+@media (prefers-reduced-motion: reduce) { .exp-decision-bar { animation: none; width: 100%; } }
+/* R8 mobile tabbed tier: below 1000px the two panes stack, so a tab toggle shows ONE at a time (the inactive pane is
+   hidden) — the controls are one tap away instead of a long scroll past the tall scene/map. */
+@media (max-width: 999px) {
+  .exp-grid.exp-m-play .exp-right { display: none; }
+  .exp-grid.exp-m-controls .exp-left { display: none; }
+}
+/* M1: a gambit-fired "tactic" cut-in over the combat stage — drops in, holds, lifts away */
+@keyframes expTacticCut { 0% { opacity: 0; transform: translate(-50%, -8px) scale(0.9); } 16% { opacity: 1; transform: translate(-50%, 0) scale(1); } 82% { opacity: 1; transform: translate(-50%, 0) scale(1); } 100% { opacity: 0; transform: translate(-50%, -6px) scale(0.98); } }
+.exp-tactic-cut { animation: expTacticCut 1.1s ease-out both; }
+@media (prefers-reduced-motion: reduce) { .exp-tactic-cut { animation: none; opacity: 1; } }
+/* the gambit rule currently firing in the live combat pulses, so you can SEE your tactics drive the fight */
+@keyframes expRuleFiring { 0%, 100% { filter: brightness(1); } 50% { filter: brightness(1.4); } }
+.exp-rule-firing { animation: expRuleFiring 0.85s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .exp-rule-firing { animation: none; } }
+
+/* ult-cast golden flash over the combat stage — retriggered per ult beat via a changing key */
+@keyframes expUltFlash { 0% { opacity: 0; transform: scale(0.92); } 16% { opacity: 1; } 100% { opacity: 0; transform: scale(1.12); } }
+.exp-ult-flash { animation: expUltFlash 0.6s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .exp-ult-flash { animation: none; opacity: 0; } }
+
+/* hit-spark burst on a damaging impact — each spark flings outward along its own --ang */
+@keyframes expSpark { from { opacity: 0.9; transform: rotate(var(--ang)) translateY(2px) scale(1); } to { opacity: 0; transform: rotate(var(--ang)) translateY(-16px) scale(0.4); } }
+.exp-spark { animation: expSpark 0.5s ease-out forwards; }
+@media (prefers-reduced-motion: reduce) { .exp-spark { animation: none; opacity: 0; } }

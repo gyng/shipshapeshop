@@ -9,7 +9,6 @@ export interface SceneSpec {
   bg: string // page background (CSS)
   env: [string, string, string, string] // hero-stage lightformer colours: backdrop, key, cool, warm
   stars: string // sparkle/star tint
-  special?: 'cornell'
 }
 
 export const SCENES: SceneSpec[] = [
@@ -32,11 +31,6 @@ export const SCENES: SceneSpec[] = [
     id: 3, name: 'Void', cost: 6000, desc: 'Near-black, a single cold key light.',
     bg: 'radial-gradient(circle at 50% -10%, #0b0b12, #050507 60%)',
     env: ['#0a0a14', '#cfdcff', '#2a3a6a', '#1a2030'], stars: '#9fb4e0',
-  },
-  {
-    id: 4, name: 'Cornell Box', cost: 12000, desc: 'The famous rendering test room — red & green walls, white box, an area light overhead.',
-    bg: 'radial-gradient(circle at 50% -10%, #161410, #0a0a0a 60%)',
-    env: ['#bb3030', '#ffffff', '#2faa3a', '#e8e8e8'], stars: '#fff6e0', special: 'cornell',
   },
   {
     id: 5, name: 'Sakura', cost: 5000, desc: 'Soft cherry-blossom pinks and warm white — gentle and cosy.',
@@ -96,6 +90,9 @@ export const SLOT_SOUNDSCAPE = 6
 export const SLOT_CURSOR = 7
 export const SLOT_ATMOSPHERE = 8
 export const SLOT_HERO_CURSOR = 9 // a cursor-following light on the hero gem in the inspector (default OFF)
+export const SLOT_POSTFX = 10 // post-processing look on the hero/scene composer (film grain, chroma, scanlines, grade; default None)
+export const SLOT_DIORAMA = 11 // a "setting" of real geometry around the hero gem (Cornell box, campfire, dungeon…; default None). Routes the gem through the mesh path.
+export const SLOT_GEM_COLOR = 12 // the hero gem's BODY hue (default Clear). Replaces the old rarity-tint; rarity now reads via floating motes.
 
 // ── Gem finishes (slot 0) ─────────────────────────────────────────────────────
 // A finish re-skins the hero gem's material (pull reveal + inspector). `mat` overrides are merged over the
@@ -118,6 +115,8 @@ export interface GemFinishSpec {
     iridescence?: number // absolute override of thin-film shimmer (0 = none)
     envMapIntensityMul?: number // scales the rarity-derived env reflection strength
     emissiveIntensity?: number // absolute override of the inner-core glow
+    lensing?: number // EXOTIC (path-trace/raymarch): gravitational lensing — pinch the background toward the gem (black hole)
+    volumetric?: number // EXOTIC (path-trace): the gem's interior becomes a ray-marched fbm cloud/smoke at this density
   }
   swatch: string // CSS preview for the shop card
   hues: string[] // spark-burst palette for the purchase pop
@@ -147,6 +146,32 @@ export const GEM_FINISHES: GemFinishSpec[] = [
   { id: 219, name: 'Bismuth', cost: 14000, desc: 'An oxidised metal staircase of teal, gold and magenta, terraced like tiny ziggurats.', mat: { colorTint: '#9a9aa6', transmissionMul: 0.3, roughness: 0.14, iridescence: 0.95, chromaticAdd: 0.2, clearcoat: 1, envMapIntensityMul: 1.4 }, swatch: 'linear-gradient(135deg, #46e0c0, #ffcf6b, #ff6cd0, #6c8cff)', hues: ['#46e0c0', '#ffcf6b', '#ff6cd0', '#6c8cff'] },
   { id: 220, name: 'Magma', cost: 15000, desc: 'A blackened crust cracked open over a slow, glowing molten heart.', mat: { colorTint: '#160a06', transmissionMul: 0.45, roughness: 0.3, attenuationColor: '#ff4a1a', attenuationDistance: 0.7, emissiveIntensity: 1.2, iorAdd: 0.05, clearcoat: 0.3 }, swatch: 'radial-gradient(circle at 50% 55%, #ff7a2a, #c41808 60%, #1a0a06)', hues: ['#ffb066', '#ff4a1a', '#c41808'] },
   { id: 221, name: 'Ectoplasm', cost: 13000, desc: 'A ghost caught mid-drift — glowing faint and cold and not entirely there.', mat: { colorTint: '#bfffe6', transmissionMul: 0.92, roughness: 0.15, attenuationColor: '#5affc0', attenuationDistance: 1.8, emissiveIntensity: 0.5, clearcoat: 0.5 }, swatch: 'linear-gradient(135deg, #d6fff0, #5affc0, #2ac0a0)', hues: ['#d6fff0', '#5affc0', '#2ac0a0'] },
+  // ── Exotic emissive / absorb finishes ✦ — fluorescent glows + a light-eating singularity. These reuse
+  // emissive/absorb/tint/ior (all consumed by finishSdf), so they read correctly on the path-traced + raymarch
+  // heroes, not just mesh. (True matte / lensing / volumetric finishes need new shader terms — separate pass.)
+  { id: 222, name: 'Foxfire', cost: 1800, desc: 'Cold bioluminescent green, like rotting-log glow deep in a midnight forest.', mat: { colorTint: '#7dff8a', attenuationColor: '#2ad96a', attenuationDistance: 1.2, emissiveIntensity: 1.5, transmissionMul: 0.82, iorAdd: 0.05 }, swatch: 'radial-gradient(circle at 50% 50%, #c8ffd0, #39ff6a 60%, #0a3d1a)', hues: ['#c8ffd0', '#7dff8a', '#39ff6a'] },
+  { id: 223, name: 'Blacklight', cost: 2000, desc: 'A UV-violet body that fluoresces neon-green at every edge — the gem under a blacklight.', mat: { colorTint: '#b06cff', attenuationColor: '#39ff14', attenuationDistance: 1.1, emissiveIntensity: 1.2, transmissionMul: 0.72, iorAdd: 0.04 }, swatch: 'linear-gradient(135deg, #d6b8ff, #b06cff, #39ff14)', hues: ['#d6b8ff', '#b06cff', '#39ff14'] },
+  { id: 224, name: 'Cherenkov', cost: 2200, desc: 'The eerie electric-blue glow of something radioactive cooling deep underwater.', mat: { colorTint: '#6cd0ff', attenuationColor: '#1f7aff', attenuationDistance: 1.0, emissiveIntensity: 1.3, transmissionMul: 0.8, iorAdd: 0.08 }, swatch: 'radial-gradient(circle at 50% 50%, #d0f0ff, #2a9bff 60%, #06234a)', hues: ['#d0f0ff', '#6cd0ff', '#2a9bff'] },
+  { id: 225, name: 'Antimatter', cost: 2400, desc: 'A searing white-blue annihilation core — almost too bright to hold in the glass.', mat: { colorTint: '#eaf4ff', attenuationColor: '#9fd0ff', attenuationDistance: 0.9, emissiveIntensity: 2.1, transmissionMul: 0.6, iorAdd: 0.06, clearcoat: 0.6 }, swatch: 'radial-gradient(circle at 50% 45%, #ffffff, #aee0ff 55%, #2a5aff)', hues: ['#ffffff', '#cfeaff', '#7fb8ff'] },
+  { id: 226, name: 'Singularity', cost: 2500, desc: 'Light bends in and almost nothing comes back — a black orb with a thin clinging rim of glow.', mat: { colorTint: '#030305', attenuationColor: '#0a0a16', attenuationDistance: 0.42, emissiveIntensity: 0.06, transmissionMul: 0.1, iorAdd: 0.5, clearcoat: 1, clearcoatRoughness: 0.04 }, swatch: 'radial-gradient(circle at 50% 50%, #2a2a3a, #050509 68%)', hues: ['#5a5a7a', '#1a1a2a', '#050509'] },
+  { id: 227, name: 'Witchfire', cost: 2000, desc: 'A cold green-violet flame that should not burn this quietly.', mat: { colorTint: '#8affb0', attenuationColor: '#b06cff', attenuationDistance: 1.0, emissiveIntensity: 1.4, transmissionMul: 0.7, iorAdd: 0.05, iridescence: 0.3, chromaticAdd: 0.06 }, swatch: 'radial-gradient(circle at 50% 55%, #d0ffe0, #5affc0 50%, #6c2aff)', hues: ['#d0ffe0', '#8affb0', '#b06cff'] },
+  // ── Exotic SHADER finishes ✦ — true matte (diffuse), black-hole lensing, and volumetric "cloud" gems. These drive
+  // new finishSdf terms (matte from roughness>0.2 · lensing · an in-gem fbm volume march) on the path-traced heroes. ──
+  { id: 228, name: 'Pitch', cost: 2000, desc: 'Dead-matte black — a shape cut from pure shadow that swallows every highlight.', mat: { colorTint: '#14121a', roughness: 0.95, transmissionMul: 0.18, clearcoat: 0, iridescence: 0, emissiveIntensity: 0 }, swatch: 'linear-gradient(135deg, #2a2832, #14121a, #050509)', hues: ['#3a3842', '#14121a', '#050509'] },
+  { id: 229, name: 'Chalk', cost: 1800, desc: 'Soft pale matte, like a stick of pastel — no shine at all, just gentle powdery colour.', mat: { colorTint: '#e8e4dc', roughness: 0.92, transmissionMul: 0.2, clearcoat: 0 }, swatch: 'linear-gradient(135deg, #f4f0e8, #d8d2c4, #b0a898)', hues: ['#f4f0e8', '#d8d2c4', '#b0a898'] },
+  { id: 230, name: 'Gravity Well', cost: 3500, desc: 'A true black hole — the cosmos behind it bends and pinches inward, and almost no light escapes.', mat: { colorTint: '#020204', transmissionMul: 0.1, attenuationColor: '#08081a', attenuationDistance: 0.4, emissiveIntensity: 0.08, iorAdd: 0.4, lensing: 0.9, clearcoat: 1, clearcoatRoughness: 0.04 }, swatch: 'radial-gradient(circle at 50% 50%, #1a1a2e, #050509 55%, #000000)', hues: ['#4a4a7a', '#1a1a2e', '#050509'] },
+  { id: 231, name: 'Cloud', cost: 3200, desc: 'A soft white cloud caught inside the shape — drifting wisps you could almost reach into.', mat: { colorTint: '#f4f8ff', volumetric: 0.9, transmissionMul: 0.5 }, swatch: 'radial-gradient(circle at 50% 45%, #ffffff, #cdd8ea 65%, #8a96b0)', hues: ['#ffffff', '#dfe6f2', '#aeb9cc'] },
+  { id: 232, name: 'Nebula', cost: 3600, desc: 'A pocket nebula — violet and rose gas curling slowly through the gem’s heart.', mat: { colorTint: '#d68aff', volumetric: 1.1, transmissionMul: 0.5, emissiveIntensity: 0.3 }, swatch: 'radial-gradient(circle at 45% 50%, #ffd0f0, #b06cff 55%, #3a1a6a)', hues: ['#ffd0f0', '#c79bff', '#8a5cff'] },
+  { id: 233, name: 'Smoke', cost: 3000, desc: 'Slow grey smoke curls and pools inside the shape, never quite settling.', mat: { colorTint: '#9aa0aa', volumetric: 1.0, transmissionMul: 0.55 }, swatch: 'radial-gradient(circle at 50% 50%, #c8ccd2, #6a6d76 60%, #2a2c32)', hues: ['#c8ccd2', '#9aa0aa', '#5a5d64'] },
+  // ── Lustrous gems ✦ — finishes after real mineral species (the cast of a certain anime about brittle, beautiful
+  // gem-people). Each tuned to its stone's true optics: hardness → gloss, transparency → transmission, hue → tint. ──
+  { id: 234, name: 'Phosphophyllite', cost: 4000, desc: 'Pale blue-green and so clear it looks ready to shatter at a touch — wisps of green light caught in glass.', mat: { colorTint: '#9af0e0', attenuationColor: '#5fd0c0', attenuationDistance: 1.6, transmissionMul: 1.0, roughness: 0.05, iorAdd: 0.06, clearcoat: 0.8, chromaticAdd: 0.05 }, swatch: 'linear-gradient(135deg, #d6fff5, #9af0e0, #5fd0c0)', hues: ['#d6fff5', '#9af0e0', '#5fd0c0'] },
+  { id: 235, name: 'Cinnabar', cost: 3500, desc: 'Deep vermilion shot through with a quicksilver shimmer — beautiful, and a little dangerous to hold.', mat: { colorTint: '#d4202a', attenuationColor: '#8a0a14', attenuationDistance: 0.85, transmissionMul: 0.8, roughness: 0.06, iorAdd: 0.08, clearcoat: 1, envMapIntensityMul: 1.4, iridescence: 0.25 }, swatch: 'linear-gradient(135deg, #ff5a5a, #d4202a, #c0c0d0)', hues: ['#ff5a5a', '#d4202a', '#c0c0d0'] },
+  { id: 236, name: 'Bort', cost: 2500, desc: 'A dusk-blue violet with depths like a bruise — unglamorous, unbreakable, dependable.', mat: { colorTint: '#4a4a8a', attenuationColor: '#1f1f4a', attenuationDistance: 0.8, transmissionMul: 0.7, roughness: 0.08, iorAdd: 0.1, clearcoat: 1 }, swatch: 'linear-gradient(135deg, #8a8ad0, #4a4a8a, #1f1f4a)', hues: ['#8a8ad0', '#4a4a8a', '#1f1f4a'] },
+  { id: 237, name: 'Antarcticite', cost: 3000, desc: 'Frost-clear and cold to the eye — crystal only while it stays cool, ready to run to quicksilver in the warmth.', mat: { colorTint: '#e0f4ff', attenuationColor: '#bfe0ff', attenuationDistance: 2.0, transmissionMul: 0.92, roughness: 0.3, clearcoatRoughness: 0.5, iorAdd: 0.04, clearcoat: 0.6 }, swatch: 'linear-gradient(135deg, #ffffff, #dff2ff, #bfe0ff)', hues: ['#ffffff', '#dff2ff', '#bfe0ff'] },
+  { id: 238, name: 'Padparadscha', cost: 4000, desc: 'A sunrise caught in a stone — orange melting into rose, warmest and rarest of the corundums.', mat: { colorTint: '#ff9a5a', attenuationColor: '#ff5a7a', attenuationDistance: 1.1, transmissionMul: 0.95, iorAdd: 0.12, clearcoat: 0.8, envMapIntensityMul: 1.2 }, swatch: 'linear-gradient(135deg, #ffd0a0, #ff9a5a, #ff5a7a)', hues: ['#ffd0a0', '#ff9a5a', '#ff5a7a'] },
+  { id: 239, name: 'Goshenite', cost: 2800, desc: 'Water-clear beryl without a hint of colour — pure, precise, and quietly brilliant behind its facets.', mat: { colorTint: '#f4faff', transmissionMul: 1.05, roughness: 0.03, iorAdd: 0.1, chromaticAdd: 0.1, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensityMul: 1.3 }, swatch: 'linear-gradient(135deg, #ffffff, #f0f6ff, #dfeaff)', hues: ['#ffffff', '#f0f6ff', '#dfeaff'] },
+  { id: 240, name: 'Amethyst', cost: 2500, desc: 'Royal violet quartz, calm and deep — twin-bright when the light runs straight through it.', mat: { colorTint: '#9a5cff', attenuationColor: '#6a2ad0', attenuationDistance: 1.0, transmissionMul: 0.9, iorAdd: 0.07, clearcoat: 0.7 }, swatch: 'linear-gradient(135deg, #d0b0ff, #9a5cff, #6a2ad0)', hues: ['#d0b0ff', '#9a5cff', '#6a2ad0'] },
 ]
 export const gemFinishById = (id: number): GemFinishSpec => GEM_FINISHES.find((f) => f.id === id) ?? GEM_FINISHES[0]
 
@@ -248,14 +273,18 @@ export const boardSkinById = (id: number): BoardSkinSpec => BOARD_SKINS.find((b)
 // heroes (raymarch/path-trace) bake their lighting into a direction-fixed env(), so they get the PULSE part
 // (intensity + hue breathing) — see Stage.tsx `useLightingMotion` and the gem shaders' L.key/L.rim feed.
 export interface LightingMotion {
-  kind: 'orbit' | 'drift' | 'pulse' | 'twinspin'
-  orbitSpeed?: number // rad/s the key light circles the gem (orbit / twinspin)
+  kind: 'orbit' | 'drift' | 'pulse' | 'twinspin' | 'ring' | 'chase' | 'flicker' | 'tube'
+  orbitSpeed?: number // rad/s the key light circles the gem (orbit / twinspin / ring)
   orbitRadius?: number // how far out the key orbits (world units; 0 = in place)
   driftAmp?: number // sway amplitude (world units) for the gentle 'drift'
   driftSpeed?: number // sway rate (rad/s) for 'drift'
   pulseRate?: number // breaths/sec for the intensity+hue pulse (pulse / any mood that breathes)
   pulseDepth?: number // 0..1 — how deep the intensity breathes (0 = none)
-  hueShift?: number // 0..1 — how far the hue drifts each breath (0 = none; subtle by default)
+  hueShift?: number // 0..1 — how far the hue drifts each breath (pulse); for 'ring' = a whole-spectrum rainbow cycle
+  ringCount?: number // # of point-lights evenly spaced around the gem (ring / chase; clamped 3..8)
+  chaseSpeed?: number // laps/sec a single bright pulse runs around the ring (chase)
+  flickerRate?: number // base frequency (Hz) of the nervous intensity flicker (flicker / tube)
+  tubeCount?: number // # of parallel glowing tube bars (tube; 1 or 2)
 }
 export interface LightingSpec {
   id: number
@@ -285,6 +314,16 @@ export const LIGHTING_MOODS: LightingSpec[] = [
   { id: 411, name: 'Drifting ✦', cost: 12000, desc: 'The lights sway and breathe like reflections on water — a gentle, living calm.', ambient: 1.05, key: 1.0, rim: 1.2, motion: { kind: 'drift', driftAmp: 2.4, driftSpeed: 0.5, pulseRate: 0.18, pulseDepth: 0.12 }, swatch: 'linear-gradient(135deg, #1a2a3a, #7fd0ec, #cfe9ff)', hues: ['#cfe9ff', '#7fd0ec'] },
   { id: 412, name: 'Pulsing ✦', cost: 12000, desc: 'A soft, slow heartbeat — the whole stage swells brighter and warmer, then settles, over and over.', ambient: 1.0, key: 1.1, rim: 1.25, motion: { kind: 'pulse', pulseRate: 0.32, pulseDepth: 0.32, hueShift: 0.05 }, swatch: 'radial-gradient(circle at 50% 50%, #ffd6ea, #ff9ecf 70%, #2a1622)', hues: ['#ffd6ea', '#ff9ecf'] },
   { id: 413, name: 'Twin Spin ✦', cost: 16000, desc: 'Two lights wheel in opposite directions, trading warm and cool across the gem — hypnotic.', ambient: 0.85, key: 1.15, rim: 1.3, motion: { kind: 'twinspin', orbitSpeed: 0.4, orbitRadius: 6.0, pulseDepth: 0.08 }, swatch: 'conic-gradient(from 0deg, #ff9ecf, #5fe0c6, #ff9ecf, #5fe0c6)', hues: ['#ff9ecf', '#5fe0c6'] },
+  // ── Ring & creative rigs ✦ — a full halo, a chasing carousel, a nervous flicker, a sweeping beam, a rave ring ──
+  { id: 414, name: 'Ring Light ✦', cost: 14000, desc: 'A full halo of soft lights wheels slowly around the gem — glamour-shot glow from every side at once.', ambient: 0.95, key: 1.15, rim: 1.1, motion: { kind: 'ring', ringCount: 7, orbitSpeed: 0.22, orbitRadius: 6.0, pulseDepth: 0.05 }, swatch: 'radial-gradient(circle at 50% 50%, #fff2d8 0%, #fff2d8 34%, #2a2d3a 40%, #2a2d3a 100%)', hues: ['#fff2d8', '#ffd6ea'] },
+  { id: 415, name: 'Carousel ✦', cost: 15000, desc: 'A single bright light canters around a ring of soft embers — a slow, hypnotic merry-go-round of glow.', ambient: 0.8, key: 1.25, rim: 1.15, motion: { kind: 'chase', ringCount: 8, orbitSpeed: 0.12, orbitRadius: 6.2, chaseSpeed: 0.55 }, swatch: 'conic-gradient(from 0deg, #ffd27a, #2a2d3a 30%, #2a2d3a 70%, #ffd27a)', hues: ['#ffd27a', '#ff9ecf'] },
+  { id: 416, name: 'Neon Buzz ✦', cost: 12000, desc: 'The restless stutter of a neon sign — cool light buzzing right on the edge of a flicker, never quite steady.', ambient: 0.6, key: 1.3, rim: 1.2, motion: { kind: 'flicker', flickerRate: 13 }, swatch: 'linear-gradient(135deg, #0a0a18, #22e6ff, #ff5db0)', hues: ['#22e6ff', '#ff5db0'] },
+  { id: 417, name: 'Candleflame ✦', cost: 11000, desc: 'One little flame leans in and wavers — warm light breathing softly with an unseen draft.', ambient: 0.45, key: 0.95, rim: 1.15, motion: { kind: 'flicker', flickerRate: 7 }, swatch: 'radial-gradient(circle at 50% 60%, #ffd9a0, #ff9a4a 55%, #1a0f06)', hues: ['#ffd9a0', '#ff9a4a'] },
+  { id: 418, name: 'Lighthouse ✦', cost: 13000, desc: 'A lone beam sweeps past on a slow turn — a bright moment, then the long hush between.', ambient: 0.35, key: 1.6, rim: 1.25, motion: { kind: 'orbit', orbitSpeed: 0.7, orbitRadius: 7.5 }, swatch: 'conic-gradient(from 0deg, #fff6dc 0deg, #fff6dc 28deg, #06080f 64deg, #06080f 360deg)', hues: ['#fff6dc', '#ffe6a8'] },
+  { id: 419, name: 'Disco Ring ✦', cost: 18000, desc: "WTF mode — a whirling rainbow ring that never sits still, every facet caught in a different colour.", ambient: 0.8, key: 1.2, rim: 1.25, motion: { kind: 'ring', ringCount: 8, orbitSpeed: 0.9, orbitRadius: 6.0, hueShift: 1.0 }, swatch: 'conic-gradient(from 0deg, #ff5d8f, #ffcf6b, #5fe0c6, #b985ff, #ff5d8f)', hues: ['#ff5d8f', '#5fe0c6', '#b985ff'] },
+  // ── Tube lights ✦ — long glowing bars overhead, like a fluorescent fixture (one buzzes; the pair stays steady) ──
+  { id: 420, name: 'Fluorescent ✦', cost: 12000, desc: 'A cold office tube buzzing overhead — that honest, slightly nervous fluorescent flicker, blue-white and bright.', ambient: 0.7, key: 1.3, rim: 0.95, motion: { kind: 'tube', tubeCount: 1, flickerRate: 14 }, swatch: 'linear-gradient(135deg, #0c1018, #dff0ff, #aecdff)', hues: ['#eaf4ff', '#aecdff'] },
+  { id: 421, name: 'Softbox ✦', cost: 13000, desc: 'A pair of long warm softbox tubes — steady, even and flattering. Pure product-shot polish.', ambient: 1.1, key: 1.2, rim: 0.85, motion: { kind: 'tube', tubeCount: 2, flickerRate: 0 }, swatch: 'linear-gradient(135deg, #2a2418, #fff2d8, #ffe0b0)', hues: ['#fff4e2', '#ffe0b0'] },
 ]
 export const lightingById = (id: number): LightingSpec => LIGHTING_MOODS.find((l) => l.id === id) ?? LIGHTING_MOODS[0]
 
@@ -440,6 +479,12 @@ export const ATMOSPHERES: AtmosphereSpec[] = [
   { id: 936, name: 'Golden Streaks', cost: 12000, desc: 'Slow golden meteors trail warm light across the dark.', fog: '#100c06', fogNear: 8, fogFar: 28, mote: '#ffe6a8', moteCount: 60, moteSize: 1.3, moteSpeed: 0.14, moteOpacity: 0.7, haze: 0.04, meteors: { color: '#ffe6a8', count: 10, speed: 0.8 }, swatch: 'linear-gradient(135deg, #100c06, #ffe6a8)', hues: ['#fff6dc', '#ffe6a8', '#ffcf6b'] },
   { id: 937, name: 'Cloudscape', cost: 16000, desc: 'Soft sunlit clouds drift overhead, bright on top and shadowed below.', fog: '#10141c', fogNear: 8, fogFar: 30, mote: '#dfe9ff', moteCount: 16, moteSize: 1.3, moteSpeed: 0.08, moteOpacity: 0.35, haze: 0.04, clouds: { colorLight: '#ffffff', colorDark: '#6a7488', density: 1.0, coverage: 0.5, speed: 0.4, sunDir: [0.5, 0.8, 0.3] }, swatch: 'linear-gradient(135deg, #10141c, #ffffff)', hues: ['#ffffff', '#dfe9ff', '#9fb4cc'] },
   { id: 938, name: 'Storm Clouds', cost: 16000, desc: 'Heavy grey clouds roll and churn, dark-bellied and brooding.', fog: '#0c0e12', fogNear: 6, fogFar: 26, mote: '#aeb9cc', moteCount: 20, moteSize: 1.4, moteSpeed: 0.2, moteOpacity: 0.4, haze: 0.06, clouds: { colorLight: '#cfd6e0', colorDark: '#2a3038', density: 1.3, coverage: 0.7, speed: 0.7 }, swatch: 'linear-gradient(135deg, #0c0e12, #cfd6e0)', hues: ['#dce2ea', '#cfd6e0', '#3a4048'] },
+  // ── More caustics colourways ✦ — refracted jewel-light woven across the floor, in fresh palettes (the <Caustics>
+  // dome is already mounted by Atmosphere.tsx whenever `caustics` is set, so these are data-only). ──
+  { id: 939, name: 'Emerald Caustics', cost: 4000, desc: 'Rippling green veins of light weave across the floor like sun through a shallow lagoon.', fog: '#04140d', fogNear: 8, fogFar: 28, mote: '#9bffd0', moteCount: 24, moteSize: 1.3, moteSpeed: 0.1, moteOpacity: 0.4, haze: 0.04, caustics: { color: '#5affc0', intensity: 1.0, scale: 1.2, speed: 0.7 }, swatch: 'linear-gradient(135deg, #04140d, #5affc0)', hues: ['#c4fff0', '#5affc0', '#2a8f6a'] },
+  { id: 940, name: 'Rose Caustics', cost: 4000, desc: 'Soft pink light shimmers in delicate woven threads, like dawn through frosted glass.', fog: '#160a12', fogNear: 8, fogFar: 28, mote: '#ffd6ea', moteCount: 24, moteSize: 1.3, moteSpeed: 0.1, moteOpacity: 0.4, haze: 0.04, caustics: { color: '#ff9ecf', intensity: 0.95, scale: 1.1, speed: 0.6 }, swatch: 'linear-gradient(135deg, #160a12, #ff9ecf)', hues: ['#ffe0ef', '#ff9ecf', '#d6618f'] },
+  { id: 941, name: 'Amethyst Caustics', cost: 4200, desc: 'Violet ripples drift slow and dreamlike across the dark, cool and a little otherworldly.', fog: '#0c0818', fogNear: 8, fogFar: 28, mote: '#cbb0ff', moteCount: 24, moteSize: 1.3, moteSpeed: 0.1, moteOpacity: 0.4, haze: 0.04, caustics: { color: '#b985ff', intensity: 1.0, scale: 1.3, speed: 0.5 }, swatch: 'linear-gradient(135deg, #0c0818, #b985ff)', hues: ['#e0d0ff', '#b985ff', '#7a4ad0'] },
+  { id: 942, name: 'Abyssal Caustics', cost: 4400, desc: 'Deep teal light wavers far below the surface — the cold dance of the open sea.', fog: '#04101a', fogNear: 7, fogFar: 26, mote: '#7ad0e0', moteCount: 28, moteSize: 1.3, moteSpeed: 0.09, moteOpacity: 0.45, haze: 0.05, caustics: { color: '#3ad0e0', intensity: 1.1, scale: 1.5, speed: 0.9 }, swatch: 'linear-gradient(135deg, #04101a, #3ad0e0)', hues: ['#bdf0f7', '#3ad0e0', '#1a6a80'] },
 ]
 export const atmosphereById = (id: number): AtmosphereSpec => ATMOSPHERES.find((a) => a.id === id) ?? ATMOSPHERES[0]
 
@@ -511,10 +556,108 @@ export interface ShopCategory {
   comingSoon?: boolean
 }
 
-// Flux is abundant late-game (millions/day from idle), so cosmetics — the endgame Flux *sink* — are scaled up
-// here to be a multi-session completionist goal rather than pocket change. The per-item specs above keep their
-// readable relative tiers; tune the absolute economy with this single multiplier. (Free items stay free: 0×N=0.)
-const SHOP_PRICE_SCALE = 20
+// ── Postprocessing (slot 10) — a film/grade look layered over the hero + scene composers ──────────────────────
+// Each effect is a stock @react-three/postprocessing pass; the equipped spec's optional sub-objects gate which
+// passes mount (mirrors the AtmosphereSpec optional-sub-object idiom). None (id 0) mounts nothing → exact no-op.
+export interface PostFxSpec {
+  id: number
+  name: string
+  cost: number
+  desc: string
+  grain?: { intensity: number } // film grain (Noise opacity)
+  chroma?: { offset: number } // chromatic aberration — RGB split at the edges (~0.0005–0.003)
+  scanlines?: { density: number; opacity: number } // CRT scanline overlay
+  grade?: { saturation?: number; brightness?: number; contrast?: number; hue?: number } // colour grade (−1..1 each)
+  swatch: string
+  hues: string[]
+}
+export const POST_FX: PostFxSpec[] = [
+  { id: 0, name: 'None', cost: 0, desc: 'No post look — the clean render.', swatch: 'linear-gradient(135deg, #1a1c28, #3a3d4f)', hues: ['#cdd6ea', '#3a3d4f'] },
+  { id: 1101, name: 'Film Grain', cost: 3000, desc: 'A fine analog grain settles over everything — celluloid warmth, never quite still.', grain: { intensity: 0.07 }, swatch: 'linear-gradient(135deg, #2a2a2e, #9a9aa0)', hues: ['#cccccf', '#9a9aa0', '#5a5a60'] },
+  { id: 1102, name: 'Chromatic Edge', cost: 3500, desc: 'Light splits into red and cyan ghosts at the edges — a lens that can’t quite agree with itself.', chroma: { offset: 0.0018 }, swatch: 'linear-gradient(135deg, #ff3b6b, #ffffff, #3bffe0)', hues: ['#ff3b6b', '#ffffff', '#3bffe0'] },
+  { id: 1103, name: 'CRT Scanlines', cost: 3200, desc: 'Thin dark scanlines comb down the image — the glow of an old tube monitor.', scanlines: { density: 1.4, opacity: 0.24 }, chroma: { offset: 0.0008 }, swatch: 'repeating-linear-gradient(0deg, #0a1a12, #0a1a12 2px, #39ff6a 3px, #0a1a12 4px)', hues: ['#9fffc0', '#39ff6a', '#0a1a12'] },
+  { id: 1104, name: 'Halation', cost: 4500, desc: 'Highlights bloom and bleed warm into the dark — the soft halo of light on film.', grade: { brightness: 0.05, saturation: 0.12 }, grain: { intensity: 0.03 }, swatch: 'radial-gradient(circle at 50% 45%, #fff2d8, #ff9a6b 60%, #2a1208)', hues: ['#fff2d8', '#ffc89a', '#ff9a6b'] },
+  { id: 1105, name: 'Faded Film', cost: 4000, desc: 'Desaturated and a touch crushed — a sun-bleached photograph left in a drawer.', grade: { saturation: -0.3, contrast: 0.1, brightness: 0.02 }, grain: { intensity: 0.045 }, swatch: 'linear-gradient(135deg, #b8b2a6, #8a8478, #5a5648)', hues: ['#cfc8ba', '#8a8478', '#5a5648'] },
+  { id: 1106, name: 'Dreamcore', cost: 4200, desc: 'Oversaturated and softly split, like a half-remembered dream that won’t hold its colours.', grade: { saturation: 0.28, hue: 0.04 }, chroma: { offset: 0.0011 }, swatch: 'linear-gradient(135deg, #ff9ed6, #b985ff, #6cf0ff)', hues: ['#ff9ed6', '#b985ff', '#6cf0ff'] },
+]
+export const postFxById = (id: number): PostFxSpec => POST_FX.find((p) => p.id === id) ?? POST_FX[0]
+
+// ── Dioramas (slot 11) — a "setting" of real GEOMETRY around the hero gem (not just a recolour) ────────────────
+// `kind` selects a prop set rendered by <SceneDiorama> (built from primitives — no external assets). Equipping one
+// routes the gem through the mesh-transmission path (like the Cornell scene) so it sits as a real object inside it.
+export interface DioramaSpec {
+  id: number
+  name: string
+  cost: number
+  desc: string
+  kind: 'none' | 'cornell' | 'campfire' | 'dungeon' | 'blueprint' | 'orrery' | 'crystal' | 'altar' | 'plinth' | 'snowglobe' | 'rockgarden' | 'forge' | 'shrine' | 'aquarium' | 'mushroom' | 'shore' | 'shop' | 'tearoom' | 'meadow' | 'chapel'
+  enclosed?: boolean // opaque-walled set → constrain the camera orbit to the open front (so it can't swing behind the walls)
+  swatch: string
+  hues: string[]
+}
+export const DIORAMAS: DioramaSpec[] = [
+  { id: 0, name: 'Open Stage', cost: 0, desc: 'Just the gem and the cosmos — no set, the way it’s always been.', kind: 'none', swatch: 'linear-gradient(135deg, #11131f, #1a1c28)', hues: ['#3a3d4f'] },
+  { id: 1201, name: 'Cornell Box', cost: 2000, desc: 'The famous radiosity test room — red wall, green wall, one honest ceiling light. A wink for the render nerds; the glass drinks the coloured bounce.', kind: 'cornell', enclosed: true, swatch: 'linear-gradient(120deg, #c43838 0%, #e8e8e8 50%, #2fa83f 100%)', hues: ['#c43838', '#e8e8e8', '#2fa83f'] },
+  { id: 1202, name: 'Campfire', cost: 2500, desc: 'Crossed logs, a ring of stones, embers drifting up into the dark. The gem warms its hands.', kind: 'campfire', swatch: 'radial-gradient(circle at 50% 78%, #ff7a1a, #5a2a10 58%, #140a06)', hues: ['#ff7a1a', '#ffb060', '#ffd6a0'] },
+  { id: 1203, name: 'Dungeon', cost: 2500, desc: 'Cold stone, iron bars, one guttering torch. Treasure waiting in the dark.', kind: 'dungeon', enclosed: true, swatch: 'radial-gradient(circle at 74% 42%, #ff8a2a, #2a2a30 48%, #15151a)', hues: ['#ff8a2a', '#6b6b73', '#3a3a42'] },
+  { id: 1204, name: 'Blueprint', cost: 2000, desc: 'Graph-paper void and the three axes drawn straight through the gem. Plotted and proud.', kind: 'blueprint', swatch: 'linear-gradient(135deg, #0e1a3a, #2f6df0, #7fb0ff)', hues: ['#2f6df0', '#7fb0ff', '#5fe06a'] },
+  { id: 1205, name: 'Orrery', cost: 3000, desc: 'Slow brass rings wheeling on three axes — a little clockwork cosmos around the jewel.', kind: 'orrery', swatch: 'conic-gradient(from 30deg, #e8b75a, #7a5418, #2a2640, #e8b75a)', hues: ['#e8b75a', '#ffd27a', '#b9863a'] },
+  { id: 1206, name: 'Crystal Cave', cost: 3000, desc: 'A geode cracked open — glowing crystals leaning in around the gem.', kind: 'crystal', swatch: 'linear-gradient(135deg, #7aa0ff, #9a7aff, #6ad0ff)', hues: ['#7aa0ff', '#9a7aff', '#6ad0ff'] },
+  { id: 1207, name: 'Altar', cost: 3500, desc: 'A stepped stone altar between two pillars, a shaft of god-light falling on the jewel. Enshrined.', kind: 'altar', swatch: 'linear-gradient(180deg, #fff3cf 0%, #d8b87a 40%, #2a2438 100%)', hues: ['#fff3cf', '#d8b87a', '#7a6a4a'] },
+  { id: 1208, name: 'Museum Plinth', cost: 3000, desc: 'A marble pedestal under a single gallery spotlight, with a little brass placard. The gem as exhibit A.', kind: 'plinth', swatch: 'radial-gradient(circle at 50% 30%, #fff8ec, #b9b2a4 55%, #1a1a20)', hues: ['#fff8ec', '#cfc8ba', '#8a8478'] },
+  { id: 1209, name: 'Snow Globe', cost: 4000, desc: 'A glass dome on a turned base, snow drifting forever inside. The gem refracts through two layers of glass.', kind: 'snowglobe', swatch: 'radial-gradient(circle at 50% 35%, #ffffff, #bcd6ff 50%, #3a4a6a)', hues: ['#ffffff', '#bcd6ff', '#8aa0d0'] },
+  { id: 1210, name: 'Rock Garden', cost: 2500, desc: 'Raked sand, a few quiet stones, the calm of a karesansui. Pure ASMR.', kind: 'rockgarden', swatch: 'radial-gradient(circle at 50% 60%, #d8cba0, #9a8f72 55%, #4a4636)', hues: ['#d8cba0', '#9a8f72', '#6b6650'] },
+  { id: 1211, name: "Blacksmith's Forge", cost: 3000, desc: 'An iron anvil and a brick firepot of glowing coals cradle the gem in warm, hammer-and-spark light — a nod to the Forge where you fuse your shapes.', kind: 'forge', swatch: 'radial-gradient(circle at 50% 76%, #ff8a2a, #6e3d2c 50%, #1a1410)', hues: ['#ff8a2a', '#6e3d2c', '#564f47'] },
+  { id: 1212, name: 'Dusk Shrine Gate', cost: 3200, desc: 'A vermilion torii gate frames the gem at dusk, two stone lanterns holding small steady flames — a torii marks the threshold where the everyday ends and the sacred begins.', kind: 'shrine', swatch: 'linear-gradient(160deg, #39455f 0%, #5a4a55 42%, #c2403a 100%)', hues: ['#c2403a', '#39455f', '#f2c27a'] },
+  { id: 1213, name: 'Sunken Reef', cost: 3200, desc: 'The gem rests like found treasure on a sandy seabed, branching coral leaning in while tiny bioluminescent anemones breathe a cool teal glow up through the water.', kind: 'aquarium', swatch: 'linear-gradient(160deg, #123b44 0%, #1f6f6a 45%, #3fb8a8 78%, #d98aa0 100%)', hues: ['#1f6f6a', '#3fb8a8', '#d98aa0'] },
+  { id: 1214, name: 'Glimmercap Grove', cost: 3200, desc: 'A hushed fairy-ring of glowing mushrooms, caps lit teal and violet over a mossy floor — the same soft fungal light real glow-shrooms make in the dark.', kind: 'mushroom', swatch: 'radial-gradient(circle at 50% 70%, #5ef0d2 0%, #2a8f8a 35%, #6a3fb0 70%, #14241b 100%)', hues: ['#5ef0d2', '#7a52d8', '#1e3326'] },
+  { id: 1215, name: 'Moonlit Shore', cost: 3200, desc: 'A still, mirror-dark sea meets pale sand under a low dusk moon; the jewel rests at the quiet edge of the world while a single cool glint of moonlight pools beneath it.', kind: 'shore', swatch: 'linear-gradient(180deg, #2a3450 0%, #1b2336 48%, #11151f 78%, #b9b4a2 100%)', hues: ['#1b2336', '#9fb3d6', '#b9b4a2'] },
+  { id: 1216, name: "The Curator's Shop", cost: 3600, desc: 'The cozy back counter of your own little shop — shelves of jars and books, a warm desk lamp, a teacup gone cold, the jewel resting at home on its display stand.', kind: 'shop', swatch: 'radial-gradient(circle at 38% 64%, #ffcf8a, #7a5230 46%, #2a1a0e)', hues: ['#ffcf8a', '#7a5230', '#3a2614'], enclosed: true },
+  { id: 1217, name: 'Lantern Tearoom', cost: 3200, desc: 'Woven tatami, a low tea table, and a paper andon lantern glowing soft and warm behind a shoji screen — the jewel in the hush of a dusk tearoom.', kind: 'tearoom', swatch: 'linear-gradient(165deg, #2a2438 0%, #6a5238 44%, #c9974a 74%, #e8c98a 100%)', hues: ['#e8c98a', '#c9974a', '#5a4632'], enclosed: true },
+  { id: 1218, name: 'Sunlit Meadow', cost: 2800, desc: 'A warm afternoon field of lifted green grass and little wildflowers, soft sunbeams and drifting pollen, where the gem rests in a pool of sun.', kind: 'meadow', swatch: 'linear-gradient(160deg, #bfe0f0 0%, #cfe8c0 42%, #7fbf52 72%, #4f7d34 100%)', hues: ['#bfe0f0', '#7fbf52', '#ffe07a'] },
+  { id: 1219, name: 'Stained-Glass Chapel', cost: 3600, desc: 'Tall gothic windows pour pools of ruby, sapphire and gold across the stone, and the clear gem quietly drinks every colour of that light.', kind: 'chapel', swatch: 'linear-gradient(145deg, #8a1f24 0%, #1c2b6e 45%, #b8861f 100%)', hues: ['#8a1f24', '#1c2b6e', '#b8861f'], enclosed: true },
+]
+export const dioramaById = (id: number): DioramaSpec => DIORAMAS.find((d) => d.id === id) ?? DIORAMAS[0]
+
+// ── Gem colour (slot 12) — the hero gem's BODY hue, decoupled from rarity ─────────────────────────────────────
+// `color` is the linear-ish body tint (hex); null = Clear (pristine glass, no tint). A finish that carries its own
+// tint (Cinnabar, Sapphire Depths…) still wins; on a neutral finish (Prism, Frosted) the gem colour shows through.
+// Rarity is no longer painted onto the gem — it now reads via the rarity-coloured motes (gfx `rarityMotes`).
+export interface GemColorSpec {
+  id: number
+  name: string
+  cost: number
+  desc: string
+  color: string | null
+  swatch: string
+  hues: string[]
+}
+export const GEM_COLORS: GemColorSpec[] = [
+  { id: 0, name: 'Clear', cost: 0, desc: 'Pristine colourless glass — let the finish and the light do the talking.', color: null, swatch: 'linear-gradient(135deg, #ffffff, #dfe6f2, #b8c0d0)', hues: ['#ffffff', '#dfe6f2'] },
+  { id: 1301, name: 'Crimson', cost: 600, desc: 'A deep blood-red heart.', color: '#e0244a', swatch: 'radial-gradient(circle at 40% 35%, #ff8aa0, #e0244a 60%, #8a0e28)', hues: ['#ff8aa0', '#e0244a', '#8a0e28'] },
+  { id: 1302, name: 'Garnet', cost: 600, desc: 'Dark wine-red, warm and old.', color: '#a01828', swatch: 'radial-gradient(circle at 40% 35%, #e05a6a, #a01828 60%, #560a16)', hues: ['#e05a6a', '#a01828', '#560a16'] },
+  { id: 1303, name: 'Amber', cost: 600, desc: 'Warm honey-gold caught in glass.', color: '#ffae3a', swatch: 'radial-gradient(circle at 40% 35%, #ffe0a0, #ffae3a 60%, #b06a14)', hues: ['#ffe0a0', '#ffae3a', '#b06a14'] },
+  { id: 1304, name: 'Gold', cost: 600, desc: 'Bright sunlit citrine yellow.', color: '#ffd84a', swatch: 'radial-gradient(circle at 40% 35%, #fff0b0, #ffd84a 60%, #b09a14)', hues: ['#fff0b0', '#ffd84a', '#b09a14'] },
+  { id: 1305, name: 'Chartreuse', cost: 600, desc: 'Electric yellow-green, fresh and sharp.', color: '#bce04a', swatch: 'radial-gradient(circle at 40% 35%, #e8ffa0, #bce04a 60%, #7a9a18)', hues: ['#e8ffa0', '#bce04a', '#7a9a18'] },
+  { id: 1306, name: 'Viridian', cost: 600, desc: 'A vivid forest green.', color: '#2fd07a', swatch: 'radial-gradient(circle at 40% 35%, #9bf3c4, #2fd07a 60%, #0c6b3d)', hues: ['#9bf3c4', '#2fd07a', '#0c6b3d'] },
+  { id: 1307, name: 'Jade', cost: 600, desc: 'Soft, calm milky green.', color: '#4ac98a', swatch: 'radial-gradient(circle at 40% 35%, #a8eecb, #4ac98a 60%, #1f7a52)', hues: ['#a8eecb', '#4ac98a', '#1f7a52'] },
+  { id: 1308, name: 'Teal', cost: 600, desc: 'Cool blue-green like a tropic shallows.', color: '#3fe0d0', swatch: 'radial-gradient(circle at 40% 35%, #a0fff2, #3fe0d0 60%, #14908a)', hues: ['#a0fff2', '#3fe0d0', '#14908a'] },
+  { id: 1309, name: 'Cobalt', cost: 600, desc: 'A deep, true blue.', color: '#2a6aff', swatch: 'radial-gradient(circle at 40% 35%, #8fb4ff, #2a6aff 60%, #16277a)', hues: ['#8fb4ff', '#2a6aff', '#16277a'] },
+  { id: 1310, name: 'Sky', cost: 600, desc: 'Pale topaz blue, light and airy.', color: '#7ad0ff', swatch: 'radial-gradient(circle at 40% 35%, #d0f0ff, #7ad0ff 60%, #2a8ac0)', hues: ['#d0f0ff', '#7ad0ff', '#2a8ac0'] },
+  { id: 1311, name: 'Violet', cost: 600, desc: 'Royal purple, deep and calm.', color: '#9a5cff', swatch: 'radial-gradient(circle at 40% 35%, #d0b0ff, #9a5cff 60%, #6a2ad0)', hues: ['#d0b0ff', '#9a5cff', '#6a2ad0'] },
+  { id: 1312, name: 'Blush', cost: 600, desc: 'Soft warm pink.', color: '#ff8ac0', swatch: 'radial-gradient(circle at 40% 35%, #ffd0e8, #ff8ac0 60%, #c04a8a)', hues: ['#ffd0e8', '#ff8ac0', '#c04a8a'] },
+  { id: 1313, name: 'Onyx', cost: 600, desc: 'Smoky near-black, all depth and gloss.', color: '#2a2a32', swatch: 'radial-gradient(circle at 40% 35%, #5a5a66, #2a2a32 60%, #0a0a0e)', hues: ['#5a5a66', '#2a2a32', '#0a0a0e'] },
+  { id: 1314, name: 'Ivory', cost: 600, desc: 'Warm creamy white, soft as moonlight.', color: '#f4ece0', swatch: 'radial-gradient(circle at 40% 35%, #fffaf2, #f4ece0 60%, #cabfa8)', hues: ['#fffaf2', '#f4ece0', '#cabfa8'] },
+]
+export const gemColorById = (id: number): GemColorSpec => GEM_COLORS.find((c) => c.id === id) ?? GEM_COLORS[0]
+
+// Flux is abundant late-game (millions/day from idle), so cosmetics — the endgame Flux *sink* — are scaled here.
+// The per-item specs above keep their readable relative tiers; tune the absolute economy with this single
+// multiplier. (Free items stay free: 0×N=0.)
+// TEMPORARY (2026-06-25): lowered 20 → 2 so ALL cosmetics unlock quickly while we play with the new ones. The real
+// economy rebalance (across cosmetics + expeditions) is a deferred pass — restore/retune this then. See memory
+// `new-cosmetics-pricing`.
+const SHOP_PRICE_SCALE = 2
 
 const sceneItems: ShopItem[] = SCENES.map((s) => ({ id: s.id, name: s.name, cost: s.cost * SHOP_PRICE_SCALE, desc: s.desc, swatch: `linear-gradient(90deg, ${s.env[0]}, ${s.env[1]}, ${s.env[2]}, ${s.env[3]})`, hues: [s.stars, s.env[1], s.env[2], s.env[3]] }))
 const finishItems: ShopItem[] = GEM_FINISHES.map((f) => ({ id: f.id, name: f.name, cost: f.cost * SHOP_PRICE_SCALE, desc: f.desc, swatch: f.swatch, hues: f.hues }))
@@ -527,6 +670,9 @@ const cursorItems: ShopItem[] = CURSOR_FX.map((c) => ({ id: c.id, name: c.name, 
 const heroCursorItems: ShopItem[] = HERO_CURSORS.map((c) => ({ id: c.id, name: c.name, cost: c.cost * SHOP_PRICE_SCALE, desc: c.desc, swatch: c.swatch, hues: c.hues }))
 const atmosphereItems: ShopItem[] = ATMOSPHERES.map((a) => ({ id: a.id, name: a.name, cost: a.cost * SHOP_PRICE_SCALE, desc: a.desc, swatch: a.swatch, hues: a.hues }))
 const decorItems: ShopItem[] = DECOR.map((d) => ({ id: d.id, name: d.name, cost: d.cost * SHOP_PRICE_SCALE, desc: d.desc, swatch: d.swatch, hues: d.hues }))
+const postFxItems: ShopItem[] = POST_FX.map((p) => ({ id: p.id, name: p.name, cost: p.cost * SHOP_PRICE_SCALE, desc: p.desc, swatch: p.swatch, hues: p.hues }))
+const dioramaItems: ShopItem[] = DIORAMAS.map((d) => ({ id: d.id, name: d.name, cost: d.cost * SHOP_PRICE_SCALE, desc: d.desc, swatch: d.swatch, hues: d.hues }))
+const gemColorItems: ShopItem[] = GEM_COLORS.map((c) => ({ id: c.id, name: c.name, cost: c.cost * SHOP_PRICE_SCALE, desc: c.desc, swatch: c.swatch, hues: c.hues }))
 
 export const SHOP_CATEGORIES: ShopCategory[] = [
   { key: 'scenes', icon: '🌌', slot: 'scene', items: sceneItems },
@@ -540,4 +686,7 @@ export const SHOP_CATEGORIES: ShopCategory[] = [
   { key: 'audio', icon: '🎵', slot: SLOT_SOUNDSCAPE, items: soundscapeItems },
   { key: 'titles', icon: '🏷', slot: SLOT_TITLE, items: titleItems },
   { key: 'decor', icon: '🪴', slot: SLOT_DECOR, items: decorItems },
+  { key: 'postfx', icon: '🎞', slot: SLOT_POSTFX, items: postFxItems },
+  { key: 'dioramas', icon: '🏛', slot: SLOT_DIORAMA, items: dioramaItems },
+  { key: 'gemcolor', icon: '🎨', slot: SLOT_GEM_COLOR, items: gemColorItems },
 ]

@@ -2,7 +2,7 @@
 // connected nodes, branching Elite alt-routes). Render-only: every node's state (locked/open/cleared/farming/
 // beatable) and the risk choice come from Rust truth (the view); this draws + animates them. Clicking a node
 // opens a detail card with the station/watch/recall actions, a risk-mod picker, and clear telegraphing.
-import { useState, type CSSProperties } from 'react'
+import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import { useGame } from './game/store'
 import type { ExpQuest } from './game/store'
 import { useT } from './i18n'
@@ -11,7 +11,8 @@ const ECHO = '#9b8cff'
 const GOLD = 'var(--c-accent-gold, #ffcf6b)'
 const READY = '#5fe0c6'
 const WARN = '#ff8a6b'
-const NODE = 56 // node diameter (px)
+const NODE = 44 // node diameter (px) — ≥44 for touch (#9); the map scrolls horizontally so the wider nodes don't crowd the column
+const BOSS_LORE = new Set(['shallows_boss', 'folds_boss', 'deep_boss', 'vantage_boss']) // boss nodes with Ledger lore
 
 type NodeState = 'locked' | 'open' | 'cleared' | 'farming'
 
@@ -22,7 +23,7 @@ function fmt(n: number): string {
   return Math.round(n).toLocaleString()
 }
 
-export function ExpeditionMap({ activeTeam }: { activeTeam: number }) {
+export function ExpeditionMap({ activeTeam, autoScroll }: { activeTeam: number; autoScroll?: boolean }) {
   const tr = useT()
   const view = useGame((s) => s.view)
   const exp = useGame((s) => s.expContent)
@@ -32,18 +33,54 @@ export function ExpeditionMap({ activeTeam }: { activeTeam: number }) {
   const setNodeMod = useGame((s) => s.setNodeMod)
   const [sel, setSel] = useState<number | null>(null)
   const [teamPick, setTeamPick] = useState(false)
+  const focusRef = useRef<HTMLButtonElement | null>(null)
+  // auto-scroll the map's bounded container to the party's current node (delve node, else the open frontier). The dep
+  // tracks BOTH cases so it also re-centers when the open frontier advances during idle/farming (a node clears), not
+  // only during a live delve.
+  const focusKey = view?.run
+    ? view.run.path[Math.min(view.run.current_room, view.run.path.length - 1)]
+    : view
+      ? view.exp_node_open.findIndex((o, qi) => o && !view.exp_cleared[qi])
+      : -2
+  useEffect(() => {
+    if (!autoScroll) return
+    const el = focusRef.current
+    if (!el) return
+    const er = el.getBoundingClientRect()
+    // Center the focused node in BOTH scroll axes — the map's progression is horizontal (X.scroll) AND the column
+    // clips vertically (mapScroll). Walk up handling the first horizontal + first vertical scroller (then stop, so
+    // we never scroll the whole page); bounding rects keep the math correct across the nested absolute/relative layers.
+    let s: HTMLElement | null = el.parentElement
+    let doneX = false
+    let doneY = false
+    while (s && (!doneX || !doneY)) {
+      const style = getComputedStyle(s)
+      const sr = s.getBoundingClientRect()
+      if (!doneX && /auto|scroll/.test(style.overflowX) && s.scrollWidth > s.clientWidth + 1) {
+        s.scrollTo({ left: Math.max(0, s.scrollLeft + (er.left - sr.left) - s.clientWidth / 2 + er.width / 2), behavior: 'smooth' })
+        doneX = true
+      }
+      if (!doneY && /auto|scroll/.test(style.overflowY) && s.scrollHeight > s.clientHeight + 1) {
+        s.scrollTo({ top: Math.max(0, s.scrollTop + (er.top - sr.top) - s.clientHeight / 2 + er.height / 2), behavior: 'smooth' })
+        doneY = true
+      }
+      s = s.parentElement
+    }
+  }, [autoScroll, focusKey, activeTeam])
 
   if (!view || !exp) return null
   const quests = exp.quests
   const teams = view.exp_teams
+  // the node the in-flight delve is currently at (so the run is visible on the map, not just the Scene)
+  const runNode = view.run ? view.run.path[Math.min(view.run.current_room, view.run.path.length - 1)] : -1
 
   // layout bounds from the authored map_xy (units of ~10px); pad + scale to a comfortable canvas
   const xs = quests.map((q) => q.map_xy[0])
   const ys = quests.map((q) => q.map_xy[1])
   const minX = Math.min(...xs), maxX = Math.max(...xs)
   const minY = Math.min(...ys), maxY = Math.max(...ys)
-  const SX = 13, SY = 30 // px per map unit (x denser than y)
-  const PAD = NODE / 2 + 14
+  const SX = 10, SY = 15 // px per map unit (x denser than y) — compacted to fit the left column (SY drives the height)
+  const PAD = NODE / 2 + 10
   const W = (maxX - minX) * SX + PAD * 2
   const H = (maxY - minY) * SY + PAD * 2 + 8
   const px = (q: ExpQuest) => PAD + (q.map_xy[0] - minX) * SX
@@ -57,6 +94,8 @@ export function ExpeditionMap({ activeTeam }: { activeTeam: number }) {
     return 'locked'
   }
   const stationedBy = (qi: number) => teams.findIndex((t) => t.station === qi)
+  // the node to auto-scroll to: the active delve's current node, else the open frontier (farming/open)
+  const focusNode = runNode >= 0 ? runNode : quests.findIndex((_, qi) => { const st = stateOf(qi); return st === 'farming' || st === 'open' })
 
   const colorOf = (qi: number, st: NodeState): string => {
     if (st === 'farming') return ECHO
@@ -112,6 +151,10 @@ export function ExpeditionMap({ activeTeam }: { activeTeam: number }) {
             const c = colorOf(qi, st)
             const isSel = sel === qi
             const mod = view.exp_node_mod[qi] ?? 0
+            // richer hover tooltip — state + power req + farm-rate estimate, so the map is scannable without clicking
+            const fluxEst = view.exp_quest_flux_est[qi] ?? 0
+            const stLabel = st === 'farming' ? tr('exp.farming') : st === 'cleared' ? tr('exp.cleared') : st === 'open' ? (view.exp_node_beatable[qi] ? tr('exp.ready') : tr('exp.risky')) : ''
+            const nodeTitle = `${q.nick}${stLabel ? ` — ${stLabel}` : ''}${st !== 'locked' ? ` · ${tr('exp.power')} ${q.power_req}` : ''}${fluxEst > 0 && st !== 'cleared' ? ` · ≈+${fmt(fluxEst)} ✦/hr` : ''}`
             // bosses/elites read as special: a larger ring + a soft halo (kept centred on the original position)
             const big = q.kind === 'boss' ? 1.24 : q.kind === 'elite' ? 1.1 : 1
             const sz = NODE * big
@@ -119,9 +162,10 @@ export function ExpeditionMap({ activeTeam }: { activeTeam: number }) {
             const kindHalo = st === 'locked' ? '' : q.kind === 'boss' ? `, 0 0 18px ${c}` : q.kind === 'elite' ? `, 0 0 0 1.5px ${c}` : ''
             return (
               <button
+                ref={qi === focusNode ? focusRef : undefined}
                 key={q.key}
                 onClick={() => { setSel(qi); setTeamPick(false) }}
-                title={q.nick}
+                title={nodeTitle}
                 style={{
                   ...X.node,
                   left: px(q) - off,
@@ -138,9 +182,10 @@ export function ExpeditionMap({ activeTeam }: { activeTeam: number }) {
                 }}
                 className={st === 'farming' ? 'exp-node-farm' : undefined}
               >
-                <span style={{ fontSize: q.kind === 'boss' ? 22 : 17 }}>{st === 'locked' ? (q.min_dim > view.viewport_dim ? '✧' : '🔒') : st === 'cleared' ? '✓' : nodeIcon(q.kind)}</span>
+                <span style={{ fontSize: q.kind === 'boss' ? 16 : 13 }}>{st === 'locked' ? (q.min_dim > view.viewport_dim ? '✧' : '🔒') : st === 'cleared' ? '✓' : nodeIcon(q.kind)}</span>
                 {st === 'farming' && <span style={X.nodeFarmTag}>✶</span>}
-                {mod > 0 && st !== 'cleared' && st !== 'farming' && <span style={X.nodeModTag}>{'!'.repeat(mod)}</span>}
+                {qi === runNode && <span style={X.nodeRunTag}>⛏</span>}
+                {mod > 0 && st !== 'cleared' && st !== 'farming' && <span style={{ ...X.nodeModTag, color: mod >= 2 ? '#ff4d4d' : '#ffb74a' }}>{'!'.repeat(mod)}</span>}
               </button>
             )
           })}
@@ -183,6 +228,7 @@ export function ExpeditionMap({ activeTeam }: { activeTeam: number }) {
               {selQ.boss_nick && <span style={{ ...X.enemyChip, ...X.bossChip }}>☠ {selQ.boss_nick}</span>}
             </div>
             {selQ.recruit_nick && !view.exp_cleared[qi] && <div style={X.recruit}>{tr('exp.frees', { nick: selQ.recruit_nick })}</div>}
+            {BOSS_LORE.has(selQ.key) && <div style={X.bossLore}>{tr(`exp.boss.${selQ.key}.lore`)}</div>}
 
             {/* risk-mod picker (only when open + uncleared) */}
             {st === 'open' && (
@@ -257,6 +303,7 @@ const X: Record<string, CSSProperties> = {
   scroll: { overflowX: 'auto', overflowY: 'hidden', padding: '8px 4px 16px', borderRadius: 12, background: 'rgba(0,0,0,0.18)', border },
   node: { position: 'absolute', width: NODE, height: NODE, borderRadius: '50%', border: '2px solid', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'transform 0.15s, box-shadow 0.15s', padding: 0 },
   nodeFarmTag: { position: 'absolute', top: -6, right: -2, fontSize: 12, color: ECHO },
+  nodeRunTag: { position: 'absolute', bottom: -8, left: '50%', transform: 'translateX(-50%)', fontSize: 13, filter: 'drop-shadow(0 0 4px rgba(155,140,255,0.7))' },
   nodeModTag: { position: 'absolute', bottom: -4, fontSize: 10, color: WARN, fontWeight: 800, letterSpacing: -1 },
   detail: { background: 'rgba(255,255,255,0.04)', border, borderRadius: 14, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 },
   detailHead: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
@@ -269,6 +316,7 @@ const X: Record<string, CSSProperties> = {
   enemyChip: { fontSize: 11, opacity: 0.8, background: 'rgba(255,255,255,0.06)', borderRadius: 5, padding: '2px 6px' },
   bossChip: { color: '#ff9a6b', background: 'rgba(255,120,80,0.12)' },
   recruit: { fontSize: 12, color: '#ff8fb0' },
+  bossLore: { fontSize: 11.5, color: 'rgba(255,255,255,0.66)', fontStyle: 'italic', lineHeight: 1.4, marginTop: 5 },
   modRow: { display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' },
   modLabel: { fontSize: 12, opacity: 0.7 },
   modBtn: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, padding: '4px 11px', borderRadius: 8, border, background: 'rgba(255,255,255,0.05)', color: 'inherit', cursor: 'pointer', fontSize: 12 },
