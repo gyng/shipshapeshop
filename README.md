@@ -2,13 +2,15 @@
 
 # Ship Shape Shop
 
-**A cabinet of mathematical shapes, kept like creatures — each with a name, a temperament, and a quiet opinion about where it sits.**
+**Mathematical shapes, collected like creatures. Each has a nickname and a personality, and most have opinions about where you put them.**
 
-Pull them from the gacha. Set them on a hex orrery, where a shape's topology decides what it makes and how it sounds. Glue two together in the Forge — the real connected-sum; the maths *is* the recipe. Send the bold ones delving the Manifold. Calm on the surface, an optimization puzzle underneath, a little topology you absorb without noticing. It finishes in a day or two, and it never minds you leaving.
+Pull them from the gacha. Set them on a hex board, where a shape's topology decides what it produces and what it sounds like. In the Forge you glue two shapes into a third, which happens to be the actual connected-sum operation, so the maths doubles as the recipe book. Send a party into the Manifold and they fight their way through it while you're gone.
+
+It's a calm thing to look at. There's an optimization puzzle underneath if you go looking, and you'll pick up some real topology without being asked to. It finishes in a day or two of playing, and it doesn't mind you putting it down.
 
 ### [▶ Play in your browser](https://gyng.github.io/shipshapeshop/)
 
-Free, no install, no accounts — a static PWA. *(Just here for the shapes? [Browse the whole cabinet →](https://gyng.github.io/shipshapeshop/?viewer))*
+Free, runs entirely in the browser, no accounts. Just here for the shapes? [The viewer](https://gyng.github.io/shipshapeshop/?viewer) browses every one of them.
 
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
 [![CI](https://github.com/gyng/shipshapeshop/actions/workflows/ci.yml/badge.svg)](https://github.com/gyng/shipshapeshop/actions/workflows/ci.yml)
@@ -19,13 +21,13 @@ Free, no install, no accounts — a static PWA. *(Just here for the shapes? [Bro
 
 ---
 
-## What's inside
+## What's in it
 
-- **Two ways to acquire one.** Pull from the gacha, or *make* one in the Forge — gluing two surfaces is the genuine connected-sum (χ adds, genus adds, non-orientability is catching). The recipe book is just topology.
-- **Shapes that talk back.** Each keeps a nickname, a voice derived from its own geometry, and a bond you raise by visiting. The real mathematical name is a thing you earn, never jargon thrown at you.
-- **A board you can hear.** Deployed shapes drive both production *and* a generative lofi score — you end up listening to your own economy run.
-- **Expeditions into the Manifold.** Send parties delving procedural dungeons: auto-combat, a *gambit* editor where a cleverer plan beats raw power, farmable Echoes. Opt-in, and fenced off so it never gates the calm game.
-- **Finite, and unbothered by absence.** A day or two to the summit, extended by New Game+ — ascend a dimension, meet everyone again from higher up. No treadmill, no daily guilt, no dark patterns.
+- **A gacha and a crafting bench.** Pull shapes, or make new ones in the Forge by gluing two together. The glue is the real connected-sum: Euler characteristics add, genus adds, and non-orientability is catching. So the recipe book is just topology.
+- **The shapes talk.** Each has a voice built from its own geometry, and a bond that climbs when you spend time with it. You learn the real mathematical name as a reward, not as homework.
+- **The board makes music.** Whatever you've deployed drives the production numbers and a generative lofi soundtrack at once, so you can hear the economy tick over.
+- **Expeditions.** Send teams to delve the Manifold: idle auto-combat with a gambit editor, where a good set of rules beats a stronger team that's playing dumb. Optional, and walled off from the calm game.
+- **It ends.** A day or two to finish, then New Game+ if you feel like climbing a dimension and meeting everyone again from higher up. No login streaks, no FOMO timers, none of that.
 
 ## A look around
 
@@ -37,21 +39,21 @@ Free, no install, no accounts — a static PWA. *(Just here for the shapes? [Bro
 
 ## How it's built
 
-> **One rule:** *Rust decides what is true; TypeScript decides how it looks and feels.* Every authoritative number — RNG, pity, economy, offline catch-up — lives in the deterministic Rust core, compiled to WASM. The web layer mirrors and tweens that truth; it never invents it.
+The whole thing is organized around one rule: Rust decides what's true, TypeScript decides how it looks. Every number that matters — the RNG, pity, the economy, offline catch-up — lives in a deterministic Rust core compiled to WASM. The web layer just mirrors and animates it; if TypeScript ever computes a balance number, that's a bug.
 
 | Layer | Tech |
 |---|---|
-| **Simulation core** | Rust → WebAssembly, 100% deterministic, unit + balance tested |
-| **Frontend** | React + TypeScript, Zustand, Vite — a static PWA |
-| **3D / shaders** | three.js + react-three-fiber, raymarched + path-traced gems, real 4D projection |
-| **Audio** | Web Audio + Tone.js — a generative lofi bed read from your board |
-| **i18n** | English · 日本語 · 简体中文, locale-keyed from the first commit |
+| Simulation core | Rust → WebAssembly, deterministic, unit + balance tested |
+| Frontend | React + TypeScript, Zustand, Vite, shipped as a static PWA |
+| 3D / shaders | three.js + react-three-fiber, raymarched and path-traced gems, real 4D projection |
+| Audio | Web Audio + Tone.js, a generative lofi bed read off your board |
+| i18n | English, 日本語, 简体中文, keyed from the first commit |
 
-Deeper docs: [`AGENTS.md`](./AGENTS.md) (engineering) · [`DESIGN.md`](./DESIGN.md) (game + economy) · [`RENDERING_PLAN.md`](./RENDERING_PLAN.md) (shaders) · [`CHARACTERS.md`](./CHARACTERS.md) (the cast + the Atlas frame).
+More in [`AGENTS.md`](./AGENTS.md) (engineering), [`DESIGN.md`](./DESIGN.md) (game and economy), [`RENDERING_PLAN.md`](./RENDERING_PLAN.md) (shaders), and [`CHARACTERS.md`](./CHARACTERS.md) (the cast and the Atlas frame).
 
 ## Quick start
 
-Needs [Rust](https://rustup.rs/) + the `wasm32-unknown-unknown` target + [`wasm-pack`](https://rustwasm.github.io/wasm-pack/), [Node 20+](https://nodejs.org/), and [pnpm](https://pnpm.io/). The WASM core builds **before** the web deps (`web` links `core/pkg`).
+You'll need [Rust](https://rustup.rs/) with the `wasm32-unknown-unknown` target and [`wasm-pack`](https://rustwasm.github.io/wasm-pack/), plus [Node 20+](https://nodejs.org/) and [pnpm](https://pnpm.io/). Build the WASM core before the web deps, since `web` links against `core/pkg`.
 
 ```bash
 pnpm setup    # build the Rust→WASM core, then install web deps
@@ -60,14 +62,14 @@ pnpm test     # Rust tests + balance sim + web tests
 pnpm build    # release WASM + static bundle in web/dist
 ```
 
-Layout: `core/` (Rust sim → one `.wasm`) · `web/` (React/TS app) · `content/` (data: shapes, banners, lore) · `docs/` (these screenshots, regenerated with `pnpm screenshots`). The dependency rule points inward only — `web/` knows `core/`'s WASM API; `core/` knows nothing of React.
+The repo is `core/` (the Rust sim, one `.wasm`), `web/` (the React/TS app), `content/` (data: shapes, banners, lore), and `docs/` (the screenshots, regenerated with `pnpm screenshots`). Dependencies only point inward: `web/` uses `core/`'s WASM API, and `core/` has never heard of React.
 
 ## Testing
 
-The truth layer hard, the feel layer lightly. Rust pins RNG/pity over ≥1M pulls, closed-form offline catch-up (golden files), save migrations, and **content topology** — a generated mesh's χ/genus must match each shape's *declared* invariant, or CI rejects it. A `simulate` binary holds completion time to a sane band. The web side uses `vitest` to prove the store *mirrors* WASM and never recomputes. Issues and PRs welcome — read [`AGENTS.md`](./AGENTS.md) first.
+Tested hard where it counts. The Rust side checks RNG and pity over a million-plus pulls, the closed-form offline catch-up against golden files, and save migrations. The load-bearing one: every generated mesh's χ and genus have to match the invariant the shape declares, or CI throws it out. A `simulate` binary keeps completion time in a sane range, and on the web side `vitest` makes sure the store only ever mirrors WASM instead of doing its own maths. PRs welcome; [`AGENTS.md`](./AGENTS.md) has the house rules.
 
 ## License
 
-Dual-licensed, at your option: [MIT](./LICENSE-MIT) or [Apache-2.0](./LICENSE-APACHE). Contributions are taken under the same terms.
+MIT or Apache-2.0, your pick: [MIT](./LICENSE-MIT), [Apache-2.0](./LICENSE-APACHE). Contributions come in under the same terms.
 
-The optional Reference Wing nods to famous CG models (the Utah Teapot, the Stanford Bunny, Spot the cow). Shapes are mathematics and topology is public-domain; check each bundled model's own licence before any commercial use.
+The optional Reference Wing tips its hat to a few famous graphics models (the Utah Teapot, the Stanford Bunny, Spot the cow). The shapes themselves are just mathematics, which nobody owns, but check the licence on any bundled model before you sell anything.
