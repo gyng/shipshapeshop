@@ -424,6 +424,10 @@ export function PathTraceGem({ family, rarity, controls = true, autoRotate = fal
   const lastNow = useRef(performance.now())
   // on pause/resume, kick one render so the (now accumulating) frame restarts
   useEffect(() => { invalidate() }, [paused, invalidate])
+  // Live-edit while idle: a look change (material override / atmosphere / finish / colour…) must repaint even when
+  // the gem has converged to a still — the accumulation reset lives in useFrame, which won't tick otherwise. The
+  // reset key (below) then clears `accum`; this only ensures useFrame RUNS. (A spinning gem already invalidates.)
+  useEffect(() => { invalidate() }, [previewScene, previewAtmosphere, previewLighting, previewFinish, previewGemColor, envMap, matOv, invalidate])
 
   // PRE-PASS (priority 0, before HeroView's EffectComposer at priority 1): trace one sample-set into `accum`,
   // accumulating while the gem holds still — paused freezes the spin AND the motes, so the whole image is static

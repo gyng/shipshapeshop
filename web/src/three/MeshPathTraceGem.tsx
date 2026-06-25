@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useEffect } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useFBO, OrbitControls, Sparkles } from '@react-three/drei'
 import * as THREE from 'three'
@@ -404,6 +404,10 @@ export function MeshPathTraceGem({ family, rarity, controls = true, paused = fal
   const lastT = useRef(performance.now())
   // wake on interaction: reset the idle timer + re-render (OrbitControls 'change' also invalidates for us)
   const wake = () => { lastInteract.current = performance.now(); invalidate() }
+  // Live-edit while idle: a look change (material override / atmosphere / finish / colour…) repaints even when the
+  // gem has converged to a still — the accumulation reset lives in useFrame, which won't tick otherwise. (A
+  // spinning gem already invalidates; the reset key clears `accum` once useFrame runs.)
+  useEffect(() => { invalidate() }, [previewScene, previewAtmosphere, previewLighting, previewFinish, previewGemColor, envMap, matOv, invalidate])
 
   useFrame((state) => {
     const now = performance.now()
