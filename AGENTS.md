@@ -260,6 +260,10 @@ aesthetic-usability effect (the jewels *are* the UI).
 
 ## 8. Conventions & workflow
 
+- **Local build:** the WASM core builds **before** the web deps (`web` links `core/pkg`). Needs Rust + the
+  `wasm32-unknown-unknown` target + `wasm-pack`, Node 20+, and pnpm. Then: `pnpm setup` (build the core, install
+  web deps) · `pnpm dev` (http://localhost:5173) · `pnpm test` (Rust + the `simulate` balance sim + web tests) ·
+  `pnpm build` (release WASM + the static bundle in `web/dist`).
 - **Rust:** `rustfmt` + `clippy` clean (warnings are errors in CI). Small pure functions in the domain.
   `cargo test` + the `simulate` balance binary.
 - **TS:** strict TypeScript, ESLint + Prettier (or Biome). No `any` in core data types. Functional
