@@ -92,7 +92,7 @@ function useDynamicRenderScale(enabled: boolean, target = 60): number {
         frames = 0
         t0 = now
         setScale((s) => {
-          if (fps < target - 6) return Math.max(0.45, +(s - 0.1).toFixed(2)) // struggling → drop resolution
+          if (fps < target - 6) return Math.max(0.3, +(s - 0.1).toFixed(2)) // struggling → drop resolution (floor 30% so a slow GPU can still reach 60)
           if (fps > target - 1.5 && s < 1) return Math.min(1, +(s + 0.05).toFixed(2)) // headroom → recover toward full
           return s
         })
