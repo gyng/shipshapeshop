@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useGame } from './game/store'
 import { useOrreryUi } from './orreryUi'
 import { glyphOf } from './content/glyphs'
+import { shapeGlyphInner } from './content/shapeGlyphs'
 import { RARITY_COLOR } from './three/Gem'
 
 // 2D top-down hex view of the orrery — the lightweight toggle alternative to the 3D floor. Shapes are
@@ -107,6 +108,7 @@ export function OrreryBoard() {
         const sh = shapes[loadout[i]]
         if (!sh) return null
         const [x, y] = a2d(e.cell[0], e.cell[1])
+        const inner = shapeGlyphInner(sh.family)
         return (
           <g
             key={loadout[i]}
@@ -115,8 +117,9 @@ export function OrreryBoard() {
             onPointerOut={() => setHover(null)}
             style={{ cursor: 'pointer' }}
           >
+            <title>{sh.nick}</title>
             <circle r={13} fill="rgba(14,15,22,0.92)" stroke={hoverId === sh.id ? RARITY_COLOR[sh.rarity] : 'rgba(255,255,255,0.22)'} strokeWidth={hoverId === sh.id ? 2 : 1} />
-            <text textAnchor="middle" dominantBaseline="central" fontSize={16}>{glyphOf(sh.family)}</text>
+            {inner ? <svg x={-9} y={-9} width={18} height={18} viewBox="0 0 24 24" fill="currentColor" style={{ color: RARITY_COLOR[sh.rarity], overflow: 'visible' }}>{inner}</svg> : <text textAnchor="middle" dominantBaseline="central" fontSize={16} fill={RARITY_COLOR[sh.rarity]}>{glyphOf(sh.family)}</text>}
           </g>
         )
       })}

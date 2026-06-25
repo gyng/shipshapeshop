@@ -30,6 +30,8 @@ export interface Beat {
   actor: number
   round: number
   action: string // the beat's primary action (first event) — drives the motion primitive
+  actionId: number // RENDER-ONLY: which ability fired (0-9, indexes GACT_KEYS), or -1 — names the skill in the combat log
+  ruleIdx: number // RENDER-ONLY: the gambit rule (0-based) that fired this beat, or -1 (legacy/fallback/enemy) — M1 watch highlight
   start: number // wind-up begins
   impactStart: number // first impact lands
   impacts: Impact[]
@@ -39,8 +41,21 @@ export interface Timeline {
   duration: number
 }
 
+// R10 dev perf-harness: set localStorage['exp-perf']='1' to emit a `performance.measure` for the (once-per-battle, NOT
+// per-frame) timeline compile — visible in the browser Performance panel. Off by default ⇒ zero overhead. The per-frame
+// hpAt/deadAt are deliberately NOT instrumented (a mark per frame would itself be the cost).
+const expPerfOn = (): boolean => {
+  try {
+    return typeof localStorage !== 'undefined' && localStorage.getItem('exp-perf') === '1'
+  } catch {
+    return false
+  }
+}
+
 /** Compile the battle log into a fused, time-stamped timeline. Pure: same log ⇒ same timeline. */
 export function buildTimeline(log: LogEvent[]): Timeline {
+  const perf = expPerfOn()
+  if (perf) performance.mark('exp:buildTimeline:start')
   const beats: Beat[] = []
   let cursor = 0
   let i = 0
@@ -63,12 +78,17 @@ export function buildTimeline(log: LogEvent[]): Timeline {
       fainted: e.fainted, // B4: verbatim
       at: impactStart + k * STAGGER,
     }))
-    beats.push({ actor: a, round: r, action: group[0].action, start, impactStart, impacts })
+    beats.push({ actor: a, round: r, action: group[0].action, actionId: group[0].action_id ?? -1, ruleIdx: group[0].rule_idx ?? -1, start, impactStart, impacts })
     const beatLen = WINDUP + (group.length - 1) * STAGGER + SETTLE
     const hasFaint = impacts.some((im) => im.fainted >= 0)
     cursor += beatLen - (hasFaint ? 0 : OVERLAP) // B5: a faint hard-syncs (no overlap into the next beat)
   }
-  return { beats, duration: cursor + TAIL }
+  const out: Timeline = { beats, duration: cursor + TAIL }
+  if (perf) {
+    performance.mark('exp:buildTimeline:end')
+    performance.measure('exp:buildTimeline', 'exp:buildTimeline:start', 'exp:buildTimeline:end')
+  }
+  return out
 }
 
 /** All impacts with at <= t, in time order (== raw log order, since beats + impacts preserve it). */
@@ -93,6 +113,31 @@ export function hpAt(tl: Timeline, units: UnitInfo[], t: number): number[] {
     }
   }
   return h
+}
+
+/** Watch-only DPS/HPS/elapsed for the live combat meter — pure fold of ally-side impacts up to t. Attribution is by
+ * the ACTING unit's side (not the target), so enemy damage isn't counted as party DPS. This is a RENDER metric off
+ * the pacing constants (WINDUP/STAGGER/TAIL), NOT the Rust turn engine's authoritative timing — never persist/feed back. */
+export function combatStats(tl: Timeline, units: UnitInfo[], t: number): { dmg: number; heal: number; elapsed: number; dps: number; hps: number; dpsBy: number[]; hpsBy: number[] } {
+  let dmg = 0
+  let heal = 0
+  const dmgBy = units.map(() => 0) // per-ACTOR damage (per-shape attribution)
+  const healBy = units.map(() => 0)
+  for (const b of tl.beats) {
+    if (units[b.actor]?.is_enemy) continue // only the party's own output
+    for (const im of b.impacts) {
+      if (im.at <= t) {
+        dmg += im.dmg
+        heal += im.heal
+        if (b.actor >= 0 && b.actor < dmgBy.length) {
+          dmgBy[b.actor] += im.dmg
+          healBy[b.actor] += im.heal
+        }
+      }
+    }
+  }
+  const el = Math.max(0.001, t)
+  return { dmg, heal, elapsed: t, dps: dmg / el, hps: heal / el, dpsBy: dmgBy.map((d) => d / el), hpsBy: healBy.map((h) => h / el) }
 }
 
 /** B2: a unit is "down" iff its most-recent faint/revive crossing is a faint. */

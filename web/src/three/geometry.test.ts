@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest'
 import * as THREE from 'three'
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { getGeometry } from './geometry'
+import { getGeometry, buildPartyPtScene, MAT_GEM0 } from './geometry'
 
 // Every family in the content table — the geometry layer must produce a finite, non-empty, normalised mesh
 // for each (AGENTS.md §3 "procedural geometry verification").
@@ -74,5 +74,22 @@ describe('geometry generators', () => {
 
   it('caches geometry by family (same instance)', () => {
     expect(getGeometry('sphere')).toBe(getGeometry('sphere'))
+  })
+
+  it('buildPartyPtScene merges a tagged world-space scene without mutating the geometry cache', () => {
+    const gems = [
+      { family: 'sphere', colorLinear: [0.2, 0.8, 0.6] as [number, number, number], rank: 2 },
+      { family: 'cube', colorLinear: [0.6, 0.4, 0.9] as [number, number, number], rank: 1 },
+    ]
+    const scene = buildPartyPtScene(gems, [0.1, 0.18, 0.17], true)
+    expect(scene.objects[0].geo.attributes.materialId).toBeTruthy() // per-vertex materialId survives the static-set merge
+    expect(scene.objects.length).toBe(1 + gems.length) // static set + one object per gem
+    expect(scene.objects[1].spin).toBe(true) // gems spin in place
+    expect(scene.triCount).toBeGreaterThan(0)
+    expect(scene.materials.length).toBe(3 + gems.length) // floor + flame + tree + 2 gems
+    expect(scene.materials[MAT_GEM0].kind).toBe(2) // first gem is glass
+    expect(scene.fireOn).toBe(true)
+    // D6: the shared getGeometry cache instance is NEVER tagged (clone-always)
+    expect((getGeometry('sphere').attributes as Record<string, unknown>).materialId).toBeUndefined()
   })
 })

@@ -5,13 +5,14 @@ import { Tooltip } from '../ui/atoms/Tooltip'
 // drei Html) — an absolute-positioned sibling of the <Canvas> in a position:relative wrapper, so it's a flat 2D
 // chip pinned top-left, never transformed by the 3D camera. Just the ICON; the label + explanation show in the
 // app's custom (portal) Tooltip on hover/focus/tap.
-export type RenderTech = 'pathtraced' | 'raymarched' | 'mesh' | 'meshpt' | 'polytope4d'
+export type RenderTech = 'pathtraced' | 'raymarched' | 'mesh' | 'meshpt' | 'partypt' | 'polytope4d'
 
 const GLYPH: Record<RenderTech, string> = {
   pathtraced: '✦',
   raymarched: '◈',
   mesh: '◆',
   meshpt: '✧', // mesh BVH path tracer (opt-in, cyclable)
+  partypt: '❉', // multi-material SCENE path tracer (the Expeditions party portrait)
   polytope4d: '⬡',
 }
 

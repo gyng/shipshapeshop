@@ -17,7 +17,7 @@ export interface BVHNode {
 // barycentrically interpolate a smooth surface normal at the hit instead of using the flat face normal — the
 // relic meshes are 40-55k-tri scans, so a per-facet normal reads as low-poly/faceted, especially through the
 // refraction. If the source geometry lacks usable normals, these fall back to the geometric face normal.
-export interface Tri { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; na: THREE.Vector3; nb: THREE.Vector3; nc: THREE.Vector3; cx: number; cy: number; cz: number; min: THREE.Vector3; max: THREE.Vector3 }
+export interface Tri { a: THREE.Vector3; b: THREE.Vector3; c: THREE.Vector3; na: THREE.Vector3; nb: THREE.Vector3; nc: THREE.Vector3; cx: number; cy: number; cz: number; min: THREE.Vector3; max: THREE.Vector3; mat: number }
 export interface BVHData { nodes: BVHNode[]; tris: Tri[] }
 export interface PackedBVH {
   triTex: THREE.DataTexture // 6 texels/tri (a,b,c positions then na,nb,nc vertex normals)
@@ -42,6 +42,8 @@ export function buildBVHData(geo: THREE.BufferGeometry): BVHData {
   const all: Tri[] = []
   // a per-vertex normal from the attribute, or zero if there's none → packBVH falls back to the face normal.
   const vn = (i: number): THREE.Vector3 => (nrm ? new THREE.Vector3(nrm.getX(i), nrm.getY(i), nrm.getZ(i)) : new THREE.Vector3())
+  // optional per-vertex MATERIAL id (multi-material scene tracer) — a tri's material = its first vertex's id; absent ⇒ 0.
+  const matAttr = geo.attributes.materialId as THREE.BufferAttribute | undefined
   for (let f = 0; f < triCount; f++) {
     const ia = index ? index.getX(3 * f) : 3 * f
     const ib = index ? index.getX(3 * f + 1) : 3 * f + 1
@@ -51,7 +53,8 @@ export function buildBVHData(geo: THREE.BufferGeometry): BVHData {
     const c = new THREE.Vector3(pos.getX(ic), pos.getY(ic), pos.getZ(ic))
     const min = a.clone().min(b).min(c)
     const max = a.clone().max(b).max(c)
-    all.push({ a, b, c, na: vn(ia), nb: vn(ib), nc: vn(ic), cx: (a.x + b.x + c.x) / 3, cy: (a.y + b.y + c.y) / 3, cz: (a.z + b.z + c.z) / 3, min, max })
+    const mat = matAttr ? Math.round(matAttr.getX(ia)) : 0
+    all.push({ a, b, c, na: vn(ia), nb: vn(ib), nc: vn(ic), cx: (a.x + b.x + c.x) / 3, cy: (a.y + b.y + c.y) / 3, cz: (a.z + b.z + c.z) / 3, min, max, mat })
   }
 
   const nodes: BVHNode[] = []
@@ -118,7 +121,9 @@ export function packBVH(data: BVHData): PackedBVH {
     const slot = i % TRI_TEXELS // 0,1,2 = positions a,b,c ; 3,4,5 = normals na,nb,nc
     if (slot < 3) {
       const v = slot === 0 ? t.a : slot === 1 ? t.b : t.c
-      out[o] = v.x; out[o + 1] = v.y; out[o + 2] = v.z; out[o + 3] = 0
+      // slot-0 .w carries the per-triangle materialId (multi-material scene tracer); slots 1,2 stay 0. Single-object
+      // callers never set materialId ⇒ mat=0 ⇒ unchanged.
+      out[o] = v.x; out[o + 1] = v.y; out[o + 2] = v.z; out[o + 3] = slot === 0 ? t.mat : 0
     } else {
       const n = slot === 3 ? t.na : slot === 4 ? t.nb : t.nc
       // geometric (face) normal as the fallback when this vertex normal is absent/degenerate
@@ -142,4 +147,64 @@ export function packBVH(data: BVHData): PackedBVH {
 
 export function buildBVH(geo: THREE.BufferGeometry): PackedBVH {
   return packBVH(buildBVHData(geo))
+}
+
+// ── Multi-object (TLAS/BLAS) pack for the scene tracer ────────────────────────────────────────────────────
+// The party path tracer (ExpeditionPathTrace) traces several objects that each rotate independently. Rebuilding
+// one merged BVH every frame would be too slow for heavy gems, so instead each object keeps its OWN object-space
+// BVH and the shader transforms the RAY into each object's local space at trace time (no per-frame rebuild). To
+// feed that, we pack N per-object BVHs into the SAME two float textures `packBVH` uses — concatenated, with each
+// object's child/triStart indices OFFSET by its running base so the shader can walk object k from `nodeBase[k]`
+// and decode indices as `index + base`. The texel layout per tri/node is byte-identical to `packBVH`, so the
+// shared GLSL `ftri`/`fnode`/`hitTri`/`hitAABB` read it unchanged — only the index decode adds the base.
+export interface MultiPackedBVH {
+  triTex: THREE.DataTexture
+  nodeTex: THREE.DataTexture
+  texW: number
+  objs: { nodeBase: number; triBase: number; triCount: number; nodeCount: number }[]
+}
+
+/** Pack several built BVHs (one per object) into shared float textures, offsetting each object's node-child and
+ * leaf-triStart indices by its running base. Additive — does not touch packBVH/buildBVH (the single-object path). */
+export function packMultiBVH(datas: BVHData[]): MultiPackedBVH {
+  // running bases + a flat view of every tri / node tagged with its object's bases (objs is tiny, so flattening
+  // up front keeps the per-texel fill O(1) instead of scanning the object list).
+  const objs: MultiPackedBVH['objs'] = []
+  const allTris: Tri[] = []
+  const allNodes: { node: BVHNode; nodeBase: number; triBase: number }[] = []
+  let triBase = 0
+  let nodeBase = 0
+  for (const d of datas) {
+    objs.push({ nodeBase, triBase, triCount: d.tris.length, nodeCount: d.nodes.length })
+    for (const t of d.tris) allTris.push(t)
+    for (const n of d.nodes) allNodes.push({ node: n, nodeBase, triBase })
+    triBase += d.tris.length
+    nodeBase += d.nodes.length
+  }
+  // triangle texture: identical per-slot logic to packBVH (positions + slot-0 materialId, then vertex normals with
+  // a geometric-face fallback) — the triangles are object-space; the shader transforms the ray, not the geometry.
+  const triPacked = makeTex(allTris.length * TRI_TEXELS, (i, out, o) => {
+    const t = allTris[(i / TRI_TEXELS) | 0]
+    const slot = i % TRI_TEXELS
+    if (slot < 3) {
+      const v = slot === 0 ? t.a : slot === 1 ? t.b : t.c
+      out[o] = v.x; out[o + 1] = v.y; out[o + 2] = v.z; out[o + 3] = slot === 0 ? t.mat : 0
+    } else {
+      const n = slot === 3 ? t.na : slot === 4 ? t.nb : t.nc
+      const fn = t.b.clone().sub(t.a).cross(t.c.clone().sub(t.a))
+      const fl = fn.length()
+      const safe = n.lengthSq() > 1e-12 ? n : fl > 1e-12 ? fn.multiplyScalar(1 / fl) : new THREE.Vector3(0, 0, 1)
+      out[o] = safe.x; out[o + 1] = safe.y; out[o + 2] = safe.z; out[o + 3] = 0
+    }
+  })
+  // node texture: same 2-texel layout as packBVH, but child indices and leaf triStart are OFFSET by the owning
+  // object's base so the concatenated array is internally consistent (the negative-w leaf flag is preserved).
+  const nodePacked = makeTex(allNodes.length * 2, (i, out, o) => {
+    const e = allNodes[(i / 2) | 0]
+    const n = e.node
+    const leaf = n.triCount > 0
+    if (i % 2 === 0) { out[o] = n.min[0]; out[o + 1] = n.min[1]; out[o + 2] = n.min[2]; out[o + 3] = leaf ? n.triStart + e.triBase : n.left + e.nodeBase }
+    else { out[o] = n.max[0]; out[o + 1] = n.max[1]; out[o + 2] = n.max[2]; out[o + 3] = leaf ? -n.triCount : n.right + e.nodeBase }
+  })
+  return { triTex: triPacked.tex, nodeTex: nodePacked.tex, texW: TEX_W, objs }
 }

@@ -8,6 +8,10 @@ const U = (shape_id: number, is_enemy: boolean, max_hp: number): UnitInfo => ({
   family: 'sphere',
   is_enemy,
   max_hp,
+  atk: 100,
+  def: 12,
+  speed: 100,
+  ult_power: 200,
   element: 'solid',
   role: 'dps',
 })

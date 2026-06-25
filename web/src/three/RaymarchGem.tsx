@@ -2,9 +2,8 @@ import { useMemo, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
-import { RARITY_COLOR } from './Gem'
 import { sdfActiveGLSL } from './sdfShapes.glsl'
-import { sceneById, atmosphereById, lightingById, heroCursorById, SLOT_ATMOSPHERE, SLOT_FINISH, SLOT_LIGHTING, SLOT_HERO_CURSOR } from '../content/cosmetics'
+import { sceneById, atmosphereById, lightingById, heroCursorById, gemColorById, SLOT_ATMOSPHERE, SLOT_FINISH, SLOT_LIGHTING, SLOT_HERO_CURSOR, SLOT_GEM_COLOR } from '../content/cosmetics'
 import { finishSdf } from './finishSdf'
 import { useGame, type RarityName } from '../game/store'
 import { useGfxPreset, useGfx } from '../gfx'
@@ -107,6 +106,9 @@ const makeFrag = (STEPS: number, INNER: number, sdfGLSL: string) => /* glsl */ `
   uniform float uEmissive;  // equipped finish inner glow (0 = none)
   uniform float uAbsorbMul; // equipped finish density (≥1 darkens/denses a low-transmission finish; 1 = default)
   uniform float uReflMul;   // equipped finish env-reflection strength (1 = default)
+  uniform float uMatte;     // exotic finish: 0 = glass; >0 = opaque DIFFUSE surface
+  uniform float uLensing;   // exotic finish: gravitational lensing — pinch the escaping background toward the gem
+  uniform float uVolume;    // exotic finish: the gem interior is a ray-marched fbm cloud/smoke at this density
   uniform float uForm;    // materialize 0→1: a glowing solid "seed" refracts into the finished gem
   // real R3F camera: rays + gl_FragDepth → cosmos pans on orbit + 3D atmosphere depth-composites WITH the gem
   uniform vec3  uCamPos;
@@ -159,6 +161,13 @@ const makeFrag = (STEPS: number, INNER: number, sdfGLSL: string) => /* glsl */ `
 
 ${sdfGLSL}
 
+  // value-noise fbm for the volumetric "cloud gem" interior (uVolume)
+  float nhash(vec3 p){ p = fract(p*0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
+  float vnoise(vec3 x){ vec3 i = floor(x), f = fract(x); f = f*f*(3.0-2.0*f);
+    return mix(mix(mix(nhash(i),nhash(i+vec3(1,0,0)),f.x), mix(nhash(i+vec3(0,1,0)),nhash(i+vec3(1,1,0)),f.x), f.y),
+               mix(mix(nhash(i+vec3(0,0,1)),nhash(i+vec3(1,0,1)),f.x), mix(nhash(i+vec3(0,1,1)),nhash(i+vec3(1,1,1)),f.x), f.y), f.z); }
+  float fbmN(vec3 p){ float a = 0.5, s = 0.0; for(int i=0;i<4;i++){ s += a*vnoise(p); p *= 2.02; a *= 0.5; } return s; }
+
   float map(vec3 p){
     // gentle float bob (visible even on a sphere, whose spin is otherwise invisible), then spin in place
     p = R * (p - vec3(0.0, sin(uTime * 1.15) * 0.14, 0.0));
@@ -200,6 +209,30 @@ ${sdfGLSL}
     return col * exp(-absorb);
   }
 
+  // lensRay: bend a ray toward the gem centre (origin) for the black-hole lensing finish (uLensing>0).
+  vec3 lensRay(vec3 ro, vec3 rd){
+    if(uLensing <= 0.0) return rd;
+    vec3 perp = -ro - rd*dot(-ro, rd); float bp = length(perp);
+    return normalize(rd + normalize(perp + 1e-5) * (uLensing * 0.5 / (bp*bp + 0.35)));
+  }
+  // volumeGem: march the gem interior as an fbm cloud (uVolume>0) — a soft self-shadowed cloud/smoke filling the shape.
+  vec3 volumeGem(vec3 p, vec3 rd){
+    vec3 vp = p + rd*0.02; vec3 acc = vec3(0.0); float vtr = 1.0;
+    vec3 kdir = normalize(vec3(0.35,0.75,0.40));   // the raymarch key direction
+    for(int k=0;k<24;k++){
+      if(map(vp) > 0.01) break;
+      float rho = clamp(fbmN(vp*3.4 + uTime*0.04) * uVolume * 1.7 - 0.15, 0.0, 1.0);
+      if(rho > 0.001){
+        float sh = 1.0; vec3 lp = vp + kdir*0.14;
+        for(int j=0;j<3;j++){ if(map(lp) > 0.0) break; sh *= 1.0 - clamp(fbmN(lp*3.4)*uVolume, 0.0, 0.7); lp += kdir*0.14; }
+        vec3 lit = uColor * (0.25 + 0.95*sh) + uColor*uEmissive*0.4;
+        acc += vtr * rho * lit; vtr *= 1.0 - rho;
+      }
+      vp += rd*0.05; if(vtr < 0.02) break;
+    }
+    return acc + vtr * env(rd) * 0.5;
+  }
+
   // sphere-trace; also reports soft silhouette coverage + the closest-approach distance for analytic edge AA
   float trace(vec3 ro, vec3 rd, out float cover, out float tEdge){
     float t=0.0, closest=1e9;
@@ -228,6 +261,11 @@ ${sdfGLSL}
     vec3 col = mix(refractGem(p,rd,n), reflCol, f) + reflCol*0.05;
     col += uColor * f * uRim;                                        // rarity rim-glow (HDR → blooms)
     col += uColor * uEmissive * 0.6;                                 // equipped finish inner glow (0 = none)
+    // MATTE: blend the glass shading toward an opaque, env-lit DIFFUSE surface for rough finishes (uMatte>0).
+    if(uMatte > 0.0){
+      vec3 matteCol = uColor * (env(n)*0.55 + vec3(0.12)) + uColor*uEmissive*0.6;
+      col = mix(col, matteCol, uMatte);
+    }
     // cursor follow-light: a tracking specular highlight + a soft rim where the gem faces the cursor. Active only
     // when the inspector enables it (uCursorAmt > 0). A tight Blinn-style lobe gives the "spot grazing the facet"
     // read as you sweep the pointer; the rim term keeps it visible on edges too. HDR → it blooms in the post pass.
@@ -256,9 +294,9 @@ ${sdfGLSL}
     // while forming, the gem reads as a solid glowing rarity-coloured seed (HDR → blooms) that refracts into
     // the finished glass as uForm→1 — matching the mesh path's "opaque glowing core → clear glass".
     vec3 seed = uColor * 2.0;
-    if(t>=0.0)            col = mix(seed, shade(ro+rd*t, rd), uForm);                  // hit (cover = 1)
-    else if(cover>0.001)  col = mix(env(rd), mix(seed, shade(ro+rd*tEdge, rd), uForm), cover); // antialiased silhouette
-    else                  col = env(rd);                            // background cosmos
+    if(t>=0.0)            col = mix(seed, uVolume > 0.0 ? volumeGem(ro+rd*t, rd) : shade(ro+rd*t, rd), uForm);  // hit — cloud or glass
+    else if(cover>0.001)  col = mix(env(lensRay(ro,rd)), mix(seed, uVolume > 0.0 ? volumeGem(ro+rd*tEdge, rd) : shade(ro+rd*tEdge, rd), uForm), cover); // silhouette (lensed bg)
+    else                  col = env(lensRay(ro,rd));                // background cosmos (lensed toward the gem for the black-hole finish)
     // mild exposure lift — the post pass applies ACES, which rolls midtones down harder than the old Reinhard
     // curve this shader used to bake in; 1.15 keeps the cosmos from reading muddy. (Tune once eyeballed.)
     fragColor = vec4(col * 1.15, 1.0);
@@ -273,14 +311,15 @@ ${sdfGLSL}
   }
 `
 
-export function RaymarchGem({ family, rarity, controls = true, autoRotate = false, materialize = false, previewScene, previewFinish, envMap }: { family: string; rarity: RarityName; controls?: boolean; autoRotate?: boolean; materialize?: boolean; previewScene?: number; previewFinish?: number; envMap?: THREE.Texture | null }) {
+export function RaymarchGem({ family, rarity, controls = true, autoRotate = false, materialize = false, previewScene, previewAtmosphere, previewLighting, previewCursor, previewFinish, previewGemColor, envMap }: { family: string; rarity: RarityName; controls?: boolean; autoRotate?: boolean; materialize?: boolean; previewScene?: number; previewAtmosphere?: number; previewLighting?: number; previewCursor?: number; previewFinish?: number; previewGemColor?: number; envMap?: THREE.Texture | null }) {
   const ref = useRef<THREE.ShaderMaterial>(null)
   const g = useGfxPreset()
   const ptEnvCubeAmt = useGfx((s) => s.ptEnvCubeAmt) // user-tunable atmosphere-refraction strength
   // `previewScene` (shop preview) shows the gem in an UNequipped scene without touching the equipped one.
   const storeScene = useGame((s) => s.view?.scene ?? 0)
   const scene = sceneById(previewScene ?? storeScene)
-  const atmo = atmosphereById(useGame((s) => s.view?.equipped?.[SLOT_ATMOSPHERE] ?? 0)) // equipped Atmosphere tints refraction
+  const equippedAtmo = useGame((s) => s.view?.equipped?.[SLOT_ATMOSPHERE] ?? 0)
+  const atmo = atmosphereById(previewAtmosphere ?? equippedAtmo) // equipped/previewed Atmosphere tints refraction
   const lin = (hex: string) => {
     const k = new THREE.Color(hex).convertSRGBToLinear()
     return new THREE.Vector3(k.r, k.g, k.b)
@@ -291,15 +330,20 @@ export function RaymarchGem({ family, rarity, controls = true, autoRotate = fals
   // Equipped gem finish (Shop cosmetic) mapped onto the SDF shader — `previewFinish` lets the shop hover-preview one.
   const equippedFinish = useGame((s) => s.view?.equipped?.[SLOT_FINISH] ?? 0)
   const fin = finishSdf(previewFinish ?? equippedFinish)
-  const L = lightingById(useGame((s) => s.view?.equipped?.[SLOT_LIGHTING] ?? 0)) // equipped Lighting mood — scales the env the gem is lit by
+  const equippedLighting = useGame((s) => s.view?.equipped?.[SLOT_LIGHTING] ?? 0)
+  const L = lightingById(previewLighting ?? equippedLighting) // equipped/previewed Lighting mood — scales the env the gem is lit by
   // hero cursor light (Gem Spotlight, slot 9 — default OFF). Only feeds the shader in the interactive inspector.
-  const cursorFx = heroCursorById(useGame((s) => s.view?.equipped?.[SLOT_HERO_CURSOR] ?? 0))
+  const equippedCursor = useGame((s) => s.view?.equipped?.[SLOT_HERO_CURSOR] ?? 0)
+  const cursorFx = heroCursorById(previewCursor ?? equippedCursor)
   const cursorOn = controls && cursorFx.intensity > 0
   const { pointer } = useThree()
   // scratch objects reused per frame (no per-frame allocation in the hot loop). `baseCol` holds the cursor's
   // linear-space colour (disco moods mutate it in HSL each frame before it's written into the uniform).
   const cursorScratch = useMemo(() => ({ ray: new THREE.Raycaster(), plane: new THREE.Plane(), camDir: new THREE.Vector3(), hit: new THREE.Vector3(), dir: new THREE.Vector3(), origin: new THREE.Vector3(), col: new THREE.Color(cursorFx.color).convertSRGBToLinear() }), [cursorFx])
-  const rarityCol = lin(RARITY_COLOR[rarity])
+  // gem BODY hue from the Gem Colour cosmetic (Clear → neutral white). Rarity → motes, not a gem tint.
+  const equippedGemColor = useGame((s) => s.view?.equipped?.[SLOT_GEM_COLOR] ?? 0)
+  const gcHex = gemColorById(previewGemColor ?? equippedGemColor).color
+  const rarityCol = gcHex ? lin(gcHex) : new THREE.Vector3(1, 1, 1)
   const baseIor = 1.45 + RANK[rarity] * 0.05
   const baseAberr = 0.02 + RANK[rarity] * 0.02
   // base rim/key the animated "Moving light ✦" moods breathe around (must match the uniforms' initial values)
@@ -311,7 +355,7 @@ export function RaymarchGem({ family, rarity, controls = true, autoRotate = fals
 
   const uniforms = useMemo(() => {
     const rank = RANK[rarity]
-    const c = lin(RARITY_COLOR[rarity])
+    const c = new THREE.Vector3(1, 1, 1) // uColor seed; the live gem-body colour is written each frame in useFrame
     const [backdrop, key, cool, warm] = scene.env
     return {
       uTime: { value: 0 },
@@ -336,6 +380,7 @@ export function RaymarchGem({ family, rarity, controls = true, autoRotate = fals
       uEmissive: { value: 0 },
       uAbsorbMul: { value: 1 },
       uReflMul: { value: 1 },
+      uMatte: { value: 0 }, uLensing: { value: 0 }, uVolume: { value: 0 }, // exotic finishes (matte / black-hole lensing / cloud)
       uCursorDir: { value: new THREE.Vector3(0, 0, 1) },
       uCursorCol: { value: new THREE.Vector3(1, 1, 1) },
       uCursorAmt: { value: 0 },
@@ -373,6 +418,7 @@ export function RaymarchGem({ family, rarity, controls = true, autoRotate = fals
     m.uniforms.uEmissive.value = fin.emissive
     m.uniforms.uAbsorbMul.value = fin.absorbMul
     m.uniforms.uReflMul.value = fin.reflMul
+    m.uniforms.uMatte.value = fin.matte; m.uniforms.uLensing.value = fin.lensing; m.uniforms.uVolume.value = fin.volumetric // exotic finishes
     // "Moving light ✦" moods on the SDF hero: the env() is direction-baked, so we can't orbit a light here — but
     // we breathe the rim glow + key intensity so the PULSE part of the motion reads (intensity/hue breathing).
     const mot = L.motion

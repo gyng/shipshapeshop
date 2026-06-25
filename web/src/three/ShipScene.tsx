@@ -1,12 +1,20 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useMemo } from 'react'
 import { Canvas, useThree, useFrame } from '@react-three/fiber'
 import { Environment, Lightformer, Float, ContactShadows, Stars, Sparkles } from '@react-three/drei'
 import * as THREE from 'three'
 import { HeroGem, RARITY_COLOR } from './Gem'
 import { ScenePostFX } from './ScenePostFX'
-import { useGame, type ShapeRow } from '../game/store'
+import { ExpeditionPathTrace } from './ExpeditionPathTrace'
+import { buildCutscenePtScene } from './geometry'
+import { useGame, type ShapeRow, type RarityName } from '../game/store'
 import { sceneById } from '../content/cosmetics'
-import { useGfxPreset } from '../gfx'
+import { useGfxPreset, useGfx } from '../gfx'
+
+const CUT_RANK: Record<RarityName, number> = { Common: 0, Rare: 1, Epic: 2, Ssr: 3, Ur: 4, Relic: 4, Meta: 4, Transcendent: 4 }
+const ptGem = (s: ShapeRow): { family: string; colorLinear: [number, number, number]; rank: number } => {
+  const c = new THREE.Color(RARITY_COLOR[s.rarity]).convertSRGBToLinear()
+  return { family: s.family, colorLinear: [c.r, c.g, c.b], rank: CUT_RANK[s.rarity] }
+}
 
 // Both characters share ONE scene (so they read as together), each rendered with the SAME hero transmission
 // glass as the Pull/Inspector (HeroGem) so a shape looks identical everywhere. The speaker is scaled up,
@@ -59,14 +67,22 @@ function FitView({ halfW, halfH }: { halfW: number; halfH: number }) {
 
 export function ShipScene({ a, b, speakerA }: { a?: ShapeRow; b?: ShapeRow; speakerA: boolean }) {
   const scene = sceneById(useGame((s) => s.view?.scene ?? 0))
-  const cornell = scene.special === 'cornell'
   const [backdrop, key, cool, warm] = scene.env
   const g = useGfxPreset()
+  const pt = useGfx((s) => s.expeditionPt) // share the party-PT opt-in: when on, cutscenes path-trace too
+  const ptScene = useMemo(() => (pt && (a || b) ? buildCutscenePtScene(a ? ptGem(a) : null, b ? ptGem(b) : null, speakerA) : null), [pt, a, b, speakerA])
   return (
     <Canvas resize={{ offsetSize: true }} dpr={g.dpr} shadows={g.shadows} gl={{ powerPreference: 'high-performance' }} camera={{ position: [0, 0, 5], fov: 42 }}>
-      <color attach="background" args={[cornell ? '#0a0a0a' : '#0a0a14']} />
-      {!cornell && <Stars radius={50} depth={40} count={Math.round(900 * g.sparkle)} factor={3} saturation={0.6} fade speed={0.2} />}
-      {!cornell && <Sparkles count={Math.round(30 * g.sparkle)} scale={[9, 5, 5]} size={2} speed={0.25} color={scene.stars} />}
+      <color attach="background" args={['#0a0a14']} />
+      {pt && ptScene ? (
+        <>
+          <Stars radius={50} depth={40} count={Math.round(700 * g.sparkle)} factor={3} saturation={0.6} fade speed={0.2} />
+          <ExpeditionPathTrace scene={ptScene} backdrop={backdrop} keyCol={key} controls={false} orbit={false} forceEma particles={false} />
+        </>
+      ) : (
+        <>
+      <Stars radius={50} depth={40} count={Math.round(900 * g.sparkle)} factor={3} saturation={0.6} fade speed={0.2} />
+      <Sparkles count={Math.round(30 * g.sparkle)} scale={[9, 5, 5]} size={2} speed={0.25} color={scene.stars} />
       {/* lower, moodier ambient than a flat fill — the env + per-gem key/rim carry the shaping, so the gems read
           dimensional and the dark stage stays cinematic instead of washed out. */}
       <ambientLight intensity={0.32} />
@@ -85,6 +101,8 @@ export function ShipScene({ a, b, speakerA }: { a?: ShapeRow; b?: ShapeRow; spea
       <ContactShadows position={[0, -1.1, 0]} opacity={0.5} scale={8} blur={2.4} far={3} />
       {/* shared post chain (optional SSAO + bloom → ACES), matching the inspector grade */}
       <ScenePostFX />
+        </>
+      )}
     </Canvas>
   )
 }

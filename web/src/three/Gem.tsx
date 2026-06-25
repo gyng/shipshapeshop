@@ -6,7 +6,7 @@ import { glassThickness, OPEN_FAMILIES } from './geometry'
 import { shapeGeometry, useRelics } from './relics'
 import { useGfxPreset } from '../gfx'
 import { useGame, type RarityName } from '../game/store'
-import { gemFinishById, SLOT_FINISH } from '../content/cosmetics'
+import { gemFinishById, gemColorById, SLOT_FINISH, SLOT_GEM_COLOR } from '../content/cosmetics'
 
 // Per-rarity look — the material ladder escalates with rarity (matte → glass → dispersive gem).
 export const RARITY_COLOR: Record<RarityName, string> = {
@@ -53,7 +53,7 @@ export function sceneGemMatProps(color: string, rank: number, open: boolean, gla
 export const sceneGemEmissiveBase = (rank: number, glass: boolean): number => (glass ? 0.22 + rank * 0.08 : 0.5 + rank * 0.12)
 
 /** The hero gem (pull reveal + inspector): real transmission glass, dispersion scaling with rarity. */
-export function HeroGem({ family, rarity, spin = 0.4, materialize = false, finishOverride }: { family: string; rarity: RarityName; spin?: number; materialize?: boolean; finishOverride?: number }) {
+export function HeroGem({ family, rarity, spin = 0.4, materialize = false, finishOverride, previewGemColor }: { family: string; rarity: RarityName; spin?: number; materialize?: boolean; finishOverride?: number; previewGemColor?: number }) {
   const ref = useRef<THREE.Mesh>(null)
   const matRef = useRef<THREE.MeshPhysicalMaterial>(null)
   const formT = useRef(0)
@@ -64,6 +64,10 @@ export function HeroGem({ family, rarity, spin = 0.4, materialize = false, finis
   // hover-preview a finish without equipping it.
   const equippedFinish = useGame((s) => s.view?.equipped?.[SLOT_FINISH] ?? 0)
   const finish = gemFinishById(finishOverride ?? equippedFinish).mat
+  // gem BODY hue from the Gem Colour cosmetic (Clear → null → neutral glass). Rarity no longer tints the gem; it
+  // reads via the rarity-coloured motes instead. A finish that carries its own tint still wins.
+  const equippedGemColor = useGame((s) => s.view?.equipped?.[SLOT_GEM_COLOR] ?? 0)
+  const gemColHex = gemColorById(previewGemColor ?? equippedGemColor).color
   useRelics() // swap in the real Relic mesh once it loads (benchy/armadillo/… are real meshes, not placeholders)
   const geometry = shapeGeometry(family)
   const open = OPEN_FAMILIES.has(family)
@@ -101,7 +105,7 @@ export function HeroGem({ family, rarity, spin = 0.4, materialize = false, finis
         // Refractive glass. Bloom + ACES now live in a post pass (HeroView/Stage), so HDR emissive/rim read
         // as glow; double refraction (backside) is back ON for closed solids so the jewel sees *into* itself.
         // The bright env behind makes the body refract colour (not black).
-        color={finish.colorTint ?? '#ffffff'}
+        color={finish.colorTint ?? gemColHex ?? '#ffffff'}
         transmission={materialize ? 0 : baseTransmission}
         thickness={materialize ? 0.001 : thickness}
         // Entry + exit refraction on closed solids; open sheets (Möbius/Klein/TPMS) stay single-pass, where a
@@ -121,10 +125,10 @@ export function HeroGem({ family, rarity, spin = 0.4, materialize = false, finis
         iridescenceIOR={1.3}
         iridescenceThicknessRange={[100, 400]}
         envMapIntensity={(1.2 + rank * 0.35) * (finish.envMapIntensityMul ?? 1)}
-        // a faint rarity-hued inner core (HDR-ish via bloom) — off for commons/rares; a bright seed while forming
-        emissive={RARITY_COLOR[rarity]}
+        // a faint inner core glow in the gem's own colour (HDR-ish via bloom; Clear → black = no glow). A bright seed while forming.
+        emissive={finish.colorTint ?? gemColHex ?? '#000000'}
         emissiveIntensity={materialize ? baseEmissive + 1.8 : baseEmissive}
-        attenuationColor={finish.attenuationColor ?? RARITY_COLOR[rarity]}
+        attenuationColor={finish.attenuationColor ?? gemColHex ?? '#ffffff'}
         attenuationDistance={finish.attenuationDistance ?? (rank >= 3 ? 2.5 : 6)}
         samples={g.transSamples}
         resolution={g.transRes}

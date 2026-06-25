@@ -11,6 +11,8 @@ export type Quality = 'low' | 'medium' | 'high'
 // over the render loop, so the gem stops spinning + the sparkle/star layers (Points) drop out — a clean
 // product-shot mode. Quality tiers map to bounce depth + render scale (see PT_QUALITY in HeroPathTracer).
 export type PathTraceScope = 'off' | 'hero' | 'all'
+export type FpsWatchdog = 'off' | 'on' | 'dynamic' // auto-quality mode: off / lower-once / continuously hold a target fps
+export type FpsTarget = 15 | 30 | 60 | 144 | 'unlimited' // the frame rate 'dynamic' mode holds ('unlimited' = max quality, floor-protected only)
 export type PathTraceQuality = 'low' | 'medium' | 'high' | 'extreme' | 'ultra' | 'max'
 
 // Path-trace presets → the four tunable params. A preset seeds them; each is then individually overridable in
@@ -72,9 +74,12 @@ const PRESETS: Record<Quality, GfxPreset> = {
 export interface GfxSettings {
   quality: Quality
   showFps: boolean
+  fpsWatchdog: FpsWatchdog // off (default) = never auto-adjust · on = lower graphics ONCE if fps stays low · dynamic = continuously lower AND raise to hold fpsTarget
+  fpsTarget: FpsTarget // the frame rate 'dynamic' mode holds (default 60)
   shadows: boolean | null
   particleScale: number
   starScale: number
+  rarityMotes: boolean // floating rarity-coloured motes around the hero gem (rarity is no longer painted on the gem body)
   bloom: boolean | null // null = follow the quality preset; true/false = explicit user override
   sceneGlass: boolean | null
   heroBackside: boolean | null
@@ -92,11 +97,16 @@ export interface GfxSettings {
   ptEnvCubeRes: number // atmosphere-cubemap capture resolution (64 cheap → 256 crisp); the main perf knob
   ptEnvCubeAmt: number // how strongly the gem's refraction/reflection takes the atmosphere (0 = off, 1 = full)
   meshPtCycle: boolean // allow cycling mesh shapes into the BVH path tracer via the render badge (off in the default flow)
+  expeditionPt: boolean // opt-in: path-trace the Expeditions party scene (default false = the raster mesh scene)
+  expeditionPtEma: ExpeditionPtEma // PT temporal denoise of the spinning party: off (sharp/noisier) · low · high (smooth/slight motion-lag)
+  expeditionPtCaustics: ExpeditionPtCaustics // photon-caustic quality (photon count + map resolution); off = no caustics
 }
+export type ExpeditionPtEma = 'off' | 'low' | 'high'
+export type ExpeditionPtCaustics = 'off' | 'low' | 'medium' | 'high' | 'extreme' | 'ultra'
 // Path tracing defaults ON for ALL hero views (the premium refraction look everywhere). The only SDFs heavy
 // enough to blow the multi-bounce budget (neural bunny, Mandelbulb) auto-fall-back to the single-ray raymarch
 // via PT_TOO_HEAVY in HeroView, so 'all' is safe by construction. (If a future SDF hangs, add it to that set.)
-const DEFAULTS: GfxSettings = { quality: 'medium', showFps: false, shadows: null, particleScale: 1, starScale: 1, bloom: null, sceneGlass: null, heroBackside: null, dof: null, ssao: null, hdri: null, pathTrace: 'all', pathTraceQuality: 'high', ptBounces: null, ptSteps: null, ptScale: null, ptSpp: null, ptHaze: 0.05, ptEnvCube: true, ptEnvCubeRes: 128, ptEnvCubeAmt: 0.7, meshPtCycle: true }
+const DEFAULTS: GfxSettings = { quality: 'medium', showFps: false, fpsWatchdog: 'off', fpsTarget: 60, shadows: null, particleScale: 1, starScale: 1, rarityMotes: true, bloom: null, sceneGlass: null, heroBackside: null, dof: null, ssao: null, hdri: null, pathTrace: 'all', pathTraceQuality: 'high', ptBounces: null, ptSteps: null, ptScale: null, ptSpp: null, ptHaze: 0.05, ptEnvCube: true, ptEnvCubeRes: 128, ptEnvCubeAmt: 0.7, meshPtCycle: true, expeditionPt: false, expeditionPtEma: 'off', expeditionPtCaustics: 'high' }
 
 // v2: reset persisted gfx once — earlier builds could persist a catastrophic path-trace preset (spp 80 / 32
 // bounces) that freezes the GPU on load. Bumping the key drops stale settings so everyone lands on safe defaults.
@@ -126,19 +136,29 @@ function load(): GfxSettings {
   }
 }
 
-// ── FPS watchdog (auto-degrade, ratchet DOWN only) ───────────────────────────────────────────────────────────
-// A passive safety net: if the smoothed frame rate stays low for a sustained window, step graphics down ONCE
-// (quality high→medium→low, then path-trace scope all→hero) and surface a one-line toast — then NEVER touch it
-// again this session (it never auto-raises; the player stays in control via Settings). This protects weak
-// hardware the boot probe (item 6) under-estimated, without ever fighting a player who deliberately cranked it up.
+// ── FPS watchdog (auto-quality) ──────────────────────────────────────────────────────────────────────────────
+// User setting `fpsWatchdog` (default 'off' — the player opts into auto-quality; 'dynamic' holds fpsTarget):
+//   • 'off'     — never auto-adjust.
+//   • 'on'      — a one-shot safety net: if the smoothed fps stays low for a sustained window, step graphics DOWN
+//                 ONCE (quality high→medium→low, then PT scope all→hero) + a one-line toast, then never touch it.
+//   • 'dynamic' — continuously hold a target: step DOWN below the floor AND step UP above the target (a dead zone
+//                 between the two thresholds prevents oscillation). No latch, no toast — it just tracks.
 const WATCHDOG = {
   ewma: 60, // smoothed fps (exponential moving average) — seeded optimistic so we don't trip on the first frame
-  lowMs: 0, // accumulated time the smoothed fps has been under the floor (resets the instant fps recovers → hysteresis)
+  lowMs: 0, // accumulated time the smoothed fps has been UNDER the floor (resets the instant it recovers → hysteresis)
+  highMs: 0, // accumulated time the smoothed fps has been OVER the target (dynamic upgrade timer)
   warmupMs: 0, // skip the first ~second (first-frame shader compiles + tab-switch stalls would false-trigger)
-  fired: false, // one-shot latch: the watchdog degrades at most ONCE per session
+  fired: false, // 'on' mode one-shot latch: degrades at most ONCE per session
+  clockMs: 0, // 'dynamic' accumulated wall clock (for the post-downgrade upgrade cooldown)
+  blockUpUntil: 0, // 'dynamic' no upgrades before this clockMs (anti-oscillation cooldown)
 }
-const WD_FPS_FLOOR = 40 // smoothed fps below this is "struggling"
-const WD_SUSTAIN_MS = 2000 // must stay low this long before acting (hysteresis — a brief dip won't trip it)
+const WD_FPS_FLOOR = 40 // 'on' mode: smoothed fps below this is "struggling" → step down once
+const WD_DOWN_MARGIN = 0.92 // 'dynamic': step DOWN below target*0.92
+const WD_UP_MARGIN = 1.12 // 'dynamic': step UP above target*1.12 (the 0.92..1.12·target dead zone prevents oscillation)
+const WD_UNLIMITED_TGT = 33 // 'unlimited' fps target → aim low so quality maxes out, only easing off below ~30fps
+const WD_UP_COOLDOWN_MS = 8000 // 'dynamic': after a downgrade, block any upgrade for this long (anti-oscillation)
+const WD_SUSTAIN_MS = 2000 // must stay low this long before stepping down (hysteresis — a brief dip won't trip it)
+const WD_UP_SUSTAIN_MS = 4000 // must stay high this long before stepping up (slower than down — be cautious raising)
 const WD_WARMUP_MS = 1000 // ignore the first second (compile/layout stalls)
 const WD_ALPHA = 0.1 // EWMA smoothing factor (≈ last ~10 frames dominate)
 
@@ -178,29 +198,53 @@ export const useGfx = create<GfxStore>((set, get) => {
     },
     dismissWatchdog: () => set({ watchdogToast: null }),
     sampleFps: (dtMs) => {
-      if (WATCHDOG.fired) return // one-shot: already degraded this session
+      const mode = get().fpsWatchdog
+      if (mode === 'off') return // user disabled auto-quality entirely
       if (!(dtMs > 0) || dtMs > 1000) return // ignore zero/negative + huge gaps (tab was backgrounded → not a real stall)
       // warm-up: ignore the first ~second so first-frame shader compiles / layout don't false-trigger.
       if (WATCHDOG.warmupMs < WD_WARMUP_MS) { WATCHDOG.warmupMs += dtMs; return }
-      const inst = 1000 / dtMs
-      WATCHDOG.ewma = WATCHDOG.ewma + WD_ALPHA * (inst - WATCHDOG.ewma)
-      // hysteresis: only count CONTIGUOUS low time — the moment fps recovers above the floor, reset the timer.
-      if (WATCHDOG.ewma < WD_FPS_FLOOR) WATCHDOG.lowMs += dtMs
-      else { WATCHDOG.lowMs = 0; return }
-      if (WATCHDOG.lowMs < WD_SUSTAIN_MS) return
-      // sustained low → step DOWN once. quality high→medium→low first; if already at low, drop the PT scope all→hero.
-      WATCHDOG.fired = true
-      const s = get()
-      const patch: Partial<GfxSettings> = {}
-      if (s.quality === 'high') patch.quality = 'medium'
-      else if (s.quality === 'medium') patch.quality = 'low'
-      else if (s.pathTrace === 'all') patch.pathTrace = 'hero'
-      else return // already at the floor (low quality + hero scope) — nothing left to drop; stay quiet
-      // dropping the quality tier re-establishes it as master (clear per-feature overrides), matching setQuality.
-      if (patch.quality) Object.assign(patch, { shadows: null, bloom: null, sceneGlass: null, heroBackside: null, dof: null, ssao: null, hdri: null, particleScale: 1, starScale: 1 })
-      persist({ ...s, ...patch })
-      set(patch)
-      set({ watchdogToast: 'gfx.autoLowered' }) // message-ID; the renderer resolves it via i18n. NOT persisted.
+      WATCHDOG.ewma = WATCHDOG.ewma + WD_ALPHA * (1000 / dtMs - WATCHDOG.ewma)
+      // apply an auto-quality step (clears per-feature overrides on a quality change, matching setQuality). The
+      // `toast` flag surfaces the one-line notice (only the 'on' one-shot does; 'dynamic' tracks silently).
+      const apply = (patch: Partial<GfxSettings>, toast: boolean) => {
+        const s = get()
+        if (patch.quality) Object.assign(patch, { shadows: null, bloom: null, sceneGlass: null, heroBackside: null, dof: null, ssao: null, hdri: null, particleScale: 1, starScale: 1 })
+        persist({ ...s, ...patch })
+        set(patch)
+        if (toast) set({ watchdogToast: 'gfx.autoLowered' }) // message-ID; the renderer resolves it via i18n. NOT persisted.
+      }
+      // the DOWN ladder (quality high→medium→low, then PT scope all→hero) and its mirror UP ladder.
+      const stepDown = (s: GfxSettings): Partial<GfxSettings> | null =>
+        s.quality === 'high' ? { quality: 'medium' } : s.quality === 'medium' ? { quality: 'low' } : s.pathTrace === 'all' ? { pathTrace: 'hero' } : null
+      // dynamic only RAISES the quality TIER — it never auto-re-enables path tracing. The all↔hero toggle is a huge
+      // fps cliff (PT heavy ↔ mesh cheap), so auto-toggling it makes the hero flip between "low mesh" and "high PT".
+      // Once PT is auto-dropped to hold the target, the player re-enables it deliberately in Settings.
+      const stepUp = (s: GfxSettings): Partial<GfxSettings> | null =>
+        s.quality === 'low' ? { quality: 'medium' } : s.quality === 'medium' ? { quality: 'high' } : null
+
+      if (mode === 'on') {
+        if (WATCHDOG.fired) return // one-shot: already degraded this session
+        if (WATCHDOG.ewma < WD_FPS_FLOOR) WATCHDOG.lowMs += dtMs
+        else { WATCHDOG.lowMs = 0; return }
+        if (WATCHDOG.lowMs < WD_SUSTAIN_MS) return
+        const patch = stepDown(get())
+        if (!patch) return // already at the floor — nothing to drop
+        WATCHDOG.fired = true
+        apply(patch, true)
+        return
+      }
+      // 'dynamic': continuously hold fpsTarget — step DOWN below target*0.92, UP above target*1.12, stable between.
+      // A cooldown after each downgrade keeps a quality tier from oscillating at the boundary.
+      WATCHDOG.clockMs += dtMs
+      const tf = get().fpsTarget
+      const tgt = tf === 'unlimited' ? WD_UNLIMITED_TGT : tf
+      if (WATCHDOG.ewma < tgt * WD_DOWN_MARGIN) {
+        WATCHDOG.highMs = 0; WATCHDOG.lowMs += dtMs
+        if (WATCHDOG.lowMs >= WD_SUSTAIN_MS) { WATCHDOG.lowMs = 0; const p = stepDown(get()); if (p) { WATCHDOG.blockUpUntil = WATCHDOG.clockMs + WD_UP_COOLDOWN_MS; apply(p, false) } }
+      } else if (WATCHDOG.ewma > tgt * WD_UP_MARGIN) {
+        WATCHDOG.lowMs = 0; WATCHDOG.highMs += dtMs
+        if (WATCHDOG.highMs >= WD_UP_SUSTAIN_MS && WATCHDOG.clockMs >= WATCHDOG.blockUpUntil) { WATCHDOG.highMs = 0; const p = stepUp(get()); if (p) apply(p, false) }
+      } else { WATCHDOG.lowMs = 0; WATCHDOG.highMs = 0 } // dead zone → hold
     },
   }
 })

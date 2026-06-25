@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useGame } from './game/store'
 import { useT } from './i18n'
 import { fmt } from './format'
-import { glyphOf } from './content/glyphs'
+import { ShapeGlyph } from './content/shapeGlyphs'
 import { RARITY_COLOR } from './three/Gem'
 import { Orrery3D } from './three/Orrery3D'
 import { OrreryBoard } from './OrreryBoard'
@@ -93,7 +93,7 @@ function OrbitDetail({ id, onClose }: { id: number; onClose: () => void }) {
   return (
     <div style={{ borderTop: '1px solid var(--c-border)', marginTop: 'var(--sp-1_5)', paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--sp-1_5)' }}>
-        <span style={{ fontSize: 'var(--fs-h2)' }}>{glyphOf(sh.family)}</span>
+        <span style={{ fontSize: 'var(--fs-h2)' }}><ShapeGlyph family={sh.family} /></span>
         <b style={{ color: RARITY_COLOR[sh.rarity], flex: 1, fontSize: 'var(--fs-body-sm)' }}>{sh.nick}</b>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--c-text-faint)', cursor: 'pointer' }}>×</button>
       </div>
@@ -149,7 +149,7 @@ function ShapePreviewCard({ id }: { id: number }) {
   return (
     <div className="orrery-panel orrery-preview">
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ fontSize: 'var(--fs-h3)' }}>{glyphOf(sh.family)}</span>
+        <span style={{ fontSize: 'var(--fs-h3)' }}><ShapeGlyph family={sh.family} /></span>
         <b style={{ color: RARITY_COLOR[sh.rarity] }}>{sh.nick}</b>
         {(view.star_levels?.[id] ?? 0) > 0 && (
           <span style={{ color: 'var(--c-accent-gold)', fontSize: 'var(--fs-caption)', letterSpacing: -1 }} title={tr('orrery.star')}>{'★'.repeat(Math.min(5, view.star_levels[id]))}</span>
@@ -295,7 +295,7 @@ export function OrreryEngine() {
                 title={fits ? tr('orrery.deploy') : tr('orrery.tooCostly')}
                 style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 'var(--sp-1_5)', fontSize: 'var(--fs-caption)', padding: 'var(--sp-1) var(--sp-1_5)', borderRadius: 'var(--r-md)', border: '1px solid var(--c-border)', background: 'var(--c-surface-2)', color: 'var(--c-text-secondary)', cursor: fits ? 'pointer' : 'not-allowed', opacity: fits ? 1 : 0.5, textAlign: 'left' }}
               >
-                <span style={{ fontSize: 'var(--fs-h4)' }}>{glyphOf(s.family)}</span>
+                <span style={{ fontSize: 'var(--fs-h4)' }}><ShapeGlyph family={s.family} /></span>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nick}</span>
                 {s.euler_cost > 0 && (
                   <span title={tr('orrery.eulerCostTip')} style={{ fontSize: 'var(--fs-micro)', fontVariantNumeric: 'tabular-nums', color: fits ? 'var(--c-text-dim)' : 'var(--c-accent-gold)', border: `1px solid ${fits ? 'var(--c-border-raised)' : 'var(--c-accent-gold)'}`, borderRadius: 'var(--r-sm)', padding: '0 3px', lineHeight: 1.45 }}>χ{s.euler_cost}</span>
@@ -337,7 +337,7 @@ export function OrreryEngine() {
                 >
                   {/* proportional flux bar behind the row */}
                   <div style={{ position: 'absolute', insetBlock: 0, insetInlineStart: 0, width: `${(contrib / maxC) * 100}%`, background: `linear-gradient(90deg, ${col}3a, ${col}12)`, pointerEvents: 'none' }} />
-                  <span style={{ position: 'relative', fontSize: 'var(--fs-h4)' }}>{glyphOf(s.family)}</span>
+                  <span style={{ position: 'relative', fontSize: 'var(--fs-h4)' }}><ShapeGlyph family={s.family} /></span>
                   <span style={{ position: 'relative', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nick}</span>
                   {amp > 1 && <span style={{ position: 'relative', fontSize: 'var(--fs-micro)', color: 'var(--c-accent-teal)', fontVariantNumeric: 'tabular-nums' }} title={tr('orrery.support')}>⊕{fmt(amp)}</span>}
                   <span style={{ position: 'relative', fontSize: 'var(--fs-micro)', fontWeight: 'var(--fw-bold)', color: 'var(--c-accent-gold)', fontVariantNumeric: 'tabular-nums' }}>{fmt(contrib)}</span>

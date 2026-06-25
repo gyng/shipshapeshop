@@ -1,8 +1,9 @@
 import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { RARITY_COLOR, RARITY_RANK } from './Gem'
-import type { RarityName } from '../game/store'
+import { RARITY_RANK } from './Gem'
+import { useGame, type RarityName } from '../game/store'
+import { gemColorById, SLOT_GEM_COLOR } from '../content/cosmetics'
 
 // The regular convex 4-polytopes, rendered as their REAL 4D→3D projection (not the 3D-shadow polyhedron the
 // gallery uses): glowing glass tube edges + vertex beads, double-rotating in 4-space. Hero-only (the per-frame
@@ -88,12 +89,23 @@ function getPolytope(family: string) {
   return p
 }
 
-export function Polytope4D({ family, rarity, materialize = false }: { family: string; rarity: RarityName; materialize?: boolean }) {
+// Manual 4D-rotation + projection controls (the Shape Viewer drives these; the game/inspector leaves it undefined
+// → the original auto-tumble). `angles` are the 6 rotation-plane angles [XY, XZ, XW, YZ, YW, ZW] in radians;
+// `spin` auto-tumbles (XW+YZ, the original churn) ignoring `angles`; `dist` is the 4D eye distance (lower = more
+// dramatic stereographic-like foreshortening, higher = flatter).
+export type Poly4DControls = { angles: [number, number, number, number, number, number]; spin: boolean; dist: number }
+const POLY4D_VEL = [0, 0, 0.17, 0.11, 0, 0] // default auto-tumble velocities: XW 0.17 + YZ 0.11 (the original mesmerising 4-space churn)
+export const POLY4D_DEFAULT: Poly4DControls = { angles: [0, 0, 0, 0, 0, 0], spin: true, dist: 2.6 }
+
+export function Polytope4D({ family, rarity, materialize = false, poly4d, previewGemColor }: { family: string; rarity: RarityName; materialize?: boolean; poly4d?: Poly4DControls; previewGemColor?: number }) {
   const { verts, edges } = useMemo(() => getPolytope(family), [family])
-  const col = RARITY_COLOR[rarity]
+  // edge/bead glow = the equipped/previewed Gem Colour (Clear → a soft ice-blue lattice). Rarity → Stage motes.
+  const equippedGemColor = useGame((s) => s.view?.equipped?.[SLOT_GEM_COLOR] ?? 0)
+  const col = gemColorById(previewGemColor ?? equippedGemColor).color ?? '#cfe0ff'
   const rank = RARITY_RANK[rarity]
   const groupRef = useRef<THREE.Group>(null)
   const formT = useRef(materialize ? 0 : 1)
+  const live = useRef<[number, number, number, number, number, number]>([0, 0, 0, 0, 0, 0]) // accumulated 4D angles (auto-tumble integrates here; manual mode copies the slider angles in)
   const edgeRef = useRef<THREE.InstancedMesh>(null)
   const vertRef = useRef<THREE.InstancedMesh>(null)
   // dense polytopes (120/600-cell) → thinner tubes/beads so the structure doesn't read as a solid blob
@@ -114,21 +126,31 @@ export function Polytope4D({ family, rarity, materialize = false }: { family: st
     q: new THREE.Quaternion(),
   }), [verts])
 
-  useFrame((state, dt) => {
+  useFrame((_state, dt) => {
     // materialize: the lattice grows into existence from a point (the tubes "construct" in 4-space)
     if (materialize && formT.current < 1) formT.current = Math.min(1, formT.current + dt / 0.8)
     if (groupRef.current) groupRef.current.scale.setScalar(FIT_SCALE * (1 - Math.pow(1 - formT.current, 3)))
-    const t = state.clock.elapsedTime
-    // double (independent-plane) rotation: XW and YZ at slightly different rates → the mesmerising 4D churn
-    const a = t * 0.17, b = t * 0.11
-    const ca = Math.cos(a), sa = Math.sin(a), cb = Math.cos(b), sb = Math.sin(b)
-    const D = 2.6 // 4D eye distance (> 1 = unit circumradius, so the perspective divide never blows up)
+    const { angles, spin, dist } = poly4d ?? POLY4D_DEFAULT
+    // accumulate the 6 rotation-plane angles: auto-tumble integrates the default churn velocities (XW+YZ); manual
+    // mode (spin off) snaps to the slider angles so all six planes [XY, XZ, XW, YZ, YW, ZW] can be posed freely.
+    const A = live.current
+    if (spin) { for (let i = 0; i < 6; i++) A[i] += POLY4D_VEL[i] * (dt || 0.016) }
+    else { for (let i = 0; i < 6; i++) A[i] = angles[i] }
+    const cxy = Math.cos(A[0]), sxy = Math.sin(A[0]), cxz = Math.cos(A[1]), sxz = Math.sin(A[1]), cxw = Math.cos(A[2]), sxw = Math.sin(A[2])
+    const cyz = Math.cos(A[3]), syz = Math.sin(A[3]), cyw = Math.cos(A[4]), syw = Math.sin(A[4]), czw = Math.cos(A[5]), szw = Math.sin(A[5])
+    const D = Math.max(dist, 1.2) // 4D eye distance; clamped so the perspective divide stays well-behaved
     const { dummy, proj, dir, up, q } = scratch
     for (let i = 0; i < verts.length; i++) {
       const v = verts[i]
-      const x = v[0] * ca - v[3] * sa, w = v[0] * sa + v[3] * ca // rotate XW
-      const y = v[1] * cb - v[2] * sb, z = v[1] * sb + v[2] * cb // rotate YZ
-      const k = D / (D - w) // 4D→3D perspective projection
+      let x = v[0], y = v[1], z = v[2], w = v[3]
+      let nx, ny, nz, nw
+      nx = x * cxy - y * sxy; ny = x * sxy + y * cxy; x = nx; y = ny // XY
+      nx = x * cxz - z * sxz; nz = x * sxz + z * cxz; x = nx; z = nz // XZ
+      nx = x * cxw - w * sxw; nw = x * sxw + w * cxw; x = nx; w = nw // XW
+      ny = y * cyz - z * syz; nz = y * syz + z * cyz; y = ny; z = nz // YZ
+      ny = y * cyw - w * syw; nw = y * syw + w * cyw; y = ny; w = nw // YW
+      nz = z * czw - w * szw; nw = z * szw + w * czw; z = nz; w = nw // ZW
+      const k = D / Math.max(D - w, 0.08) // 4D→3D perspective projection (clamp near the 4D pole so it never blows up)
       proj[i].set(x * k, y * k, z * k)
     }
     const em = edgeRef.current
