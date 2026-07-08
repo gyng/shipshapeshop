@@ -7,6 +7,7 @@ import { shapeGeometry, useRelics } from './relics'
 import { buildBVH } from './bvh'
 import { sceneById, atmosphereById, lightingById, gemColorById, SLOT_ATMOSPHERE, SLOT_FINISH, SLOT_LIGHTING, SLOT_GEM_COLOR } from '../content/cosmetics'
 import { finishSdf, lightingKey, useMatOverride } from './finishSdf'
+import { SPECTRAL_GLSL, FRESNEL_GLSL, ENV_DIFFUSE_GLSL, COAT_SHADE_GLSL, DYNAMIC_GLSL } from './ptShared.glsl'
 import { useGame, type RarityName } from '../game/store'
 import { usePathTraceParams, useGfxPreset, useGfx } from '../gfx'
 
@@ -61,14 +62,22 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
   uniform float uAbsorbMul;    // equipped finish density (≥1 darkens a low-transmission finish; 1 = default)
   uniform float uHaze;     // volumetric single-scatter haze density (gfx setting + equipped Atmosphere; 0 = off)
   uniform float uReflMul;  // equipped finish env-reflection strength (envMapIntensityMul); 1 = default
+  uniform float uMetal;    // 0 = dielectric glass; 1 = colored metal mirror (F0 = body colour, no transmission)
+  uniform float uRetro;    // 0 = normal; >0 = retroreflective (returns light back toward its source)
+  uniform float uSpecRough;// specular-reflection blur (0 = mirror-sharp; higher = brushed/satin)
+  uniform float uRipple;   // DYNAMIC: >0 = animated water/heat-haze surface (ripples the normal)
+  uniform float uFire;     // DYNAMIC: >0 = animated fire emission on the surface
+  uniform float uAnim;     // free-running animation clock (dynamic materials flow live)
   uniform float uMatte;    // exotic finish: 0 = glass; >0 = opaque DIFFUSE surface (prob. of a diffuse vs refract bounce)
   uniform float uLensing;  // exotic finish: gravitational lensing — pinch the escaping background toward the gem
   uniform float uVolume;   // exotic finish: the gem interior is a ray-marched fbm cloud/smoke at this density
+  uniform float uSpine;    // >0.5 = deterministic single-path spine (clean while spinning); 0 = Monte-Carlo (the frozen still)
   float nhash(vec3 p){ p = fract(p*0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
   float vnoise(vec3 x){ vec3 i = floor(x), f = fract(x); f = f*f*(3.0-2.0*f);
     return mix(mix(mix(nhash(i),nhash(i+vec3(1,0,0)),f.x), mix(nhash(i+vec3(0,1,0)),nhash(i+vec3(1,1,0)),f.x), f.y),
                mix(mix(nhash(i+vec3(0,0,1)),nhash(i+vec3(1,0,1)),f.x), mix(nhash(i+vec3(0,1,1)),nhash(i+vec3(1,1,1)),f.x), f.y), f.z); }
   float fbmN(vec3 p){ float a = 0.5, s = 0.0; for(int i=0;i<4;i++){ s += a*vnoise(p); p *= 2.02; a *= 0.5; } return s; }
+${DYNAMIC_GLSL}
   uniform sampler2D uTriTex;   // 6 texels/tri: a,b,c positions then na,nb,nc vertex normals (TRI_TEXELS in bvh.ts)
   uniform sampler2D uNodeTex;  // 2 texels/node
   uniform int uTexW;
@@ -76,6 +85,10 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
 
   float gSeed;
   float rnd(){ gSeed += 1.0; vec3 p3 = fract(vec3(gl_FragCoord.xyx) * 0.1031 + gSeed * 0.137 + uSeed * 0.0411); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+
+${SPECTRAL_GLSL}
+${FRESNEL_GLSL}
+${ENV_DIFFUSE_GLSL}
 
   // Smooth blurred-IBL-style env — mirrors PathTraceGem.env(): a soft vertical gradient plus broad directional
   // glows (low exponents → wide + smooth) and a faint hot key core for a gentle specular glint, so the mesh
@@ -105,6 +118,7 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
     vec3 atmo = a / (1.0 + max(a - 1.0, 0.0) * 0.9);
     return mix(base, base * 0.5 + atmo, uEnvCubeAmt);
   }
+${COAT_SHADE_GLSL}
 
   vec4 ftri(int i){ return texelFetch(uTriTex, ivec2(i % uTexW, i / uTexW), 0); }
   vec4 fnode(int i){ return texelFetch(uNodeTex, ivec2(i % uTexW, i / uTexW), 0); }
@@ -186,7 +200,6 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
     }
     mat3 Rt = transpose(R);   // world → object (R is orthonormal)
     gSeed = 0.0;
-    float F0 = pow((1.0-uIor)/(1.0+uIor), 2.0);
 
     vec3 sum = vec3(0.0);
     float tAccum = 0.0;                       // spp-averaged primary depth → smooth haze across the gem silhouette
@@ -196,16 +209,53 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
       vec2 uv = ((vUv*uRes + j)/uRes * 2.0 - 1.0);
       uv.x *= uRes.x/uRes.y;
       // hero-wavelength dispersion: ONE wavelength per sample (Monte-Carlo spectral) → true dispersion at zero extra
-      // ray cost. Blue bends more than red; the spectral weight tints the sample, averaging to white over accumulation.
-      float wl = rnd();
+      // ray cost. STRATIFIED across the spp loop (one jittered sample per 1/spp bin) so the spectrum is evenly covered
+      // (kills the chromatic blotch a random wavelength leaves while spinning). Physically-based CIE weight (ptShared)
+      // makes the fire the real prism sequence AND integrates to pure white — no magenta cast on a Clear gem.
+      float wl = fract((float(s) + rnd()) / float(${SPP}));
       float iorS = uIor + uAberr * (wl - 0.5);
-      vec3 spec = vec3(smoothstep(1.0, 0.4, wl), 1.0 - 1.6*abs(wl - 0.5), smoothstep(0.0, 0.6, wl));
-      spec = spec / max(spec.x + spec.y + spec.z, 1e-3) * 3.0;   // normalise so the average is ~white (energy-safe)
+      vec3 spec = spectralWeight(wl);
       // primary ray (world), then into object space so the static BVH appears rotated by R
       vec3 ro = Rt * vec3(0.0,0.0,3.2*uZoom);
       vec3 rd = normalize(Rt * normalize(vec3(uv,-2.61)));  // focal length = 1/tan(42°/2) → matches the Canvas fov:42 (and the SDF PT)
       vec3 thru = vec3(1.0), rad = vec3(0.0);
       bool inside = false;
+      // ── DETERMINISTIC internal-reflection spine (uSpine) — clean in ONE frame while the gem spins (no reflect/
+      // refract RNG). Refract in, follow the internal reflection path, bank the transmitted-out env at each exit
+      // (TIR-guarded). Exact expectation of the MC transport for a convex mesh; FREEZE settles to MC (uSpine=0). ──
+      if(uSpine > 0.5){
+        float t0; vec3 n0;
+        if(!intersect(ro, rd, t0, n0)){
+          vec3 erd = rd;
+          if(uLensing > 0.0){ vec3 perp = -ro - rd*dot(-ro, rd); float bp = length(perp); erd = normalize(rd + normalize(perp + 1e-5) * (uLensing * 0.5 / (bp*bp + 0.35))); }
+          rad += env(R * erd);
+        } else {
+          vec3 p0 = ro + rd*t0; if(dot(rd, n0) > 0.0) n0 = -n0;
+          if(uRipple > 0.0) n0 = rippleNormal(p0, n0, uRipple); // water: shimmer the surface normal (live)
+          rad += uFire * fireEmission(p0);                      // fire: live flame emission on the surface
+          float tr; rad += coatShade(R * rd, R * n0, iorS, tr); // layered outer BRDF: retro / metal / rough-spec / matte
+          vec3 dir = refract(rd, n0, 1.0/iorS);
+          vec3 p = p0 + dir*0.003; vec3 thruS = vec3(tr);       // transmitted fraction enters the glass (opaque coat → 0)
+          for(int b=0;b<${BOUNCES};b++){
+            float te; vec3 nn;
+            if(!intersect(p, dir, te, nn)) break;
+            vec3 hp = p + dir*te; if(dot(dir, nn) > 0.0) nn = -nn;
+            thruS *= exp(-(vec3(1.0)-uColor) * min(te,1.4) * 1.1 * uAbsorbMul);   // Beer–Lambert
+            rad += thruS * uColor * (min(te,0.9)*min(te,0.9)) * 0.12;             // internal-focus caustic
+            rad += thruS * uColor * uEmissive * min(te,0.9) * 1.6;               // participating emission
+            float ci = clamp(dot(-dir, nn), 0.0, 1.0);
+            vec3 refr = refract(dir, nn, iorS);
+            bool tirI = dot(refr,refr) < 1e-5;
+            float Fi = tirI ? 1.0 : fresnelFull(ci, iorS);
+            if(!tirI) rad += thruS * (1.0 - Fi) * envGem(R * refr);               // transmitted light escapes
+            thruS *= Fi * uReflMul;                                              // TIR: Fi=1 → thruS unchanged
+            if(max(thruS.r, max(thruS.g, thruS.b)) < 0.02) break;
+            dir = reflect(dir, nn); p = hp + dir*0.003;
+          }
+        }
+        sum += max(rad, 0.0) * spec;
+        continue;
+      }
       for(int b=0;b<${BOUNCES};b++){
         float t; vec3 n;
         bool didHit = intersect(ro, rd, t, n);
@@ -229,7 +279,7 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
           if(intersect(p + rd*0.01, rd, texit, nx)){
             float ds = texit / 20.0; vec3 vp = p + rd*0.01;
             for(int k=0;k<20;k++){
-              float rho = clamp(fbmN(vp*3.4) * uVolume * 1.7 - 0.15, 0.0, 1.0);
+              float rho = clamp(fbmN(vp*3.4 + uAnim*0.10) * uVolume * 1.7 - 0.15, 0.0, 1.0);
               if(rho > 0.001){
                 float sh = 1.0 - clamp(fbmN((vp + uKeyDir*0.2)*3.4)*uVolume*0.6, 0.0, 0.6);
                 vec3 lit = uColor * (0.25 + 0.95*sh) * mix(vec3(1.0), uKeyTint, 0.4) * uKeyPulse;
@@ -249,25 +299,25 @@ const makeMeshPT = (BOUNCES: number, SPP: number) => /* glsl */ `
           // out through the glass, dimming correctly through each interface (× thru). Path-length weighted
           // (thicker → brighter). Default uEmissive 0 = exact no-op. Mirrors PathTraceGem.
           rad += thru * uColor * uEmissive * min(t, 0.9) * 1.6;
+          // INTERIOR surface — stochastic Fresnel reflect/refract (real multi-bounce glass transport + TIR).
+          float ci = clamp(dot(-rd, n), 0.0, 1.0);
+          vec3 refr = refract(rd, n, iorS);
+          bool tir = dot(refr,refr) < 1e-5;
+          float F = tir ? 1.0 : fresnelFull(ci, iorS);
+          if(tir || rnd() < F){ rd = reflect(rd, n); thru *= uReflMul; }     // TIR / internal specular
+          else { rd = refr; inside = false; }                               // refract OUT of the glass
+          ro = p + rd*0.003;
+        } else {
+          if(uRipple > 0.0) n = rippleNormal(p, n, uRipple);   // water: shimmer the surface normal (live)
+          rad += thru * uFire * fireEmission(p);               // fire: live flame emission on the surface
+          // OUTER surface — the DETERMINISTIC layered coating BRDF (retro / metal / rough-spec / matte), env dirs in
+          // WORLD space via R. The transmitted fraction refracts into the glass (object-space). Matches PathTraceGem.
+          float tr; rad += thru * coatShade(R * rd, R * n, iorS, tr);
+          thru *= tr;
+          if(max(thru.r, max(thru.g, thru.b)) < 0.02) break;                // opaque coat (Chalk / metal / retro) → done
+          rd = refract(rd, n, 1.0/iorS); inside = true;                     // the transmitted fraction enters the glass
+          ro = p + rd*0.003;
         }
-        // MATTE: opaque DIFFUSE surface — a fraction (uMatte) of surface hits scatter diffusely (Lambert albedo =
-        // body colour) instead of refracting, so rough finishes read opaque/matte rather than clear glass.
-        if(uMatte > 0.0 && !inside && rnd() < uMatte){
-          thru *= uColor;
-          vec3 t1 = normalize(abs(n.y) < 0.9 ? cross(n, vec3(0.0,1.0,0.0)) : cross(n, vec3(1.0,0.0,0.0)));
-          vec3 t2 = cross(n, t1); float du = rnd(), dv = rnd(), rr = sqrt(du), ph2 = 6.2831853*dv;
-          rd = normalize(t1*rr*cos(ph2) + t2*rr*sin(ph2) + n*sqrt(1.0-du));
-          ro = p + n*0.003;
-          if(b > 1){ float qm = max(thru.r, max(thru.g, thru.b)); if(rnd() > qm) break; thru /= max(qm, 0.05); }
-          continue;
-        }
-        float ci = clamp(dot(-rd, n), 0.0, 1.0);
-        float F = F0 + (1.0-F0)*pow(1.0-ci, 5.0);
-        float eta = inside ? iorS : 1.0/iorS;          // wavelength-split IOR → chromatic dispersion
-        vec3 refr = refract(rd, n, eta);
-        if(dot(refr,refr) < 1e-5 || rnd() < F){ rd = reflect(rd, n); thru *= uReflMul; }  // reflect — finish reflectivity (TIR thresh matches SDF)
-        else { rd = refr; inside = !inside; }
-        ro = p + rd*0.003;
         if(b > 2){ float q = max(thru.r, max(thru.g, thru.b)); if(rnd() > q) break; thru /= max(q, 0.05); }
       }
       sum += max(rad, 0.0) * spec;                   // weight by the sample's spectral response → chromatic dispersion
@@ -304,7 +354,7 @@ const DISP = /* glsl */ `
   vec3 aces(vec3 x){ return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14), 0.0, 1.0); }
   void main(){
     float inv = 1.0 / max(uN, 1.0);
-    vec3 c = texture(uTex, vUv).rgb * inv;
+    vec3 c = max(texture(uTex, vUv).rgb * inv, 0.0); // clamp ≥0: CMF spectral weights go negative for out-of-gamut wavelengths, so a near-monochromatic glint can sum slightly negative — never feed that to ACES/bloom
     // The mesh PT bypasses the EffectComposer (no shared post chain), so the SDF hero's Bloom is reproduced HERE:
     // a thresholded golden-spiral disk blur of the bright parts (luminanceThreshold 0.8) over ~3..33px — a soft glow
     // around the hot cores / specular glints, so emissive finishes + glints bloom like they do on the SDF hero.
@@ -336,6 +386,7 @@ export function MeshPathTraceGem({ family, rarity, controls = true, paused = fal
   const g = useGfxPreset()
   const ptHaze = useGfx((s) => s.ptHaze)
   const ptEnvCubeAmt = useGfx((s) => s.ptEnvCubeAmt) // user-tunable atmosphere-refraction strength
+  const ptTransport = useGfx((s) => s.ptTransport) // 'deterministic' (clean/live spine, default) vs 'montecarlo' (converged still)
   const equippedAtmo = useGame((s) => s.view?.equipped?.[SLOT_ATMOSPHERE] ?? 0)
   const atmo = atmosphereById(previewAtmosphere ?? equippedAtmo) // equipped Atmosphere: deepens haze + tints refraction
   const atmoHaze = atmo.haze
@@ -382,7 +433,9 @@ export function MeshPathTraceGem({ family, rarity, controls = true, paused = fal
         uEnvCube: { value: null as THREE.Texture | null }, uEnvCubeAmt: { value: 0 },
         uEmissive: { value: 0 }, uAbsorbMul: { value: 1 }, uAberr: { value: 0 }, uReflMul: { value: 1 }, // (finish-driven; set live in useFrame)
         uMatte: { value: 0 }, uLensing: { value: 0 }, uVolume: { value: 0 }, // exotic finishes (matte / black-hole lensing / cloud)
-        uHaze: { value: 0 },
+        uMetal: { value: 0 }, uRetro: { value: 0 }, uSpecRough: { value: 0 }, // BRDF: metallic mirror / retroreflective / specular blur
+        uRipple: { value: 0 }, uFire: { value: 0 }, uAnim: { value: 0 }, // dynamic materials: water ripple / fire / animation clock
+        uHaze: { value: 0 }, uSpine: { value: 0 },
         uTriTex: { value: bvh.triTex }, uNodeTex: { value: bvh.nodeTex }, uTexW: { value: bvh.texW }, uNodeCount: { value: bvh.nodeCount },
       },
     })
@@ -435,6 +488,16 @@ export function MeshPathTraceGem({ family, rarity, controls = true, paused = fal
     m.uAberr.value = 0.02 + rank * 0.02 + fin.aberrAdd          // a faint base dispersion (rank-scaled) + the finish's chromatic add
     m.uReflMul.value = THREE.MathUtils.clamp(fin.reflMul, 0.6, 1.6) // finish env-reflection strength
     m.uMatte.value = fin.matte; m.uLensing.value = fin.lensing; m.uVolume.value = fin.volumetric // exotic finishes
+    m.uMetal.value = fin.metallic; m.uRetro.value = fin.retro; m.uSpecRough.value = fin.specRough
+    m.uRipple.value = fin.ripple; m.uFire.value = fin.fire
+    m.uAnim.value = state.clock.elapsedTime // free-running → dynamic materials (water/fire/volume) flow live
+    // The spine renders any finish except the volumetric cloud (which needs the stochastic march). A DYNAMIC finish
+    // (water / fire / volume) is time-animated, so it forces the LIVE every-frame path so it keeps flowing.
+    const spineFinish = fin.volumetric === 0
+    const dynamicFinish = fin.volumetric > 0 || fin.ripple > 0 || fin.fire > 0
+    const live = ptTransport === 'deterministic' || dynamicFinish
+    const moving = spinSpeed.current > 0.001
+    m.uSpine.value = (live ? spineFinish : (moving && spineFinish)) ? 1 : 0
     // animate the env() key glow from the equipped Lighting mood so this PT hero SHOWS it (motion + hue), not just brightness
     m.uKeyPulse.value = lightingKey(L, state.clock.elapsedTime, m.uKeyDir.value, m.uKeyTint.value)
     const cam = state.camera
@@ -449,28 +512,44 @@ export function MeshPathTraceGem({ family, rarity, controls = true, paused = fal
     // while active it advances each frame → 1 fresh sample/frame, so a spinning gem stays responsive without
     // smearing), or any live-graded uniform (finish/atmosphere/haze). This was DEAD before: the old key folded in
     // uTime*0.15 every frame, so it reset to 0 every frame and never accumulated past one sample.
-    const fkey = `${(m.uIor.value as number).toFixed(3)}|${m.uEmissive.value}|${m.uAbsorbMul.value}|${m.uAtmoAmt.value}|${m.uEnvCubeAmt.value}|${(m.uAberr.value as number).toFixed(3)}|${(m.uReflMul.value as number).toFixed(2)}|${m.uMatte.value}|${m.uLensing.value}|${m.uVolume.value}`
-    const key = `${family}|${spin.current.toFixed(4)}|${m.uYaw.value.toFixed(4)}|${m.uPitch.value.toFixed(4)}|${m.uZoom.value.toFixed(4)}|${(ptHaze + atmoHaze).toFixed(3)}|${fkey}`
     const prevClear = gl.getClearColor(new THREE.Color()).getHex()
-    if (key !== lastKey.current) {
-      lastKey.current = key
-      frame.current = 0
+    const prevAuto = gl.autoClear
+    gl.autoClear = false
+    if (live) {
+      // LIVE: trace FRESH every frame (clear → one render), no accumulation / converge-skip — so motes, water, fire
+      // and flowing volumes stay live. Non-volumetric finishes use the clean spine; the volumetric cloud uses the
+      // stochastic MC loop but is still rendered every frame so it flows. (The particle composite runs every frame.)
+      frame.current = (frame.current + 1) & 4095
+      m.uSeed.value = frame.current
       gl.setRenderTarget(accum)
       gl.setClearColor(0x000000, 0)
       gl.clear(true, false, false)
-    }
-    const prevAuto = gl.autoClear
-    gl.autoClear = false
-    // Once paused + fully accumulated, the gem is a finished STILL — SKIP the expensive trace. But ALWAYS run the
-    // display blit + the particle composite below, so the motes/sparkles keep drifting fluidly over the converged
-    // image. (Cheap when converged: a quad blit + a few hundred sparkle points, no BVH trace.)
-    const converged = frame.current >= ACCUM_TARGET && spinSpeed.current < 0.001
-    if (!converged) {
-      m.uSeed.value = frame.current
-      gl.setRenderTarget(accum)
       gl.render(ptScene, ortho)
-      frame.current++
-      dispMat.uniforms.uN.value = frame.current
+      dispMat.uniforms.uN.value = 1
+      lastKey.current = '' // re-init the MC accumulation cleanly if the user switches transport
+    } else {
+      // MONTE-CARLO: accumulate the stochastic still; on Freeze it converges then SKIPS the trace (the display blit +
+      // particle composite still run every frame, so the motes/sparkles keep drifting over the converged still).
+      const fkey = `${(m.uIor.value as number).toFixed(3)}|${m.uEmissive.value}|${m.uAbsorbMul.value}|${m.uAtmoAmt.value}|${m.uEnvCubeAmt.value}|${(m.uAberr.value as number).toFixed(3)}|${(m.uReflMul.value as number).toFixed(2)}|${m.uMatte.value}|${m.uLensing.value}|${m.uVolume.value}|${m.uMetal.value}|${m.uRetro.value}|${(m.uSpecRough.value as number).toFixed(2)}`
+      const key = `${family}|${spin.current.toFixed(4)}|${m.uYaw.value.toFixed(4)}|${m.uPitch.value.toFixed(4)}|${m.uZoom.value.toFixed(4)}|${(ptHaze + atmoHaze).toFixed(3)}|${fkey}|${m.uSpine.value}`
+      if (key !== lastKey.current) {
+        lastKey.current = key
+        frame.current = 0
+        gl.setRenderTarget(accum)
+        gl.setClearColor(0x000000, 0)
+        gl.clear(true, false, false)
+      }
+      // Seed the settled still's FIRST frame with the clean spine, so it doesn't flash a noisy Monte-Carlo sample as
+      // the spin eases to a stop (spine ≈ the MC expectation for a convex gem; the 64 MC frames decay its weight to ~1.5%).
+      if (!moving && spineFinish && frame.current === 0) m.uSpine.value = 1
+      const converged = frame.current >= ACCUM_TARGET && spinSpeed.current < 0.001
+      if (!converged) {
+        m.uSeed.value = frame.current
+        gl.setRenderTarget(accum)
+        gl.render(ptScene, ortho)
+        frame.current++
+        dispMat.uniforms.uN.value = frame.current
+      }
     }
     dispMat.uniforms.uTex.value = accum.texture
     gl.setRenderTarget(null)

@@ -14,7 +14,12 @@ export interface FinishSdf {
   emissive: number // inner-glow strength (0 = none)
   absorbMul: number // ≥1: denser/darker body from a low transmission (Obsidian, Smoky Quartz); 1 = default
   reflMul: number // env reflection strength multiplier
-  matte: number // 0 = clear glass; >0 = opaque DIFFUSE surface (probability of a diffuse vs refract bounce) — true matte
+  matte: number // 0 = clear glass; >0 = opaque DIFFUSE (Lambert) surface — true matte
+  specRough: number // specular reflection blur (0 = mirror-sharp; higher = brushed/satin) — derived from roughness
+  metallic: number // 0 = dielectric; 1 = colored metal mirror (F0 = body colour, no transmission)
+  retro: number // 0 = normal; >0 = retroreflective (returns light toward its source)
+  ripple: number // 0 = still; >0 = animated water/heat-haze surface (perturbs the normal by scrolling noise)
+  fire: number // 0 = none; >0 = animated fire emission on the surface
   lensing: number // 0 = none; >0 = gravitational lensing, pinch the escaping background toward the gem (black hole)
   volumetric: number // 0 = none; >0 = the gem interior is a ray-marched fbm cloud/smoke at this density (cloud gem)
 }
@@ -71,6 +76,13 @@ export function finishSdf(finishId: number, o: MatOverride | null = null): Finis
     // diffuse. (Inferring matte from the mesh `roughness` is convenient but coupled — an explicit `mat.matte` would
     // fully decouple it; revisit if more glass finishes creep over the knee.)
     matte: THREE.MathUtils.clamp(((m.roughness ?? 0) - 0.35) / 0.6, 0, 1),
+    // specular-reflection blur straight from roughness (a polished 0.02–0.12 stays crisp; a satin/frosted 0.3–0.5
+    // softens its reflections), capped so even chalk keeps a hint of specular structure.
+    specRough: THREE.MathUtils.clamp(m.roughness ?? 0, 0, 0.7),
+    metallic: THREE.MathUtils.clamp(m.metallic ?? 0, 0, 1),
+    retro: THREE.MathUtils.clamp(m.retro ?? 0, 0, 1),
+    ripple: m.ripple ?? 0,
+    fire: m.fire ?? 0,
     lensing: m.lensing ?? 0,
     volumetric: m.volumetric ?? 0,
   }

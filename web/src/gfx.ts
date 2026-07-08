@@ -11,6 +11,12 @@ export type Quality = 'low' | 'medium' | 'high'
 // over the render loop, so the gem stops spinning + the sparkle/star layers (Points) drop out — a clean
 // product-shot mode. Quality tiers map to bounce depth + render scale (see PT_QUALITY in HeroPathTracer).
 export type PathTraceScope = 'off' | 'hero' | 'all'
+// How the path tracer transports light. 'deterministic' = the single-path internal-reflection SPINE: a clean image
+// EVERY frame (no Monte-Carlo grain, no freeze-to-converge), so the gem stays live — dust motes + moving lights keep
+// animating. 'montecarlo' = the stochastic multi-bounce accumulate: the ground-truth still (real diffuse/exotic GI,
+// re-entry caustics), which FREEZES to converge over ~64 frames. Deterministic is the default for pure-glass gems;
+// matte/cloud finishes always use Monte-Carlo (diffuse scatter / volume march need the stochastic path).
+export type PathTraceTransport = 'deterministic' | 'montecarlo'
 export type FpsWatchdog = 'off' | 'on' | 'dynamic' // auto-quality mode: off / lower-once / continuously hold a target fps
 export type FpsTarget = 15 | 30 | 60 | 144 | 'unlimited' // the frame rate 'dynamic' mode holds ('unlimited' = max quality, floor-protected only)
 export type PathTraceQuality = 'low' | 'medium' | 'high' | 'extreme' | 'ultra' | 'max'
@@ -87,6 +93,7 @@ export interface GfxSettings {
   ssao: boolean | null
   hdri: boolean | null
   pathTrace: PathTraceScope // custom GLSL path tracer scope (off · hero inspector · all hero views)
+  ptTransport: PathTraceTransport // deterministic spine (clean/live, default) vs Monte-Carlo accumulate (ground-truth still)
   pathTraceQuality: PathTraceQuality // the preset that seeds the four params below
   ptBounces: number | null // per-param overrides (null = follow the preset)
   ptSteps: number | null
@@ -106,7 +113,7 @@ export type ExpeditionPtCaustics = 'off' | 'low' | 'medium' | 'high' | 'extreme'
 // Path tracing defaults ON for ALL hero views (the premium refraction look everywhere). The only SDFs heavy
 // enough to blow the multi-bounce budget (neural bunny, Mandelbulb) auto-fall-back to the single-ray raymarch
 // via PT_TOO_HEAVY in HeroView, so 'all' is safe by construction. (If a future SDF hangs, add it to that set.)
-const DEFAULTS: GfxSettings = { quality: 'medium', showFps: false, fpsWatchdog: 'off', fpsTarget: 60, shadows: null, particleScale: 1, starScale: 1, rarityMotes: true, bloom: null, sceneGlass: null, heroBackside: null, dof: null, ssao: null, hdri: null, pathTrace: 'all', pathTraceQuality: 'high', ptBounces: null, ptSteps: null, ptScale: null, ptSpp: null, ptHaze: 0.05, ptEnvCube: true, ptEnvCubeRes: 128, ptEnvCubeAmt: 0.7, meshPtCycle: true, expeditionPt: false, expeditionPtEma: 'off', expeditionPtCaustics: 'high' }
+const DEFAULTS: GfxSettings = { quality: 'medium', showFps: false, fpsWatchdog: 'off', fpsTarget: 60, shadows: null, particleScale: 1, starScale: 1, rarityMotes: true, bloom: null, sceneGlass: null, heroBackside: null, dof: null, ssao: null, hdri: null, pathTrace: 'all', ptTransport: 'deterministic', pathTraceQuality: 'high', ptBounces: null, ptSteps: null, ptScale: null, ptSpp: null, ptHaze: 0.05, ptEnvCube: true, ptEnvCubeRes: 128, ptEnvCubeAmt: 0.7, meshPtCycle: true, expeditionPt: false, expeditionPtEma: 'off', expeditionPtCaustics: 'high' }
 
 // v2: reset persisted gfx once — earlier builds could persist a catastrophic path-trace preset (spp 80 / 32
 // bounces) that freezes the GPU on load. Bumping the key drops stale settings so everyone lands on safe defaults.

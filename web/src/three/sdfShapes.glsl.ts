@@ -599,6 +599,9 @@ const SHAPE_DEFS: Record<string, ShapeDef> = {
   mobius: { helpers: H_MOBIUS, expr: 'return sdfMobius(p);' },
   klein_bottle: { helpers: H_KLEINB, expr: 'return sdfKleinBottle(p*2.7)/2.7;' },
   spike: { helpers: H_SPIKE, expr: 'return sdfSpike(p);' },
+  // Biconvex lens — the intersection of two spheres bulged toward each other along Z. A real refractive optical
+  // element: pop the Transport onto a path-traced hero and it focuses/bends the environment like a magnifier.
+  lens: { expr: 'float R=1.35, o=1.02; float d=max(length(p-vec3(0.0,0.0,-o))-R, length(p-vec3(0.0,0.0,o))-R); return max(d, length(p.xy)-0.85);' },
 }
 
 /** Families with an SDF (this is the source of truth RaymarchGem.RAYMARCH_SHAPES is derived from). */
@@ -610,5 +613,59 @@ export function sdfActiveGLSL(family: string): string {
   const def = SHAPE_DEFS[family] ?? SHAPE_DEFS.sphere
   return `${def.helpers ?? ''}
   float sdfActive(vec3 p){ ${def.expr} }`
+}
+
+// ── Analytic convex-hull gems (the reference shader's technique) ────────────────────────────────────────────────
+// The sharp centrally-symmetric platonics are the intersection of slabs |dot(axisᵢ, x)| ≤ r — the SAME plane set
+// their SDF is a max() of. So the SDF path tracer can find entry/EXIT in CLOSED FORM (a Kay–Kajiya slab clip) for
+// these families instead of sphere-marching: razor-exact facet normals, no step-starvation shimmer on the facet
+// silhouettes, and — the big one — the internal-reflection spine gets its exits for FREE (no march steps at all).
+// Each axis set + radius EQUALS the family's SDF zero-set (verified against H_PLATONIC / the octahedron expr), so
+// map()-based effects (uVolume, the display-depth march) stay perfectly consistent. Rounded/organic shapes have no
+// exact hull and keep the marcher. (2.618034 = φ+1; octa r = 1.35/√3 matches `(x+y+z-1.35)*0.5773`.)
+const PHI2 = 2.618034
+const GEM_HULLS: Record<string, { r: number; axes: [number, number, number][] }> = {
+  icosahedron: { r: 0.92, axes: [[1, 1, 1], [-1, 1, 1], [1, -1, 1], [1, 1, -1], [0, 1, PHI2], [0, -1, PHI2], [PHI2, 0, 1], [-PHI2, 0, 1], [1, PHI2, 0], [-1, PHI2, 0]] },
+  octahedron: { r: 1.35 / Math.sqrt(3), axes: [[1, 1, 1], [-1, 1, 1], [1, -1, 1], [1, 1, -1]] },
+  dodecahedron: { r: 0.95, axes: [[0, 1, PHI2], [0, -1, PHI2], [PHI2, 0, 1], [-PHI2, 0, 1], [1, PHI2, 0], [-1, PHI2, 0]] },
+}
+
+/** Families whose SDF is an exact convex slab-hull → the SDF tracer can intersect them analytically. */
+export function hasGemHull(family: string): boolean {
+  return Object.prototype.hasOwnProperty.call(GEM_HULLS, family)
+}
+
+/** GLSL for a family's analytic convex-hull intersector (`intersectGem`) — or '' if it has no exact hull. Axes are
+ *  emitted pre-normalized (no `normalize()` in a const array — an ANGLE/win32 footgun) as the reference does. */
+export function gemHullGLSL(family: string): string {
+  const h = GEM_HULLS[family]
+  if (!h) return ''
+  const axes = h.axes.map(([x, y, z]) => { const l = Math.hypot(x, y, z); return [x / l, y / l, z / l] as const })
+  const lits = axes.map((a) => `vec3(${a[0].toFixed(8)},${a[1].toFixed(8)},${a[2].toFixed(8)})`).join(', ')
+  const n = axes.length
+  return `
+  const int GEM_N = ${n};
+  const vec3 GEM_AX[${n}] = vec3[${n}](${lits});
+  const float GEM_R = ${h.r.toFixed(6)};
+  // slab clip on |dot(GEM_AX[i], x)| ≤ GEM_R. sgn>0 (outside) → entry t; sgn<0 (inside) → forward-exit t.
+  // nrmOut = the OUTWARD face normal (the caller flips it toward the incoming ray, matching nrm()).
+  float hitLocal(vec3 ro, vec3 rd, float sgn, out vec3 nrmOut){
+    float tN = -1e30, tF = 1e30; vec3 nN = vec3(0.0), nF = vec3(0.0);
+    for(int i=0;i<GEM_N;i++){
+      vec3 a = GEM_AX[i]; float o = dot(a, ro), dv = dot(a, rd);
+      if(abs(dv) < 1e-7){ if(abs(o) > GEM_R) return -1.0; continue; }              // parallel & outside the slab → miss
+      float ta = (GEM_R - o)/dv, tb = (-GEM_R - o)/dv; vec3 na = a, nb = -a;
+      if(ta > tb){ float s = ta; ta = tb; tb = s; vec3 sn = na; na = nb; nb = sn; } // ta = near, tb = far
+      if(ta > tN){ tN = ta; nN = na; }
+      if(tb < tF){ tF = tb; nF = nb; }
+    }
+    if(tN > tF || tF < 0.0) return -1.0;                                            // no slab overlap → miss
+    if(sgn > 0.0){ nrmOut = nN; return tN > 1e-4 ? tN : -1.0; }                     // outside → entry
+    nrmOut = nF; return tF;                                                         // inside → forward exit
+  }
+  // clip in the spinning frame (map() = sdfActive(R*p)); R is orthonormal, so t is preserved and the world normal
+  // is Rᵀ·nL, written nL*R. (R is the gem-spin mat3 declared in the tracer's main scope.)
+  float intersectGem(vec3 ro, vec3 rd, float sgn, out vec3 n){ vec3 nL; float t = hitLocal(R*ro, R*rd, sgn, nL); n = nL * R; return t; }
+`
 }
 

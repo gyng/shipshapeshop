@@ -3931,6 +3931,7 @@ export function SettingsModal() {
   const gfxSsao = useGfx((s) => s.ssao)
   const gfxHdri = useGfx((s) => s.hdri)
   const gfxPathTrace = useGfx((s) => s.pathTrace)
+  const gfxPtTransport = useGfx((s) => s.ptTransport)
   const gfxPtQuality = useGfx((s) => s.pathTraceQuality)
   const gfxPtBounces = useGfx((s) => s.ptBounces)
   const gfxPtSteps = useGfx((s) => s.ptSteps)
@@ -4088,6 +4089,15 @@ export function SettingsModal() {
               </SettingRow>
               {gfxPathTrace !== 'off' && (
                 <>
+                  <SettingRow label={tr('settings.ptTransportLabel')} tip={tr('settings.tip.ptTransport')}>
+                    <span style={{ display: 'flex', gap: 6 }}>
+                      {(['deterministic', 'montecarlo'] as const).map((tp) => (
+                        <button key={tp} onClick={() => gfxUpdate({ ptTransport: tp })} style={{ ...S.toggle, ...(gfxPtTransport === tp ? S.toggleOn : {}) }}>
+                          {tr('settings.ptTransport.' + tp)}
+                        </button>
+                      ))}
+                    </span>
+                  </SettingRow>
                   <SettingRow label={tr('settings.pathTraceQualityLabel')} tip={tr('settings.tip.pathTraceQuality')}>
                     <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                       {(['low', 'medium', 'high', 'extreme', 'ultra', 'max'] as PathTraceQuality[]).map((qq) => (

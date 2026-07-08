@@ -3,6 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber'
 import { useFBO, OrbitControls, Sparkles } from '@react-three/drei'
 import * as THREE from 'three'
 import { buildBVHData, packMultiBVH } from './bvh'
+import { FRESNEL_GLSL } from './ptShared.glsl'
 import type { PartyPtScene } from './geometry'
 import { usePathTraceParams, useGfxPreset, useGfx } from '../gfx'
 import type { ExpeditionPtEma, ExpeditionPtCaustics } from '../gfx'
@@ -223,6 +224,8 @@ const makeScenePT = (BOUNCES: number, SPP: number) => /* glsl */ `
   float gSeed;
   float rnd(){ gSeed += 1.0; vec3 p3 = fract(vec3(gl_FragCoord.xyx) * 0.1031 + gSeed * 0.137 + uSeed * 0.0411); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 
+${FRESNEL_GLSL}
+
   // a soft env: a vertical backdrop gradient + a broad key glow (matches the chapter mood the gems refract). Lifted
   // brighter than the hero's cosmetic env because the chapter fog/key are dark — the glass gems are env-LIT only, so
   // a dark env reads as black glass; this gives them something to refract + catch.
@@ -295,12 +298,12 @@ const makeScenePT = (BOUNCES: number, SPP: number) => /* glsl */ `
           rad  += thru * uMatColor[mat] * uMatEmis[mat] * min(t,0.9) * 1.6;
         }
         float ior = uMatIor[mat];
-        float F0 = pow((1.0-ior)/(1.0+ior), 2.0);
         float ci = clamp(dot(-rd, n), 0.0, 1.0);
-        float F = F0 + (1.0-F0)*pow(1.0-ci, 5.0);
         float eta = inside ? ior : 1.0/ior;
         vec3 refr = refract(rd, n, eta);
-        if(dot(refr,refr) < 1e-6 || rnd() < F){ rd = reflect(rd, n); }
+        bool tir = dot(refr,refr) < 1e-6;               // Expedition keeps its 1e-6 threshold + non-dispersive ior
+        float F = tir ? 1.0 : fresnelFull(ci, eta);     // full dielectric Fresnel — matches the hero tracers
+        if(tir || rnd() < F){ rd = reflect(rd, n); }
         else { rd = refr; inside = !inside; }
         ro = p + rd*0.0015;
         if(b > 2){ float q = max(thru.r, max(thru.g, thru.b)); if(rnd() > q) break; thru /= max(q, 0.05); }

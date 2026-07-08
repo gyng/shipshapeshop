@@ -1,7 +1,8 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { parser } from '@shaderfrog/glsl-parser'
-import { sdfActiveGLSL, SDF_FAMILIES } from './sdfShapes.glsl'
+import { sdfActiveGLSL, SDF_FAMILIES, hasGemHull, gemHullGLSL } from './sdfShapes.glsl'
+import { SPECTRAL_GLSL, FRESNEL_GLSL, ENV_DIFFUSE_GLSL, COAT_SHADE_GLSL, DYNAMIC_GLSL } from './ptShared.glsl'
 import { PT_PRESETS } from '../gfx'
 
 // GLSL validation gate. `tsc` / `vite build` only catch JS-level breakage (e.g. a backtick closing the shader
@@ -18,6 +19,35 @@ void main(){ gl_FragColor = vec4(vec3(sdfActive(vec3(gl_FragCoord.xy * 0.01, 0.1
 describe('GLSL validation', () => {
   it.each(SDF_FAMILIES)('%s — per-shape SDF shader is syntactically valid GLSL', (family) => {
     expect(() => parser.parse(frag(family), { quiet: true })).not.toThrow()
+  })
+
+  // The shared PT optics (CIE spectral weight + full dielectric Fresnel) is injected verbatim into all three
+  // path-trace shader templates, so parse it once here — a typo in the shared string would otherwise only surface
+  // as a GPU shader-compile failure (a black gem) in the browser.
+  it('shared PT optics (ptShared: spectral + Fresnel) is syntactically valid GLSL', () => {
+    const src = `precision highp float;
+uniform vec3 uBackdrop, uKey, uCool, uWarm, uKeyDir, uKeyTint, uAtmoTint, uColor; uniform float uKeyPulse, uAtmoAmt, uReflMul, uMetal, uRetro, uSpecRough, uEnvCubeAmt;
+uniform samplerCube uEnvCube; uniform float uAnim;
+vec3 envGem(vec3 d){ return uBackdrop + texture(uEnvCube, d).rgb * uEnvCubeAmt; }
+float nhash(vec3 p){ p = fract(p*0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
+float fbmN(vec3 p){ return nhash(p); }
+${SPECTRAL_GLSL}
+${FRESNEL_GLSL}
+${ENV_DIFFUSE_GLSL}
+${COAT_SHADE_GLSL}
+${DYNAMIC_GLSL}
+void main(){ float tr; vec3 c = coatShade(vec3(0.0,0.0,-1.0), vec3(0.0,1.0,0.0), 1.5, tr); vec3 n = rippleNormal(vec3(0.0), vec3(0.0,1.0,0.0), 0.3) + fireEmission(vec3(0.0)); gl_FragColor = vec4(spectralWeight(0.5) * fresnelFull(0.7, 1.5) + envDiffuse(vec3(0.0, 1.0, 0.0)) + c + n, tr); }`
+    expect(() => parser.parse(src, { quiet: true })).not.toThrow()
+  })
+
+  // Analytic convex-hull intersectors (the SDF tracer's exact fast path for the sharp platonics) — parse each hull
+  // family's injected GLSL (wrapped with the tracer's `mat3 R` global it references) so a bad axis literal fails CI.
+  it.each(SDF_FAMILIES.filter(hasGemHull))('%s — analytic gem-hull GLSL is syntactically valid', (family) => {
+    const src = `precision highp float;
+mat3 R;
+${gemHullGLSL(family)}
+void main(){ vec3 n; float t = intersectGem(vec3(0.0,0.0,3.0), vec3(0.0,0.0,-1.0), 1.0, n); gl_FragColor = vec4(n, t); }`
+    expect(() => parser.parse(src, { quiet: true })).not.toThrow()
   })
 
   // The tracer re-traces EVERY frame (auto-spin resets accumulation), so spp × bounces × march-steps SDF evals
