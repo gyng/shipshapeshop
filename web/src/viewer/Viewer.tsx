@@ -11,6 +11,7 @@ import { RARITY_COLOR } from '../three/Gem'
 import { SCENES, ATMOSPHERES, GEM_FINISHES, LIGHTING_MOODS, HERO_CURSORS, POST_FX, DIORAMAS, GEM_COLORS } from '../content/cosmetics'
 import { FAMILY_CATEGORIES, ALL_FAMILIES, type RenderPath } from './families'
 import { useMute } from '../audio'
+import { useGfx } from '../gfx'
 import { OrreryBedDriver } from '../orreryBedDriver'
 import { useT } from '../i18n'
 import { useMatOverride } from '../three/finishSdf'
@@ -178,6 +179,7 @@ export function Viewer() {
   const [postfx, setPostfx] = useState(init.postfx)
   const [diorama, setDiorama] = useState(init.diorama)
   const [gemColor, setGemColor] = useState(init.gemColor)
+  const ptTransport = useGfx((s) => s.ptTransport) // path-trace transport: deterministic spine (live) vs Monte-Carlo (still)
   const [spin, setSpin] = useState(true)
   const [motes, setMotes] = useState(true) // ambient flux motes around the gem — on, to match the in-game hero view
   const [showFps, setShowFps] = useState(true)
@@ -262,6 +264,8 @@ export function Viewer() {
             <input type="checkbox" checked={dynScale} onChange={(e) => setDynScale(e.target.checked)} /> {tr('viewer.dynRes')}
             {dynScale && renderScale < 1 ? <span style={{ marginLeft: 4, color: 'var(--c-text-dim)', fontVariantNumeric: 'tabular-nums' }}>{Math.round(renderScale * 100)}%</span> : null}
           </label>
+          {/* the thin-lens light-transport testbed — photograph any shape through a real camera (DOF / bokeh / CA) */}
+          <button className="viewer-back" onClick={() => { location.href = '?optics' }} title="Optics Bench — a thin-lens camera testbed (depth-of-field, bokeh, chromatic aberration)">◉ Optics</button>
           {/* the game's Settings modal (defaults to the Graphics tab) — quality/path-trace live in the shared gfx store */}
           <button className="viewer-back" onClick={onMusic} title="Generative lofi bed from the whole shape library — off until you start it">{musicReady && !musicMuted ? '⏸ Music' : '♪ Music'}</button>
           <button className="viewer-back" onClick={() => useGame.getState().setSettingsOpen(true)} title="Graphics & settings">⚙ Settings</button>
@@ -346,6 +350,9 @@ export function Viewer() {
             <button className="viewer-toggle" aria-pressed={spin} onClick={() => setSpin((v) => !v)}>↻ Auto-rotate · {spin ? 'on' : 'off'}</button>
             <button className="viewer-toggle" aria-pressed={motes} onClick={() => setMotes((v) => !v)}>✦ Flux particles · {motes ? 'on' : 'off'}</button>
             <button className="viewer-toggle" aria-pressed={showFps} onClick={() => setShowFps((v) => !v)}>FPS · {showFps ? 'on' : 'off'}</button>
+            {/* Path-trace transport: Deterministic (the single-path spine — clean every frame, motes/lights stay live,
+                no freeze needed) vs Monte-Carlo (the stochastic accumulate — a converged ground-truth still on Freeze). */}
+            <button className="viewer-toggle" aria-pressed={ptTransport === 'deterministic'} title="Deterministic = the clean single-path spine, rendered every frame (dust motes + moving lights stay live, no freeze-to-converge). Monte-Carlo = the stochastic multi-bounce accumulate — a converged ground-truth still (real diffuse/exotic GI), which freezes to clean up." onClick={() => useGfx.getState().update({ ptTransport: ptTransport === 'deterministic' ? 'montecarlo' : 'deterministic' })}>◈ Transport · {ptTransport === 'deterministic' ? 'Deterministic' : 'Monte-Carlo'}</button>
           </div>
 
           <p style={{ fontSize: 12, color: 'var(--c-text-dim)', lineHeight: 1.5, marginTop: 'auto' }}>
