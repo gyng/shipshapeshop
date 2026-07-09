@@ -1122,6 +1122,7 @@ const STR: Dict = {
   'render.help.partypt': { en: 'The whole party scene traced from scratch — every gem, the floor, and the campfire light in one multi-bounce path trace, converged into a still portrait. The richest look; opt-in while resting, cycled from this badge.', ja: '隊列シーン全体をゼロから追跡 — 各ジェム・床・焚き火の光を一度の多重バウンス追跡で、静止した肖像へ収束。最も豊かな表現。休息中のオプトインで、このバッジから切替。', zh: '从零追踪整支队伍场景——每颗宝石、地面与篝火之光在一次多次反弹追踪中收束为静态肖像。最丰富的呈现；休整时可选，通过此徽章切换。' },
   'settings.pt.meshCycle': { en: 'Mesh path-trace cycle', ja: 'メッシュPT切替を許可', zh: '允许网格路径追踪切换' },
   'settings.tip.ptMeshCycle': { en: 'Allow cycling a mesh hero into the from-scratch BVH path tracer via its render badge. It stays OFF by default (heavy) — this just makes the toggle available.', ja: 'メッシュのヒーローを、レンダーバッジから自作BVHパストレーサーに切り替え可能にする。既定はオフ（重い）— これは切替を有効にするだけ。', zh: '允许通过渲染徽章把网格主体切换为从零实现的 BVH 路径追踪器。默认仍为关闭（开销大）——此项仅让该切换可用。' },
+  'render.compiling': { en: 'Compiling shader…', ja: 'シェーダをコンパイル中…', zh: '正在编译着色器…' },
   'render.pauseSpin': { en: '⏸ Freeze', ja: '⏸ 静止', zh: '⏸ 静止' },
   'render.resumeSpin': { en: '▶ Spin', ja: '▶ 回転', zh: '▶ 旋转' },
   'render.pauseSpinTip': { en: 'Stop the auto-spin so the path-traced image settles and converges to a clean still.', ja: '自動回転を止めてパストレース画像を収束させ、クリーンな静止画にします。', zh: '停止自动旋转，让路径追踪图像沉淀收敛为干净的静帧。' },

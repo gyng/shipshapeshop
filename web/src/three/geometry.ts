@@ -799,6 +799,24 @@ export function buildDioramaPtScene(family: string, gemColorHex: string | null, 
   const ico = (r: number, rot: number, tx: number, ty: number, tz: number, id: number) => pieces.push(tagged(new THREE.IcosahedronGeometry(r, 0).rotateY(rot).translate(tx, ty, tz), id))
   const cone = (r: number, h: number, rx: number, ry: number, rz: number, tx: number, ty: number, tz: number, id: number) => pieces.push(tagged(new THREE.ConeGeometry(r, h, 5).rotateX(rx).rotateY(ry).rotateZ(rz).translate(tx, ty, tz), id))
   const torus = (r: number, tube: number, rx: number, ry: number, rz: number, id: number) => pieces.push(tagged(new THREE.TorusGeometry(r, tube, 8, 60).rotateX(rx).rotateY(ry).rotateZ(rz), id))
+  // An irregular ROCK: a rounded (detail-1) icosahedron whose vertices are jittered per-direction — the jitter is keyed
+  // on the QUANTISED unit direction so coincident face-verts (PolyhedronGeometry is non-indexed) get an identical push
+  // and the surface stays crack-free — then squashed + tilted so it rests like a stone instead of floating like a die.
+  const rockHash = (x: number, y: number, z: number) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s) }
+  const rock = (r: number, seed: number, tx: number, ty: number, tz: number, id: number) => {
+    const g = new THREE.IcosahedronGeometry(r, 1)
+    const p = g.attributes.position as THREE.BufferAttribute
+    const v = new THREE.Vector3()
+    for (let i = 0; i < p.count; i++) {
+      v.fromBufferAttribute(p, i).normalize()
+      const qx = Math.round(v.x * 48), qy = Math.round(v.y * 48), qz = Math.round(v.z * 48)
+      const s = r * (0.82 + 0.34 * rockHash(qx + seed * 9, qy + seed * 5, qz))
+      p.setXYZ(i, v.x * s, v.y * s, v.z * s)
+    }
+    g.computeVertexNormals()
+    g.scale(1.12, 0.6 + rockHash(seed, 2, 3) * 0.22, 0.9 + rockHash(seed, 5, 7) * 0.25).rotateY(seed * 1.7).rotateX(rockHash(seed, 1, 1) * 0.5 - 0.25).translate(tx, ty, tz)
+    pieces.push(tagged(g, id))
+  }
   let fireOn = false; let firePos: [number, number, number] = [0, 0, 0]
   switch (kind) {
     case 'cornell': {
@@ -817,11 +835,12 @@ export function buildDioramaPtScene(family: string, gemColorHex: string | null, 
     case 'campfire': {
       const ground = mat({ color: lin3('#1c160f'), ior: 1, rough: 1, emissive: 0, kind: 0 })
       const logM = mat({ color: lin3('#5a3b27'), ior: 1, rough: 0.95, emissive: 0, kind: 0 })
-      const stoneM = mat({ color: lin3('#6b6b73'), ior: 1, rough: 1, emissive: 0, kind: 0 })
+      const stoneM = mat({ color: lin3('#4a4038'), ior: 1, rough: 1, emissive: 0, kind: 0 }) // warm dark fire-ring rock (lit by the coals)
       const coalM = mat({ color: [7, 2.8, 0.7], ior: 1, rough: 1, emissive: 1, kind: 1 })
       pieces.push(tagged(new THREE.CircleGeometry(4.5, 32).rotateX(-Math.PI / 2).translate(0, -2.3, 0), ground))
       for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI; cyl(0.11, 0.13, 1.5, Math.PI / 2.4, a, 0, Math.cos(a) * 0.18, -1.95, Math.sin(a) * 0.18, logM) }
-      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; pieces.push(tagged(new THREE.IcosahedronGeometry(0.26, 0).translate(Math.cos(a) * 1.15, -2.15, Math.sin(a) * 1.15), stoneM)) }
+      // a proper ring of irregular stones hugging the fire, each a distinct lumpy rock resting on the ground
+      for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2 + 0.3; const rr = 0.22 + rockHash(i, 9, 4) * 0.13; rock(rr, i + 1, Math.cos(a) * 1.02, -2.22, Math.sin(a) * 1.02, stoneM) }
       sph(0.3, 0, -2.0, 0, coalM)
       fireOn = true; firePos = [0, -1.7, 0]
       break
@@ -1030,7 +1049,7 @@ export function buildDioramaPtScene(family: string, gemColorHex: string | null, 
       const woodM = mat({ color: lin3('#6a4a32'), ior: 1, rough: 0.85, emissive: 0, kind: 0 })
       const skyM = mat({ color: [3, 2.8, 2.4], ior: 1, rough: 1, emissive: 1, kind: 1 })
       pieces.push(tagged(new THREE.CircleGeometry(3.6, 48).rotateX(-Math.PI / 2).translate(0, -2.2, 0), sandM))
-      ico(0.6, 0, -1.4, -1.9, 0.3, rockM); ico(0.45, 1, 1.2, -1.95, -0.4, rockM); ico(0.38, 2, 0.2, -2.0, 1.0, rockM); ico(0.4, 3, 1.9, -1.88, 0.8, rockM)
+      rock(0.6, 1, -1.4, -1.95, 0.3, rockM); rock(0.45, 2, 1.2, -2.0, -0.4, rockM); rock(0.38, 3, 0.2, -2.02, 1.0, rockM); rock(0.4, 4, 1.9, -1.98, 0.8, rockM)
       boxG(7.2, 0.3, 0.2, 0, -2.05, 3.5, woodM); boxG(7.2, 0.3, 0.2, 0, -2.05, -3.5, woodM); boxG(0.2, 0.3, 7.2, 3.5, -2.05, 0, woodM); boxG(0.2, 0.3, 7.2, -3.5, -2.05, 0, woodM)
       plane(8, 8, Math.PI / 2, 0, 0, 0, 5, 0, skyM)
       break
@@ -1160,10 +1179,10 @@ export function buildDioramaPtScene(family: string, gemColorHex: string | null, 
       plane(14, 9, -Math.PI / 2, 0, 0, 0, -2.02, -4.0, sea) // sea fills the back (z<0)
       plane(14, 4.4, -Math.PI / 2, 0, 0, 0, -2.0, 1.4, sand) // sand strip in front
       pieces.push(tagged(new THREE.CircleGeometry(1.5, 40).translate(0, -0.55, -6.4), moonM)) // soft dim moon on the horizon
-      ico(0.36, 0.0, -2.0, -1.86, 0.5, stoneM) // pale beach stones
-      ico(0.27, 1.0, 2.1, -1.88, 0.2, stoneM)
-      ico(0.2, 2.0, 1.5, -1.92, 1.1, stoneM)
-      ico(0.3, 3.0, -1.5, -1.9, -1.0, stoneM)
+      rock(0.36, 1, -2.0, -1.9, 0.5, stoneM) // smooth beach stones (sea-worn, resting on the sand)
+      rock(0.27, 2, 2.1, -1.92, 0.2, stoneM)
+      rock(0.2, 3, 1.5, -1.95, 1.1, stoneM)
+      rock(0.3, 4, -1.5, -1.93, -1.0, stoneM)
       for (const [x, z] of [[-2.4, 0.4], [-2.15, 0.9], [2.5, 0.6], [2.25, 1.1]]) {
         cone(0.12, 0.7, 0, 0, 0.18, x, -1.7, z, grassM) // dune-grass tufts (sides)
         cone(0.1, 0.6, 0, 0, -0.22, x + 0.18, -1.74, z + 0.1, grassM)

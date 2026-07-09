@@ -202,6 +202,7 @@ const makeScenePT = (BOUNCES: number, SPP: number) => /* glsl */ `
   uniform float uSeed;
   uniform vec2  uRes;
   uniform float uYaw, uPitch, uZoom;
+  uniform float uDiorama; // 0 = party framing (wide, on the campfire); 1 = diorama framing (centred on the gem, pulled back to fit the set)
   uniform vec3  uBackdrop, uKey;
   const int N_MAT = 8;
   uniform vec3  uMatColor[N_MAT];
@@ -247,9 +248,10 @@ ${FRESNEL_GLSL}
   void main(){
     gSeed = 0.0;
     // world-space orbit camera (the BVH objects are traced via per-object ray transforms; the camera stays world)
-    vec3 target = vec3(0.0, 0.0, 0.2);
-    float r = 4.4 * uZoom;                                          // zoomed in a touch on the campfire
-    vec3 eye = target + r * vec3(sin(uYaw)*cos(uPitch), sin(uPitch)+0.10, cos(uYaw)*cos(uPitch)); // lower, more level angle
+    vec3 target = vec3(0.0, 0.0, mix(0.2, 0.0, uDiorama)); // party sits at 0.2z; a diorama centres on the gem
+    float r = mix(4.4, 4.7, uDiorama) * uZoom;             // a gentle diorama pullback (enclosed boxes must stay near the opening, or the camera sees the dark exterior)
+    float tilt = mix(0.10, 0.02, uDiorama);               // level the diorama (no downward party tilt)
+    vec3 eye = target + r * vec3(sin(uYaw)*cos(uPitch), sin(uPitch)+tilt, cos(uYaw)*cos(uPitch));
     vec3 fw = normalize(target - eye), rt = normalize(cross(fw, vec3(0.0,1.0,0.0))), up = cross(rt, fw);
     // campfire flicker — the scene renders every frame, so a live time term works (modulates the flame + its light)
     float flick = uFireOn > 0.5 ? (0.82 + 0.13*sin(uTime*11.0) + 0.07*sin(uTime*23.0) + 0.05*sin(uTime*41.0)) : 1.0;
@@ -338,7 +340,7 @@ const lin = (hex: string) => { const k = new THREE.Color(hex).convertSRGBToLinea
 const objMat4Array = () => Array.from({ length: 6 }, () => new THREE.Matrix4())
 const objMat3Array = () => Array.from({ length: 6 }, () => new THREE.Matrix3())
 
-export function ExpeditionPathTrace({ scene, backdrop, keyCol, controls = true, orbit = true, forceEma = false, particles = true, converge = false }: { scene: PartyPtScene; backdrop: string; keyCol: string; controls?: boolean; orbit?: boolean; forceEma?: boolean; particles?: boolean; converge?: boolean }) {
+export function ExpeditionPathTrace({ scene, backdrop, keyCol, controls = true, orbit = true, forceEma = false, particles = true, converge = false, diorama = false }: { scene: PartyPtScene; backdrop: string; keyCol: string; controls?: boolean; orbit?: boolean; forceEma?: boolean; particles?: boolean; converge?: boolean; diorama?: boolean }) {
   const { gl, size, invalidate } = useThree()
   const ptp = usePathTraceParams()
   const particleScale = useGfxPreset().sparkle
@@ -388,7 +390,7 @@ export function ExpeditionPathTrace({ scene, backdrop, keyCol, controls = true, 
       depthWrite: false,
       uniforms: {
         uSeed: { value: 0 }, uRes: { value: new THREE.Vector2(w, h) },
-        uYaw: { value: 0 }, uPitch: { value: 0.05 }, uZoom: { value: 1 },
+        uYaw: { value: 0 }, uPitch: { value: 0.05 }, uZoom: { value: 1 }, uDiorama: { value: diorama ? 1 : 0 },
         uBackdrop: { value: lin(backdrop) }, uKey: { value: lin(keyCol) },
         uMatColor: { value: matColor }, uMatIor: { value: matIor }, uMatRough: { value: matRough }, uMatEmis: { value: matEmis }, uMatKind: { value: matKind },
         uFirePos: { value: new THREE.Vector3(scene.firePos[0], scene.firePos[1], scene.firePos[2]) }, uFireOn: { value: scene.fireOn ? 1 : 0 },
@@ -430,6 +432,7 @@ export function ExpeditionPathTrace({ scene, backdrop, keyCol, controls = true, 
   const scratchN = useMemo(() => new THREE.Matrix3(), [])
   const frame = useRef(0)
   const lastKey = useRef('')
+  const lastCam = useRef('') // converge/diorama only: last camera pose, so an orbit resets the running mean (else it ghosts)
   const spin = useRef(0) // camera auto-orbit angle
   const gemSpin = useRef(0) // shared gem spin angle (each gem adds its baseYaw phase)
   const lastT = useRef(performance.now())
@@ -446,7 +449,8 @@ export function ExpeditionPathTrace({ scene, backdrop, keyCol, controls = true, 
     const pm = photonMat.uniforms
     const cam = state.camera
     const dist = cam.position.length() || 5
-    m.uZoom.value = THREE.MathUtils.clamp(dist / 5.4, 0.5, 2.2)
+    m.uDiorama.value = diorama ? 1 : 0
+    m.uZoom.value = THREE.MathUtils.clamp(dist / 5.4, diorama ? 0.75 : 0.5, 2.2) // dioramas keep a wider minimum so the set stays framed
     m.uYaw.value = Math.atan2(cam.position.x, cam.position.z) + spin.current
     const polar = Math.acos(THREE.MathUtils.clamp(cam.position.y / dist, -1, 1))
     m.uPitch.value = THREE.MathUtils.clamp(Math.PI / 2 - polar, -1.2, 1.2)
@@ -474,7 +478,17 @@ export function ExpeditionPathTrace({ scene, backdrop, keyCol, controls = true, 
     gl.autoClear = false
     // On a new COMPOSITION (party/chapter) clear the EMA buffer + seed the first frame at full weight; otherwise the
     // shader blends this frame into the running average (uBlend). The camera orbit + gem spin are absorbed by the EMA.
-    if (scene.hash !== lastKey.current) {
+    // In `converge` (static diorama) mode there is NO auto-orbit to absorb, so a manual orbit must ALSO reset: the
+    // true-mean (1/N) blend would otherwise ghost the old view under the new one (blur) and, once N is large, weight a
+    // freshly-orbited frame at ~1/N ≈ nothing (the "doesn't update" bug). Reset → fresh full-weight frame, then it
+    // re-converges to a clean still when the camera settles. (The EMA/party path keeps absorbing motion — no reset.)
+    let camMoved = false
+    if (converge) {
+      const ck = `${m.uYaw.value.toFixed(3)}|${m.uPitch.value.toFixed(3)}|${m.uZoom.value.toFixed(3)}`
+      camMoved = ck !== lastCam.current
+      lastCam.current = ck
+    }
+    if (scene.hash !== lastKey.current || camMoved) {
       lastKey.current = scene.hash
       frame.current = 0
       gl.setRenderTarget(accum)

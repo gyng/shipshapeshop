@@ -183,6 +183,17 @@ export function HeroView({
   // Resets to spinning whenever the inspected gem changes, so each new gem opens alive.
   const [paused, setPaused] = useState(false)
   useEffect(() => { setPaused(false) }, [family, rarity])
+  // Shader-compile spinner: switching shape / rarity / renderer rebuilds and re-LINKS the GPU program, which blocks
+  // a frame (and can flash a blank canvas). Show a "Compiling shader…" overlay across the hitch — set true on the
+  // change (React paints the overlay before the blocking compile on the next frame), then hold ~200ms so a fast
+  // compile doesn't flicker. The CSS spin itself stalls during the block, but the overlay covers the blank.
+  const [compiling, setCompiling] = useState(false)
+  useEffect(() => {
+    setCompiling(true)
+    let r1 = 0, r2 = 0, t = 0
+    r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(() => { t = window.setTimeout(() => setCompiling(false), 200) }) })
+    return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); clearTimeout(t) }
+  }, [family, rarity, renderMode])
   // Path-traced dioramas: when a set is equipped + path tracing is on (the non-compact inspector), bake the SET +
   // the gem into one multi-object PT scene and trace it all (real GI — the Cornell box bleeds colour, the campfire
   // lights the glass). Kinds without a PT recipe → null → fall through to the rasterised mesh-transmission set.
@@ -197,9 +208,12 @@ export function HeroView({
   let cycleRenderer: (() => void) | undefined // set for SDF gems where the badge can toggle the renderer
   if (dioramaPtScene) {
     tech = 'meshpt'
+    // A DIORAMA is a converging product-still, so it skips the fps-driven dynamic-res (which collapsed it to a blocky
+    // 15%) and renders at a fixed moderate resolution — sharp once it settles. Orbit is enabled so the gem can be
+    // inspected inside the set; the `diorama` flag reframes the camera (centred on the gem, pulled back to fit the walls).
     content = (
-      <Canvas frameloop={frameloop} resize={{ offsetSize: true }} className={controls ? 'orbit-canvas' : undefined} camera={{ position: cameraPos, fov: 42 }} dpr={rs(g.dpr)} gl={{ antialias: true, powerPreference: 'high-performance' }}>
-        <ExpeditionPathTrace scene={dioramaPtScene} backdrop="#1c1c2a" keyCol="#54586c" controls={false} orbit={false} converge particles={false} />
+      <Canvas frameloop={frameloop} resize={{ offsetSize: true }} className={controls ? 'orbit-canvas' : undefined} camera={{ position: cameraPos, fov: 42 }} dpr={[1, Math.min(g.dpr[1], 1.4)]} gl={{ antialias: true, powerPreference: 'high-performance' }}>
+        <ExpeditionPathTrace scene={dioramaPtScene} backdrop="#1c1c2a" keyCol="#54586c" controls={controls} orbit={false} converge diorama particles={false} />
       </Canvas>
     )
   } else if (family in RAYMARCH_SHAPES && !dioramaActive) {
@@ -322,6 +336,14 @@ export function HeroView({
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       {content}
+      {compiling && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none', background: 'rgba(6,7,14,0.4)', backdropFilter: 'blur(1.5px)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 11 }}>
+            <div className="hv-shader-spin" style={{ width: 34, height: 34, borderRadius: '50%', border: '3px solid rgba(140,165,220,0.22)', borderTopColor: '#7fb0ff' }} />
+            <span style={{ fontSize: 12.5, color: '#c7ccdd', letterSpacing: 0.2 }}>{tr('render.compiling')}</span>
+          </div>
+        </div>
+      )}
       <RenderTechBadge tech={tech} layers={layers} onCycle={cycleRenderer} />
       {canPause && (
         <button
